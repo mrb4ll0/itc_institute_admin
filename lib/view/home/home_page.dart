@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:itc_institute_admin/view/home/message_view.dart';
+import 'package:itc_institute_admin/view/home/pending_approval.dart';
+import 'package:itc_institute_admin/view/home/placements_approved.dart';
 import 'package:itc_institute_admin/view/home/student_page.dart';
 import 'package:itc_institute_admin/view/home/supervision_home.dart';
 
@@ -100,9 +102,28 @@ class _DashboardBody extends StatelessWidget {
                 spacing: 16,
                 runSpacing: 16,
                 children: [
-                  _StatCard(title: 'Students on IT', value: '120', width: cardWidth),
-                  _StatCard(title: 'Placements Approved', value: '85', width: cardWidth),
-                  _StatCard(title: 'Pending Approvals', value: '35', width: cardWidth),
+                  _StatCard(title: 'Students on IT', value: '120', width: cardWidth,callback: (){
+                    Navigator.push(context, MaterialPageRoute(builder: (context)
+                    {
+                      return StudentsPage();
+                    }));
+                  }),
+                  _StatCard(title: 'Approved Placements', value: '85', width: cardWidth,
+                  callback: ()
+                    {
+                      Navigator.push(context, MaterialPageRoute(builder: (context)
+                      {
+                        return ApprovedPlacementsPage();
+                      }));
+                    },),
+                  _StatCard(title: 'Pending Approvals', value: '35', width: cardWidth,
+                  callback: ()
+                    {
+                      Navigator.push(context, MaterialPageRoute(builder: (context)
+                      {
+                        return PendingPlacementsPage();
+                      }));
+                    },),
                 ],
               );
             },
@@ -149,44 +170,48 @@ class _DashboardBody extends StatelessWidget {
 }
 
 class _StatCard extends StatelessWidget {
-  const _StatCard({required this.title, required this.value, required this.width});
+  const _StatCard({required this.title, required this.value, required this.width, this.callback});
 
   final String title;
   final String value;
   final double width;
+  final VoidCallback? callback;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       width: width,
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: const Color(0xFF264532),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: GoogleFonts.splineSans(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
+      child: GestureDetector(
+        onTap: callback,
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xFF264532),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: GoogleFonts.splineSans(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              value,
-              style: GoogleFonts.splineSans(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                height: 1.1,
+              const SizedBox(height: 6),
+              Text(
+                value,
+                style: GoogleFonts.splineSans(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  height: 1.1,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
