@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:itc_institute_admin/logic/firebase/general_cloud.dart';
 import 'package:itc_institute_admin/view/home/home_page.dart';
 
@@ -20,29 +21,24 @@ class _InstitutionCodePageState extends State<InstitutionCodePage> {
         SnackBar(content: Text("Please enter your ITC code")),
       );
     } else {
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Verifying ITC code: $code")),
       );
-      Institution? institution = await InstitutionService().verifyInstitutionCode(code);
-      if (institution != null)
-        {
-          Navigator.push(context, MaterialPageRoute(builder: (context)
-          {
-            return InstitutionHomePage(institution: institution);
-          }));
-        }
-      else
-        {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Incorrect Code: $code")),
-          );
-        }
+      Institution? institution =
+      await InstitutionService().verifyInstitutionCode(code);
+      if (institution != null) {
+        Navigator.push(context, MaterialPageRoute(builder: (context) {
+          return InstitutionDashboardPage();
+        }));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Incorrect Code: $code")),
+        );
+      }
     }
   }
 
   void _registerInstitution() {
-    // TODO: Navigate to institution registration page
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => RegisterInstitutionPage()),
@@ -52,8 +48,18 @@ class _InstitutionCodePageState extends State<InstitutionCodePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFF0D3B2E), // Dark green background
       appBar: AppBar(
-        title: Text("Institution Access"),
+        backgroundColor: const Color(0xFF0D3B2E),
+        elevation: 0,
+        title: Text(
+          "Institution Access",
+          style: GoogleFonts.poppins(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        centerTitle: true,
       ),
       body: Padding(
         padding: const EdgeInsets.all(20.0),
@@ -62,34 +68,79 @@ class _InstitutionCodePageState extends State<InstitutionCodePage> {
           children: [
             Text(
               "Welcome Institution",
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              style: GoogleFonts.poppins(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
             ),
-            SizedBox(height: 10),
+            const SizedBox(height: 10),
             Text(
               "Enter your unique ITC-generated code to continue. "
                   "If you don’t have one, please register your institution first.",
-              style: TextStyle(fontSize: 16),
-            ),
-            SizedBox(height: 20),
-
-            TextField(
-              controller: _codeController,
-              decoration: InputDecoration(
-                labelText: "ITC Code",
-                border: OutlineInputBorder(),
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                color: Colors.white70,
               ),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-            ElevatedButton(
-              onPressed: _verifyCode,
-              child: Text("Verify Code"),
+            // Code input inside card
+            Card(
+              color: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15)),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 15),
+                child: TextField(
+                  cursorColor: Colors.black,
+                  controller: _codeController,
+                  decoration: const InputDecoration(
+                    labelText: "ITC Code",
+                    border: InputBorder.none,
+                  ),
+                ),
+              ),
             ),
-            SizedBox(height: 10),
 
-            TextButton(
-              onPressed: _registerInstitution,
-              child: Text("Register Institution"),
+            const SizedBox(height: 30),
+
+            // Verify button
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green.shade700,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: _verifyCode,
+                icon: const Icon(Icons.verified_outlined, color: Colors.white),
+                label: Text(
+                  "Verify Code",
+                  style: GoogleFonts.poppins(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 15),
+
+            Center(
+              child: TextButton(
+                onPressed: _registerInstitution,
+                child: Text(
+                  "Register Institution",
+                  style: GoogleFonts.poppins(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w500,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+              ),
             ),
           ],
         ),
@@ -97,4 +148,3 @@ class _InstitutionCodePageState extends State<InstitutionCodePage> {
     );
   }
 }
-
