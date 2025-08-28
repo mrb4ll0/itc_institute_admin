@@ -112,6 +112,8 @@ class _CompaniesPageState extends State<CompaniesPage> {
   }
 
   Widget _companyItem(Map<String, String> company) {
+
+       bool isApproved = company['status']?.toLowerCase().contains("approved")??false;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
@@ -133,9 +135,9 @@ class _CompaniesPageState extends State<CompaniesPage> {
             children: [
               Text(
                 company['status']!,
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.w500,
-                  color: Colors.black87,
+                  color: isApproved? Colors.green: Colors.blue,
                 ),
               ),
               const SizedBox(height: 2),

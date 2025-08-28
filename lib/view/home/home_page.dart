@@ -1,6 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:itc_institute_admin/view/home/message_view.dart';
+import 'package:itc_institute_admin/view/home/notification_page.dart';
 import 'package:itc_institute_admin/view/home/pending_approval.dart';
 import 'package:itc_institute_admin/view/home/placements_approved.dart';
 import 'package:itc_institute_admin/view/home/student_page.dart';
@@ -61,7 +63,12 @@ class _InstitutionDashboardPageState extends State<InstitutionDashboardPage> {
                   child: Align(
                     alignment: Alignment.centerRight,
                     child: IconButton(
-                      onPressed: () {},
+                      onPressed: () {
+                        Navigator.push(context, MaterialPageRoute(builder: (context)
+                        {
+                          return NotificationPage();
+                        }));
+                      },
                       icon: const Icon(Icons.notifications_none, color: Colors.white),
                     ),
                   ),
@@ -145,23 +152,46 @@ class _DashboardBody extends StatelessWidget {
         ),
 
         // Notification items
-        const _NotificationItem(
+         _NotificationItem(
           label: 'Deadline',
           title: 'Report Submission',
           message: 'Submit your final report by next Friday.',
           imageUrl: 'https://picsum.photos/300/200?random=1',
+          notificationCallback: ()
+          {
+            NotificationDetailsDialog.show(context,
+                title: 'Report Submission',
+                message: 'Submit your final report by next Friday.',
+                time: "2m ago");
+          },
         ),
-        const _NotificationItem(
+         _NotificationItem(
           label: 'Pending',
           title: 'Supervisor Approval',
           message: 'Your supervisor needs to approve your placement.',
           imageUrl: 'https://picsum.photos/300/200?random=2',
+          notificationCallback: ()
+          {
+            NotificationDetailsDialog.show(
+                context,
+                title: 'Supervisor Approval',
+                message: 'Your supervisor needs to approve your placement.',
+                time: "4m ago");
+          },
         ),
-        const _NotificationItem(
+         _NotificationItem(
           label: 'Task',
           title: 'Supervisor Meeting',
           message: 'Schedule a meeting with your supervisor this week.',
           imageUrl: 'https://picsum.photos/300/200?random=3',
+           notificationCallback: ()
+           {
+             NotificationDetailsDialog.show(
+                 context,
+                 title: 'Supervisor Meeting',
+                 message: 'Schedule a meeting with your supervisor this week.',
+                 time: "3min ago");
+           },
         ),
         const SizedBox(height: 8),
       ],
@@ -224,8 +254,10 @@ class _NotificationItem extends StatelessWidget {
     required this.title,
     required this.message,
     required this.imageUrl,
+    required this.notificationCallback
   });
 
+  final VoidCallback notificationCallback;
   final String label;
   final String title;
   final String message;
@@ -234,55 +266,58 @@ class _NotificationItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const muted = Color(0xFF96C5A9);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Texts
-          Expanded(
-            flex: 2,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: GoogleFonts.splineSans(color: muted, fontSize: 12)),
-                const SizedBox(height: 2),
-                Text(
-                  title,
-                  style: GoogleFonts.splineSans(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
+    return GestureDetector(
+      onTap: notificationCallback,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Texts
+            Expanded(
+              flex: 2,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: GoogleFonts.splineSans(color: muted, fontSize: 12)),
+                  const SizedBox(height: 2),
+                  Text(
+                    title,
+                    style: GoogleFonts.splineSans(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  message,
-                  style: GoogleFonts.splineSans(color: muted, fontSize: 13),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          // Image
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: SizedBox(
-              width: 90,
-              height: 60,
-              child: Image.network(
-                imageUrl,
-                fit: BoxFit.cover,
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return const ColoredBox(color: Color(0xFF264532));
-                },
-                errorBuilder: (context, error, stack) =>
-                const ColoredBox(color: Color(0xFF264532)),
+                  const SizedBox(height: 4),
+                  Text(
+                    message,
+                    style: GoogleFonts.splineSans(color: muted, fontSize: 13),
+                  ),
+                ],
               ),
             ),
-          ),
-        ],
+            const SizedBox(width: 12),
+            // Image
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: SizedBox(
+                width: 90,
+                height: 60,
+                child: Image.network(
+                  imageUrl,
+                  fit: BoxFit.cover,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return const ColoredBox(color: Color(0xFF264532));
+                  },
+                  errorBuilder: (context, error, stack) =>
+                  const ColoredBox(color: Color(0xFF264532)),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
