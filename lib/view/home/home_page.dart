@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:itc_institute_admin/view/home/message_view.dart';
+import 'package:itc_institute_admin/view/home/more_view.dart';
 import 'package:itc_institute_admin/view/home/notification_page.dart';
 import 'package:itc_institute_admin/view/home/pending_approval.dart';
 import 'package:itc_institute_admin/view/home/placements_approved.dart';
@@ -25,14 +25,14 @@ class _InstitutionDashboardPageState extends State<InstitutionDashboardPage> {
     const StudentsPage(),
     const CompaniesPage(),
     const SupervisionPage(),
-     MessagesPage(),
+     MorePage(),
   ];
   final List<String> _titles = [
     'Dashboard',
     'Students',
     'Companies',
     'Supervision',
-    'Messages',
+    'More',
   ];
   @override
   Widget build(BuildContext context) {

@@ -66,6 +66,24 @@ class InstitutionService {
     await _institutionRef.doc(id).delete();
   }
 
+  Future<bool> isInstituteExist()async
+  {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return false; // no user logged in
+    }
+
+    // Reference to institution doc using UID
+    final doc = await FirebaseFirestore.instance
+        .collection('institutions')
+        .doc(user.uid)
+        .get();
+
+    if (!doc.exists) {
+      return false; // institution not found
+    }
+    return true;
+  }
   Future<Institution?> verifyInstitutionCode(String enteredCode) async {
     try {
       final user = FirebaseAuth.instance.currentUser;

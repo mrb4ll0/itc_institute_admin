@@ -10,6 +10,7 @@ class LoginScreen extends StatelessWidget {
 
   Future<UserCredential?> _signInWithGoogle() async {
     try {
+       await GoogleSignIn().signOut();
       final googleUser = await GoogleSignIn().signIn();
       if (googleUser == null) return null;
 

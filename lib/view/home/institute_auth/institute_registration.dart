@@ -211,6 +211,7 @@ class _RegisterInstitutionPageState extends State<RegisterInstitutionPage> {
                   ElevatedButton(
                     onPressed: _submitForm,
                     style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
                       padding:
                       EdgeInsets.symmetric(vertical: 16, horizontal: 24),
                       shape: RoundedRectangleBorder(

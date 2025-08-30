@@ -1,7 +1,9 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:itc_institute_admin/logic/firebase/general_cloud.dart';
 import 'package:itc_institute_admin/view/home/home_page.dart';
+import 'package:itc_institute_admin/view/login_view.dart';
 
 import '../../../logic/model/institution_model.dart';
 import 'institute_registration.dart';
@@ -14,6 +16,36 @@ class InstitutionCodePage extends StatefulWidget {
 class _InstitutionCodePageState extends State<InstitutionCodePage> {
   final TextEditingController _codeController = TextEditingController();
 
+  void institutionNotFoundDialog(context)
+  {
+    String email = FirebaseAuth.instance.currentUser?.email??"no email";
+      showDialog(context: context,
+          builder: (context)
+      {
+        return AlertDialog(
+          title: Text("Institution not found",style: TextStyle(color: Colors.red),),
+          content: Text("No institution registered under $email kindly re-login or Register", style: TextStyle(color: Colors.white),),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+                onPressed: (){
+              Navigator.push(context, MaterialPageRoute(builder: (context)
+              {
+                return LoginScreen();
+              }));
+            }, child: Text("Go Back")),
+            ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                onPressed: (){
+                  Navigator.push(context, MaterialPageRoute(builder: (context)
+                  {
+                    return RegisterInstitutionPage();
+                  }));
+                }, child: Text("Register"))
+          ],
+        );
+      });
+  }
   void _verifyCode() async {
     String code = _codeController.text.trim();
     if (code.isEmpty) {
@@ -24,6 +56,12 @@ class _InstitutionCodePageState extends State<InstitutionCodePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Verifying ITC code: $code")),
       );
+       bool isInstitutionExist = await InstitutionService().isInstituteExist();
+      if(!isInstitutionExist)
+        {
+         institutionNotFoundDialog(context);
+
+        }
       Institution? institution =
       await InstitutionService().verifyInstitutionCode(code);
       if (institution != null) {

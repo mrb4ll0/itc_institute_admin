@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-class MessagesPage extends StatelessWidget {
+class MorePage extends StatelessWidget {
   final Color backgroundColor = Color(0xFF122118);
   final Color primaryGreen = Color(0xFF38E07B);
   final Color secondaryGreen = Color(0xFF264532);
@@ -49,6 +49,7 @@ class MessagesPage extends StatelessWidget {
                 _buildTab('All', true),
                 _buildTab('Announcements', false),
                 _buildTab('Departments', false),
+                _buildTab('Report', false),
               ],
             ),
           ),
