@@ -39,6 +39,29 @@ dependencies:
   cupertino_icons: ^1.0.8
   cloud_firestore: ^5.6.12
   google_fonts: ^6.3.0
+  firebase_storage: ^12.4.10
+  image_picker: ^1.2.1
+  dotted_border: ^3.1.0
+  rxdart: ^0.28.0
+  blur_detection: ^1.0.0
+  file_picker: ^10.3.7
+  shared_preferences: ^2.5.3
+  firebase_messaging: ^15.2.10
+  flutter_local_notifications: ^19.5.0
+  flutter_document_scanner: ^1.1.2
+  pdf: ^3.11.3
+  fluttertoast: ^9.0.0
+  intl: ^0.20.2
+  url_launcher: ^6.3.2
+  permission_handler: ^12.0.1
+  dio: ^5.9.0
+  open_filex: ^4.7.0
+  flutter_downloader: ^1.12.0
+  device_info_plus: ^12.3.0
+  pdfx: ^2.9.2
+  share_plus: ^12.0.1
+  webview_flutter: ^4.13.0
+  flutter_pdfview: ^1.4.3
 
 dev_dependencies:
   flutter_test:
