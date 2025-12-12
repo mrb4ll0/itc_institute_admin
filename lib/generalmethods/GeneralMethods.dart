@@ -459,4 +459,30 @@ class GeneralMethods {
       return 'unknown';
     }
   }
+
+  static String normalizeApplicationStatus(String status) {
+    final lowerStatus = status.toLowerCase().trim();
+
+    switch (lowerStatus) {
+      case 'accept':
+      case 'accepted':
+      case 'approved':
+        return 'accepted';
+      case 'reject':
+      case 'rejected':
+      case 'declined':
+      case 'denied':
+        return 'rejected';
+      case 'pend':
+      case 'pending':
+      case 'review':
+      case 'under review':
+      case 'processing':
+      case 'in progress':
+      case 'applied':
+        return 'pending';
+      default:
+        return 'pending'; // Default fallback
+    }
+  }
 }

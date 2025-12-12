@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:intl/intl.dart';
 import 'package:itc_institute_admin/firebase_cloud_storage/firebase_cloud.dart';
+import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/ActionLogger.dart';
 
 import '../../model/RecentActions.dart';
@@ -655,6 +656,7 @@ class Company_Cloud {
     required String status, // 'accepted' or 'rejected'
     required StudentApplication application,
   }) async {
+    status = GeneralMethods.normalizeApplicationStatus(status);
     final appRef = _firebaseFirestore
         .collection(usersCollection)
         .doc('companies')
@@ -663,7 +665,7 @@ class Company_Cloud {
         .collection('IT')
         .doc(internshipId)
         .collection('applications')
-        .doc(studentId);
+        .doc(application.id);
 
     await appRef.update({'applicationStatus': status});
     Company? company = await _itcFirebaseLogic.getCompany(

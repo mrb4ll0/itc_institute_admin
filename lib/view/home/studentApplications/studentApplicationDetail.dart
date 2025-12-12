@@ -828,7 +828,7 @@ class _StudentApplicationDetailsPageState
                 fcmToken: student.fcmToken ?? "",
                 title: application.internship.company.name,
                 body:
-                    "Your application for ${application.internship.title} is $action",
+                    "Your application for ${application.internship.title} is ${GeneralMethods.normalizeApplicationStatus(action).toUpperCase()}",
               );
               if (!notificationSent) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -857,6 +857,9 @@ class _StudentApplicationDetailsPageState
                       : Colors.red,
                 ),
               );
+              setState(() {
+                application.applicationStatus = action;
+              });
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: action == 'accept' ? Colors.green : Colors.red,

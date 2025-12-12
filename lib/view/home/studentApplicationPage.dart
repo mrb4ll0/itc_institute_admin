@@ -187,7 +187,9 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
     // Apply status filter
     if (_selectedStatus != null) {
       filtered = filtered.where((app) {
-        return app.applicationStatus.toLowerCase() ==
+        return GeneralMethods.normalizeApplicationStatus(
+              app.applicationStatus.toLowerCase(),
+            ) ==
             _selectedStatus.toString().split('.').last.toLowerCase();
       }).toList();
     }
@@ -1924,7 +1926,7 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
                 fcmToken: student.fcmToken ?? "",
                 title: application.internship.company.name,
                 body:
-                    "Your application for ${application.internship.title} is $action",
+                    "Your application for ${application.internship.title} is ${GeneralMethods.normalizeApplicationStatus(action).toUpperCase()}",
               );
               if (!notificationSent) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -1953,6 +1955,10 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
                       : Colors.red,
                 ),
               );
+
+              setState(() {
+                application.applicationStatus = action;
+              });
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: action == 'accept' ? Colors.green : Colors.red,
