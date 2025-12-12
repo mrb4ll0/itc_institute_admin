@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:intl/intl.dart';
+import 'package:itc_institute_admin/firebase_cloud_storage/firebase_cloud.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/ActionLogger.dart';
 
 import '../../model/RecentActions.dart';
@@ -17,6 +18,7 @@ class Company_Cloud {
   String usersCollection = "users";
   final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic();
   final ActionLogger actionLogger = ActionLogger();
+  final FirebaseUploader _cloudStorage = FirebaseUploader();
 
   Future<void> postInternship(IndustrialTraining internship) async {
     // Verify the user is a company
@@ -784,6 +786,12 @@ class Company_Cloud {
           }
 
           final allApplications = await Future.wait(applicationFutures);
+          // for (List<StudentApplication> appList in allApplications) {
+          //   for (StudentApplication app in appList) {
+          //     // Process each application here
+          //
+          //   }
+          // }
           return allApplications.expand((apps) => apps).toList();
         });
   }
@@ -869,6 +877,12 @@ class Company_Cloud {
       final List<Future<StudentApplication?>> applicationFutures = [];
 
       for (var applicationDoc in applicationsSnapshot.docs) {
+        StudentApplication? app = await _processApplication(
+          applicationDoc,
+          internshipRef.id,
+          internship,
+        );
+
         applicationFutures.add(
           _processApplication(applicationDoc, internshipRef.id, internship),
         );
@@ -910,7 +924,6 @@ class Company_Cloud {
         applicationDoc.id,
       );
       application.internship = internship;
-
       return application;
     } catch (e) {
       debugPrint('Error processing application ${applicationDoc.id}: $e');
@@ -1006,6 +1019,7 @@ class Company_Cloud {
   }) async {
     try {
       // Validate inputs
+      debugPrint("application id ${application.id}");
       if (companyId.isEmpty || internship.isEmpty || studentId.isEmpty) {
         print(
           'Invalid parameters: companyId, internship, or studentId is empty',
@@ -1022,7 +1036,7 @@ class Company_Cloud {
           .collection('IT')
           .doc(internship)
           .collection("applications")
-          .doc(studentId);
+          .doc(application.id);
 
       // Create a batch for atomic operations
       final batch = _firebaseFirestore.batch();
@@ -1056,6 +1070,9 @@ class Company_Cloud {
       );
       // Log audit trail
       await actionLogger.logAction(action, companyId: companyId);
+      _cloudStorage.deleteFile(application.idCardUrl);
+      _cloudStorage.deleteFile(application.itLetterUrl);
+      //_cloudStorage.deleteFile(application.attachedFormUrls);
 
       return true;
     } on FirebaseException catch (e) {

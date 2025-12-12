@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:itc_institute_admin/view/home/student/studentDetails.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../extensions/extensions.dart';
@@ -282,179 +283,188 @@ class _StudentApplicationDetailsPageState
 
             // Student Details Section
             _buildSectionTitle('Applicant Information'),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Student Profile
-                    Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 32,
-                          backgroundImage: student.imageUrl.isNotEmpty
-                              ? NetworkImage(student.imageUrl)
-                              : null,
-                          backgroundColor: colorScheme.surfaceVariant,
-                          child: student.imageUrl.isEmpty
-                              ? Text(
-                                  student.fullName[0].toUpperCase(),
-                                  style: const TextStyle(fontSize: 20),
-                                )
-                              : null,
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                student.fullName,
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                student.email,
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                student.phoneNumber,
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Educational Information Grid
-                    GridView.count(
-                      crossAxisCount: 2,
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      childAspectRatio: 3,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 8,
-                      children: [
-                        _buildDetailItem(
-                          icon: Icons.school_outlined,
-                          label: 'Institution',
-                          value: student.institution,
-                        ),
-                        _buildDetailItem(
-                          icon: Icons.book_outlined,
-                          label: 'Course of Study',
-                          value: student.courseOfStudy,
-                        ),
-                        _buildDetailItem(
-                          icon: Icons.people_outline,
-                          label: 'Department',
-                          value: student.department,
-                        ),
-                        _buildDetailItem(
-                          icon: Icons.grade_outlined,
-                          label: 'Level',
-                          value: student.level,
-                        ),
-                        _buildDetailItem(
-                          icon: Icons.badge_outlined,
-                          label: 'Matric No.',
-                          value: student.matricNumber,
-                        ),
-                        _buildDetailItem(
-                          icon: Icons.grading,
-                          label: 'CGPA',
-                          value: student.cgpa.toStringAsFixed(2),
-                        ),
-                        if (student.admissionDate != null)
-                          _buildDetailItem(
-                            icon: Icons.login,
-                            label: 'Admission Date',
-                            value: _dateFormat.format(student.admissionDate!),
-                          ),
-                        if (student.expectedGraduationDate != null)
-                          _buildDetailItem(
-                            icon: Icons.logout,
-                            label: 'Expected Graduation',
-                            value: _dateFormat.format(
-                              student.expectedGraduationDate!,
-                            ),
-                          ),
-                      ],
-                    ),
-
-                    // Skills Section
-                    if (student.skills.isNotEmpty) ...[
-                      const SizedBox(height: 16),
-                      Text(
-                        'Skills',
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: student.skills
-                            .map(
-                              (skill) => Chip(
-                                label: Text(skill),
-                                backgroundColor: colorScheme.surfaceVariant,
-                              ),
-                            )
-                            .toList(),
-                      ),
-                    ],
-
-                    // Portfolio URLs
-                    if (student.linkedinUrl != null ||
-                        student.githubUrl != null ||
-                        student.portfolioUrl != null) ...[
-                      const SizedBox(height: 16),
-                      Text(
-                        'Portfolio Links',
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
+            InkWell(
+              onTap: () {
+                GeneralMethods.navigateTo(
+                  context,
+                  StudentProfilePage(student: student),
+                );
+              },
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Student Profile
+                      Row(
                         children: [
-                          if (student.linkedinUrl != null)
-                            ActionChip(
-                              avatar: const Icon(Icons.person),
-                              label: const Text('LinkedIn'),
-                              onPressed: () => _launchUrl(student.linkedinUrl!),
+                          CircleAvatar(
+                            radius: 32,
+                            backgroundImage: student.imageUrl.isNotEmpty
+                                ? NetworkImage(student.imageUrl)
+                                : null,
+                            backgroundColor: colorScheme.surfaceVariant,
+                            child: student.imageUrl.isEmpty
+                                ? Text(
+                                    student.fullName[0].toUpperCase(),
+                                    style: const TextStyle(fontSize: 20),
+                                  )
+                                : null,
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  student.fullName,
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  student.email,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  student.phoneNumber,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
                             ),
-                          if (student.githubUrl != null)
-                            ActionChip(
-                              avatar: const Icon(Icons.code),
-                              label: const Text('GitHub'),
-                              onPressed: () => _launchUrl(student.githubUrl!),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Educational Information Grid
+                      GridView.count(
+                        crossAxisCount: 2,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        childAspectRatio: 3,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 8,
+                        children: [
+                          _buildDetailItem(
+                            icon: Icons.school_outlined,
+                            label: 'Institution',
+                            value: student.institution,
+                          ),
+                          _buildDetailItem(
+                            icon: Icons.book_outlined,
+                            label: 'Course of Study',
+                            value: student.courseOfStudy,
+                          ),
+                          _buildDetailItem(
+                            icon: Icons.people_outline,
+                            label: 'Department',
+                            value: student.department,
+                          ),
+                          _buildDetailItem(
+                            icon: Icons.grade_outlined,
+                            label: 'Level',
+                            value: student.level,
+                          ),
+                          _buildDetailItem(
+                            icon: Icons.badge_outlined,
+                            label: 'Matric No.',
+                            value: student.matricNumber,
+                          ),
+                          _buildDetailItem(
+                            icon: Icons.grading,
+                            label: 'CGPA',
+                            value: student.cgpa.toStringAsFixed(2),
+                          ),
+                          if (student.admissionDate != null)
+                            _buildDetailItem(
+                              icon: Icons.login,
+                              label: 'Admission Date',
+                              value: _dateFormat.format(student.admissionDate!),
                             ),
-                          if (student.portfolioUrl != null)
-                            ActionChip(
-                              avatar: const Icon(Icons.public),
-                              label: const Text('Portfolio'),
-                              onPressed: () =>
-                                  _launchUrl(student.portfolioUrl!),
+                          if (student.expectedGraduationDate != null)
+                            _buildDetailItem(
+                              icon: Icons.logout,
+                              label: 'Expected Graduation',
+                              value: _dateFormat.format(
+                                student.expectedGraduationDate!,
+                              ),
                             ),
                         ],
                       ),
+
+                      // Skills Section
+                      if (student.skills.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        Text(
+                          'Skills',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: student.skills
+                              .map(
+                                (skill) => Chip(
+                                  label: Text(skill),
+                                  backgroundColor: colorScheme.surfaceVariant,
+                                ),
+                              )
+                              .toList(),
+                        ),
+                      ],
+
+                      // Portfolio URLs
+                      if (student.linkedinUrl != null ||
+                          student.githubUrl != null ||
+                          student.portfolioUrl != null) ...[
+                        const SizedBox(height: 16),
+                        Text(
+                          'Portfolio Links',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          children: [
+                            if (student.linkedinUrl != null)
+                              ActionChip(
+                                avatar: const Icon(Icons.person),
+                                label: const Text('LinkedIn'),
+                                onPressed: () =>
+                                    _launchUrl(student.linkedinUrl!),
+                              ),
+                            if (student.githubUrl != null)
+                              ActionChip(
+                                avatar: const Icon(Icons.code),
+                                label: const Text('GitHub'),
+                                onPressed: () => _launchUrl(student.githubUrl!),
+                              ),
+                            if (student.portfolioUrl != null)
+                              ActionChip(
+                                avatar: const Icon(Icons.public),
+                                label: const Text('Portfolio'),
+                                onPressed: () =>
+                                    _launchUrl(student.portfolioUrl!),
+                              ),
+                          ],
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
             ),

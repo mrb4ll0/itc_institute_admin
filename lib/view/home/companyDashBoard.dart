@@ -1,9 +1,11 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/ActionLogger.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/activeStudentCloud.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/company_cloud.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/general_cloud.dart';
+import 'package:itc_institute_admin/view/home/industrailTraining/newIndustrialTraining.dart';
 
 import '../../model/RecentActions.dart';
 import '../../model/company.dart';
@@ -269,7 +271,7 @@ class _CompanydashboardState extends State<Companydashboard>
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          // Add new application/training
+          GeneralMethods.navigateTo(context, CreateIndustrialTrainingPage());
         },
         backgroundColor: const Color(0xFF135bec),
         child: const Icon(Icons.add, color: Colors.white),

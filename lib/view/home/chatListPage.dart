@@ -1,13 +1,17 @@
+import 'dart:async';
+
+import 'package:async/async.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:itc_institute_admin/itc_logic/firebase/general_cloud.dart';
 import 'package:itc_institute_admin/view/home/chat/chartPage.dart';
+import 'package:itc_institute_admin/view/home/student/studentDetails.dart';
 
 import '../../generalmethods/GeneralMethods.dart';
 import '../../itc_logic/firebase/company_cloud.dart'; // Import company cloud
 import '../../itc_logic/firebase/message/message_service.dart';
+import '../../itc_logic/service/userService.dart';
 import '../../model/company.dart';
 import '../../model/message.dart';
 import '../../model/student.dart';
@@ -19,9 +23,11 @@ class ChatListPage extends StatefulWidget {
   State<ChatListPage> createState() => _ChatListPageState();
 }
 
-class _ChatListPageState extends State<ChatListPage> {
+class _ChatListPageState extends State<ChatListPage>
+    with AutomaticKeepAliveClientMixin {
   final TextEditingController _searchController = TextEditingController();
   int _selectedFilter = 0; // 0: All, 1: Unread, 2: Accepted, 3: Archived
+  final chatService = ChatService();
 
   // Variables for real data
   List<UserChat> _filteredChats = [];
@@ -29,11 +35,21 @@ class _ChatListPageState extends State<ChatListPage> {
   bool _isLoading = true;
   String? _currentUserId;
   String? _currentUserRole; // 'student' or 'company'
+  StreamSubscription? _messagesStreamSubscription;
+  StreamSubscription? _latestMessagesStreamSubscription;
+  List<Student> _availableStudents = [];
 
   @override
   void initState() {
     super.initState();
     _loadCurrentUser();
+  }
+
+  @override
+  void dispose() {
+    _messagesStreamSubscription?.cancel();
+    _latestMessagesStreamSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadCurrentUser() async {
@@ -52,8 +68,10 @@ class _ChatListPageState extends State<ChatListPage> {
       _currentUserRole = userData?['role'] ?? 'student';
 
       if (_currentUserRole == 'company') {
-        // Company user: Load students who applied to this company
+        // Cancel any existing stream
+        _messagesStreamSubscription?.cancel();
         await _loadStudentsForCompany();
+        _setupMessageStreamForCompany();
       } else {
         // Student user: Load all chats normally
         await _loadAllChats();
@@ -68,40 +86,38 @@ class _ChatListPageState extends State<ChatListPage> {
     try {
       if (_currentUserId == null) return;
 
-      final companyCloud = Company_Cloud(); // Create instance
-
-      // Get students who applied to this company
+      final companyCloud = Company_Cloud();
       final List<Student> students = await companyCloud
           .getStudentsThatAppliedForCompany(_currentUserId!);
 
-      // Convert students to UserChat format
-      final List<UserChat> chats = [];
+      // Convert students to UserChat format initially
+      final List<UserChat> initialChats = [];
 
       for (final student in students) {
-        final chat = UserChat(
-          id: student.uid,
-          name: student.fullName,
-          lastMessage: 'Tap to start conversation',
-          timestamp: '',
-          isUnread: false,
+        final Map<String, dynamic>? latestMessageData = await chatService
+            .getLatestMessageData(_currentUserId!, student.uid);
+
+        final chat = UserChat.fromFirebaseData(
+          contactId: student.uid,
+          contactName: student.fullName,
           avatarUrl: student.imageUrl,
-          unreadCount: 0,
-          lastMessageTimestamp: Timestamp.now(),
           userRole: 'student',
           userData: student,
+          currentUserId: _currentUserId!,
+          latestMessageData: latestMessageData,
         );
 
-        chats.add(chat);
+        initialChats.add(chat);
       }
 
-      // Sort by name
-      chats.sort((a, b) => a.name.compareTo(b.name));
-
       setState(() {
-        _allChats = chats;
-        _filteredChats = _applyFilter(chats, _selectedFilter);
+        _allChats = initialChats;
+        _filteredChats = _applyFilter(initialChats, _selectedFilter);
         _isLoading = false;
       });
+
+      // Store students for later use in streams
+      _availableStudents = students;
     } catch (e) {
       print('Error loading students for company: $e');
       setState(() => _isLoading = false);
@@ -110,8 +126,6 @@ class _ChatListPageState extends State<ChatListPage> {
 
   Future<void> _loadAllChats() async {
     try {
-      final chatService = ChatService();
-
       // Listen to messages stream
       chatService.getAllMessagesForCurrentUser().listen((messages) {
         if (mounted) {
@@ -121,6 +135,66 @@ class _ChatListPageState extends State<ChatListPage> {
     } catch (e) {
       print('Error loading chats: $e');
       setState(() => _isLoading = false);
+    }
+  }
+
+  void _setupMessageStreamForCompany() {
+    if (_currentUserId == null || _availableStudents.isEmpty) return;
+
+    // Cancel any existing stream
+    _latestMessagesStreamSubscription?.cancel();
+
+    // Create a stream for each student to listen for message updates
+    final streams = _availableStudents.map((student) {
+      return chatService.getLatestMessageDataStream(
+        _currentUserId!,
+        student.uid,
+      );
+    }).toList();
+
+    // Merge all streams
+    final mergedStream = StreamGroup.merge(streams);
+
+    _latestMessagesStreamSubscription = mergedStream.listen((data) {
+      if (data == null || !mounted) return;
+
+      // Update the specific chat with new message data
+      _updateChatWithNewMessage(data);
+    });
+  }
+
+  void _updateChatWithNewMessage(Map<String, dynamic> messageData) {
+    // Extract contactId from the data (you'll need to modify getLatestMessageDataStream
+    // to include contactId in the returned data)
+    final contactId =
+        messageData['contactId']; // You need to add this to the stream
+
+    if (contactId == null) return;
+
+    // Find and update the chat
+    final index = _allChats.indexWhere((chat) => chat.id == contactId);
+
+    if (index != -1) {
+      final updatedChat = UserChat.fromFirebaseData(
+        contactId: _allChats[index].id,
+        contactName: _allChats[index].name,
+        avatarUrl: _allChats[index].avatarUrl,
+        userRole: _allChats[index].userRole,
+        userData: _allChats[index].userData,
+        currentUserId: _currentUserId!,
+        latestMessageData: messageData,
+      );
+
+      setState(() {
+        _allChats[index] = updatedChat;
+
+        // Re-sort by timestamp
+        _allChats.sort(
+          (a, b) => b.lastMessageTimestamp.compareTo(a.lastMessageTimestamp),
+        );
+
+        _filteredChats = _applyFilter(_allChats, _selectedFilter);
+      });
     }
   }
 
@@ -262,6 +336,7 @@ class _ChatListPageState extends State<ChatListPage> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final colorScheme = theme.colorScheme;
@@ -269,28 +344,33 @@ class _ChatListPageState extends State<ChatListPage> {
     return Scaffold(
       backgroundColor: colorScheme.surfaceContainerLowest,
       body: SafeArea(
-        child: Column(
-          children: [
-            // Top App Bar
-            _buildTopAppBar(context),
+        child: RefreshIndicator(
+          onRefresh: () async {
+            await _loadCurrentUser();
+          },
+          child: Column(
+            children: [
+              // Top App Bar
+              _buildTopAppBar(context),
 
-            // Search Bar
-            _buildSearchBar(context),
+              // Search Bar
+              _buildSearchBar(context),
 
-            // Filter Chips
-            if (_currentUserRole !=
-                null) // Only show filters if we know user role
-              _buildFilterChips(context),
+              // Filter Chips
+              if (_currentUserRole !=
+                  null) // Only show filters if we know user role
+                _buildFilterChips(context),
 
-            // Loading or Chat List
-            Expanded(
-              child: _isLoading
-                  ? _buildLoadingIndicator(context)
-                  : _filteredChats.isEmpty
-                  ? _buildEmptyState(context)
-                  : _buildChatList(context),
-            ),
-          ],
+              // Loading or Chat List
+              Expanded(
+                child: _isLoading
+                    ? _buildLoadingIndicator(context)
+                    : _filteredChats.isEmpty
+                    ? _buildEmptyState(context)
+                    : _buildChatList(context),
+              ),
+            ],
+          ),
         ),
       ),
       floatingActionButton: _currentUserRole == 'company'
@@ -864,25 +944,28 @@ class _ChatListPageState extends State<ChatListPage> {
                   title: Text('View Student Profile'),
                   onTap: () {
                     Navigator.pop(context);
-                    _viewStudentProfile(context, chat.userData as Student);
+                    GeneralMethods.navigateTo(
+                      context,
+                      StudentProfilePage(student: chat.userData as Student),
+                    );
                   },
                 ),
-              ListTile(
-                leading: Icon(Icons.archive),
-                title: Text('Archive chat'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _archiveChat(chat);
-                },
-              ),
-              ListTile(
-                leading: Icon(Icons.delete),
-                title: Text('Delete chat'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _deleteChat(chat);
-                },
-              ),
+              // ListTile(
+              //   leading: Icon(Icons.archive),
+              //   title: Text('Archive chat'),
+              //   onTap: () {
+              //     Navigator.pop(context);
+              //     _archiveChat(chat);
+              //   },
+              // ),
+              // ListTile(
+              //   leading: Icon(Icons.delete),
+              //   title: Text('Delete chat'),
+              //   onTap: () {
+              //     Navigator.pop(context);
+              //     _deleteChat(chat);
+              //   },
+              // ),
               ListTile(
                 leading: Icon(Icons.cancel),
                 title: Text('Cancel'),
@@ -929,19 +1012,25 @@ class _ChatListPageState extends State<ChatListPage> {
       ),
     );
   }
+
+  @override
+  // TODO: implement wantKeepAlive
+  bool get wantKeepAlive => true;
 }
 
 class UserChat {
   final String id;
   final String name;
-  final String lastMessage;
+  String lastMessage;
   final String timestamp;
   final bool isUnread;
   final String avatarUrl;
   final int unreadCount;
   final Timestamp lastMessageTimestamp;
-  final String userRole; // 'student' or 'company'
-  final dynamic userData; // Student or Company object
+  final String userRole;
+  final dynamic userData;
+  final String? chatId;
+  final String? lastMessageReceiverId; // Add this
 
   UserChat({
     required this.id,
@@ -954,65 +1043,62 @@ class UserChat {
     required this.lastMessageTimestamp,
     this.userRole = 'student',
     this.userData,
+    this.chatId,
+    this.lastMessageReceiverId, // Add this
   });
-}
 
-class UserService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic();
+  // Factory method to create from Firebase data
+  factory UserChat.fromFirebaseData({
+    required String contactId,
+    required String contactName,
+    required String avatarUrl,
+    required String userRole,
+    required dynamic userData,
+    required String currentUserId,
+    Map<String, dynamic>? latestMessageData,
+  }) {
+    final chatId = _getChatId(currentUserId, contactId);
 
-  Future<dynamic> getUserDetails(String userId) async {
-    try {
-      // Try to get student first
-      Student? student = await itcFirebaseLogic.getStudent(userId);
-      if (student != null) {
-        return student;
+    String lastMessage = 'Tap to start conversation';
+    Timestamp lastMessageTimestamp = Timestamp.now();
+    bool isUnread = false;
+    String? receiverId;
+
+    if (latestMessageData != null) {
+      lastMessage = latestMessageData['content'] as String? ?? lastMessage;
+
+      // Check if the current user was the receiver and message is unread
+      final bool isRead = latestMessageData['is_read'] as bool? ?? true;
+      final String? senderId = latestMessageData['sender_id'] as String?;
+
+      isUnread = !isRead && senderId != currentUserId;
+      receiverId = latestMessageData['receiver_id'] as String?;
+
+      // Get timestamp
+      final timestamp = latestMessageData['timestamp'];
+      if (timestamp is Timestamp) {
+        lastMessageTimestamp = timestamp;
       }
-
-      // Try to get company
-      Company? company = await itcFirebaseLogic.getCompany(userId);
-      if (company != null) return company;
-
-      return null;
-    } catch (e) {
-      print('Error getting user details: $e');
-      return null;
     }
+
+    return UserChat(
+      id: contactId,
+      name: contactName,
+      lastMessage: lastMessage,
+      timestamp: '',
+      isUnread: isUnread,
+      avatarUrl: avatarUrl,
+      unreadCount: isUnread ? 1 : 0,
+      lastMessageTimestamp: lastMessageTimestamp,
+      userRole: userRole,
+      userData: userData,
+      chatId: chatId,
+      lastMessageReceiverId: receiverId,
+    );
   }
 
-  Future<Map<String, dynamic>?> getCurrentUserData() async {
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return null;
-
-      // Check in students collection
-      final studentDoc = await _firestore
-          .collection('users')
-          .doc('students')
-          .collection('students')
-          .doc(user.uid)
-          .get();
-
-      if (studentDoc.exists) {
-        return studentDoc.data();
-      }
-
-      // Check in companies collection
-      final companyDoc = await _firestore
-          .collection('users')
-          .doc('companies')
-          .collection('companies')
-          .doc(user.uid)
-          .get();
-
-      if (companyDoc.exists) {
-        return companyDoc.data();
-      }
-
-      return null;
-    } catch (e) {
-      print('Error getting current user data: $e');
-      return null;
-    }
+  static String _getChatId(String userId, String contactId) {
+    final sorted = [userId, contactId]..sort();
+    return '${sorted[0]}_${sorted[1]}';
   }
 }

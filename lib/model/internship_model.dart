@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/cupertino.dart';
 
 import 'company.dart';
 
@@ -119,7 +118,7 @@ class IndustrialTraining {
         data['acceptedApplications'],
       );
     }
-    debugPrint("stependAvailable ${data['stipendAvailable']}");
+
     return IndustrialTraining(
       files: filesList,
       id: docId,

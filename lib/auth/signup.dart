@@ -1465,7 +1465,6 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
   }
 
   void _updateRegistrationNumber() {
-    debugPrint("registrationNumber updater");
     final companyName = _companyNameController.text.trim();
     final industry = _industryController.text.trim();
 

@@ -10,6 +10,7 @@ import 'package:itc_institute_admin/view/home/studentApplications/studentApplica
 
 import '../../extensions/extensions.dart';
 import '../../model/student.dart';
+import 'industrailTraining/newIndustrialTraining.dart';
 
 class StudentApplicationsPage extends StatefulWidget {
   const StudentApplicationsPage({super.key});
@@ -311,6 +312,7 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           // Add new application
+          GeneralMethods.navigateTo(context, CreateIndustrialTrainingPage());
         },
         backgroundColor: colorScheme.primary,
         foregroundColor: colorScheme.onPrimary,
@@ -1195,7 +1197,6 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final colorScheme = theme.colorScheme;
-    debugPrint("application status ${application.applicationStatus}");
 
     return Material(
       color: isDark
@@ -1657,10 +1658,11 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
                 application: application,
               );
               isApplicationDeleted = true;
+              _filteredApplications.remove(application);
             } catch (error) {
               isApplicationDeleted = false;
             }
-            if (true) {
+            if (isApplicationDeleted) {
               // Show success message
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(

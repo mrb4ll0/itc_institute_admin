@@ -3,14 +3,16 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_keyboard_visibility/flutter_keyboard_visibility.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
+import 'package:itc_institute_admin/view/home/student/studentDetails.dart';
 
 import '../../../itc_logic/firebase/message/message_service.dart';
+import '../../../itc_logic/service/userService.dart';
 import '../../../model/message.dart';
 import '../../../model/student.dart';
-import '../chatListPage.dart';
-//import '../../home/chat/components/student_profile_card.dart'; // Optional: Create this for showing student info
 
 class ChatDetailsPage extends StatefulWidget {
   final String receiverId;
@@ -35,7 +37,7 @@ class ChatDetailsPage extends StatefulWidget {
 class _ChatDetailsPageState extends State<ChatDetailsPage> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  late ChatService _chatService;
+  late ChatService _chatService = ChatService();
   late Stream<List<Message>> _messagesStream;
   String? _currentUserId;
   String? _currentUserRole;
@@ -51,7 +53,41 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
   void initState() {
     super.initState();
     _receiverData = widget.receiverData;
+    // Add listener for keyboard visibility
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _setupKeyboardListener();
+    });
     _initializeChat();
+
+    // Mark messages as read when chat opens
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _markMessagesAsRead();
+    });
+  }
+
+  Future<void> _markMessagesAsRead() async {
+    if (_currentUserId == null) return;
+
+    try {
+      await _chatService.updateLatestMessageAsRead(
+        _currentUserId!,
+        widget.receiverId,
+      );
+    } catch (e) {
+      debugPrint('Error marking messages as read: $e');
+    }
+  }
+
+  void _setupKeyboardListener() {
+    // Listen for keyboard visibility changes
+    KeyboardVisibilityController().onChange.listen((bool visible) {
+      if (visible) {
+        // Wait a bit for keyboard to fully appear, then scroll
+        Future.delayed(const Duration(milliseconds: 100), () {
+          _scrollToBottom();
+        });
+      }
+    });
   }
 
   void _initializeChat() async {
@@ -70,21 +106,33 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
         _currentUserId!,
         widget.receiverId,
       );
+
       setState(() {
         _isLoading = false;
       });
 
-      // Scroll to bottom when new messages arrive
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollToBottom();
-      });
+      // Scroll to bottom after messages load
+      _scrollToBottomOnMessagesLoad();
     }
+  }
+
+  void _scrollToBottomOnMessagesLoad() {
+    // Listen to the stream and scroll when data is available
+    _messagesStream.first.then((_) {
+      if (mounted) {
+        // Small delay to ensure UI is built
+        Future.delayed(const Duration(milliseconds: 300), () {
+          _scrollToBottom();
+        });
+      }
+    });
   }
 
   void _scrollToBottom() {
     if (_scrollController.hasClients) {
+      // Use this to scroll to the maximum scroll extent
       _scrollController.animateTo(
-        0,
+        _scrollController.position.maxScrollExtent,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
       );
@@ -875,6 +923,19 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
                       }
 
                       final messages = snapshot.data!;
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (_scrollController.hasClients) {
+                          // Check if we're near the bottom (within 100 pixels)
+                          final isNearBottom =
+                              _scrollController.offset >=
+                              _scrollController.position.maxScrollExtent - 100;
+
+                          // Only auto-scroll if user is already near the bottom
+                          if (isNearBottom) {
+                            _scrollToBottom();
+                          }
+                        }
+                      });
 
                       if (messages.isEmpty) {
                         return Center(
@@ -905,9 +966,12 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
                                   _receiverData is Student)
                                 ElevatedButton(
                                   onPressed: () {
-                                    setState(() {
-                                      _showStudentInfo = true;
-                                    });
+                                    GeneralMethods.navigateTo(
+                                      context,
+                                      StudentProfilePage(
+                                        student: widget.receiverData as Student,
+                                      ),
+                                    );
                                   },
                                   child: const Text('View Student Profile'),
                                 ),
@@ -982,12 +1046,10 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
             Expanded(
               child: GestureDetector(
                 onTap: () {
-                  if (_currentUserRole == 'company' &&
-                      _receiverData is Student) {
-                    setState(() {
-                      _showStudentInfo = !_showStudentInfo;
-                    });
-                  }
+                  GeneralMethods.navigateTo(
+                    context,
+                    StudentProfilePage(student: widget.receiverData as Student),
+                  );
                 },
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1111,9 +1173,10 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
                 title: const Text('View student profile'),
                 onTap: () {
                   Navigator.pop(context);
-                  setState(() {
-                    _showStudentInfo = true;
-                  });
+                  GeneralMethods.navigateTo(
+                    context,
+                    StudentProfilePage(student: widget.receiverData as Student),
+                  );
                 },
               ),
             ListTile(

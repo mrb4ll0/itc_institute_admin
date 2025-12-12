@@ -269,7 +269,7 @@ class ChatService extends ChangeNotifier {
     String currentUserId,
     String messageId,
   ) async {
-    final chatId = _getChatId(currentUserId, contactId);
+    final chatId = getChatId(currentUserId, contactId);
     debugPrint("Chat ID: $chatId");
 
     final messageRef = _firebaseFirestore
@@ -333,7 +333,7 @@ class ChatService extends ChangeNotifier {
   }
 
   // Helper to get chat ID (if you already have a chat ID generator, reuse it)
-  String _getChatId(String userId, String contactId) {
+  String getChatId(String userId, String contactId) {
     final sorted = [userId, contactId]..sort();
     return '${sorted[0]}_${sorted[1]}';
   }
@@ -376,5 +376,214 @@ class ChatService extends ChangeNotifier {
       'latest_message': messageMap,
       'lastUpdated': Timestamp.now(),
     }, SetOptions(merge: true));
+  }
+
+  // Method to get latest message data with both content and receiver_id
+  Future<Map<String, dynamic>?> getLatestMessageData(
+    String userId,
+    String contactId,
+  ) async {
+    try {
+      final chatId = getChatId(userId, contactId);
+
+      final chatDoc = await _firebaseFirestore
+          .collection('chat_rooms')
+          .doc(chatId)
+          .get();
+
+      if (!chatDoc.exists) {
+        return null;
+      }
+
+      final data = chatDoc.data();
+      if (data == null || data['latest_message'] == null) {
+        return null;
+      }
+
+      final latestMessage = data['latest_message'] as Map<String, dynamic>;
+
+      // Extract both content and receiver_id
+      final String? content = latestMessage['content'] as String?;
+      final String? receiverId = latestMessage['receiverId'] as String?;
+
+      if (content == null && receiverId == null) {
+        return null;
+      }
+
+      return {
+        'content': content,
+        'receiver_id': receiverId,
+        'sender_id': latestMessage['senderId'] as String?,
+        'timestamp': latestMessage['timestamp'],
+        'is_read': latestMessage['isRead'] as bool? ?? false,
+      };
+    } catch (e) {
+      print('Error getting latest message data: $e');
+      return null;
+    }
+  }
+
+  // Stream version for real-time updates
+  // In ChatService class, modify this method:
+  Stream<Map<String, dynamic>?> getLatestMessageDataStream(
+    String userId,
+    String contactId,
+  ) {
+    final chatId = getChatId(userId, contactId);
+
+    return _firebaseFirestore
+        .collection('chat_rooms')
+        .doc(chatId)
+        .snapshots()
+        .map((snapshot) {
+          if (!snapshot.exists) return null;
+
+          final data = snapshot.data();
+          if (data == null || data['latest_message'] == null) {
+            return null;
+          }
+
+          final latestMessage = data['latest_message'] as Map<String, dynamic>;
+
+          return {
+            'contactId': contactId, // Add this to identify which chat
+            'content': latestMessage['content'] as String?,
+            'receiver_id': latestMessage['receiverId'] as String?,
+            'sender_id': latestMessage['senderId'] as String?,
+            'timestamp': latestMessage['timestamp'],
+            'is_read': latestMessage['isRead'] as bool? ?? false,
+          };
+        });
+  }
+
+  // Method to get latest message content with receiver info
+  Future<Map<String, String>> getLatestMessageWithReceiver(
+    String userId,
+    String contactId,
+  ) async {
+    try {
+      final data = await getLatestMessageData(userId, contactId);
+
+      if (data == null) {
+        return {
+          'content': 'Tap to start conversation',
+          'receiver_id': contactId,
+          'type': 'default',
+        };
+      }
+
+      return {
+        'content': data['content'] as String? ?? 'Tap to start conversation',
+        'receiver_id': data['receiver_id'] as String? ?? contactId,
+        'sender_id': data['sender_id'] as String? ?? '',
+        'type': data['content'] != null ? 'actual' : 'default',
+      };
+    } catch (e) {
+      print('Error getting message with receiver: $e');
+      return {
+        'content': 'Start a conversation',
+        'receiver_id': contactId,
+        'type': 'error',
+      };
+    }
+  }
+
+  // Add this to your ChatService for checking message direction
+  Future<bool> wasMessageSentToMe(String userId, String contactId) async {
+    try {
+      final data = await getLatestMessageData(userId, contactId);
+
+      if (data == null) return false;
+
+      final String? receiverId = data['receiver_id'] as String?;
+      return receiverId == userId; // True if I was the receiver
+    } catch (e) {
+      print('Error checking message direction: $e');
+      return false;
+    }
+  }
+
+  // Get formatted last message with indication of direction
+  Future<String> getFormattedLastMessageWithDirection(
+    String userId,
+    String contactId,
+  ) async {
+    try {
+      final data = await getLatestMessageData(userId, contactId);
+
+      if (data == null) {
+        return 'Tap to start conversation';
+      }
+
+      final String? content = data['content'] as String?;
+      if (content == null) {
+        return 'Tap to start conversation';
+      }
+
+      final String? senderId = data['sender_id'] as String?;
+      final String? receiverId = data['receiver_id'] as String?;
+
+      // Check if I sent this message
+      if (senderId == userId) {
+        return 'You: ${_truncateMessage(content)}';
+      }
+      // Check if message was sent to me
+      else if (receiverId == userId) {
+        return _truncateMessage(content);
+      }
+      // Message between other users (in group chats maybe)
+      else {
+        return _truncateMessage(content);
+      }
+    } catch (e) {
+      return 'Start a conversation';
+    }
+  }
+
+  String _truncateMessage(String message) {
+    if (message.length <= 30) return message;
+    return '${message.substring(0, 30)}...';
+  }
+
+  // Mark all unread messages from a specific sender as read
+  // Add this to your ChatService class
+  Future<void> updateLatestMessageAsRead(
+    String currentUserId,
+    String contactId,
+  ) async {
+    try {
+      final chatId = getChatId(currentUserId, contactId);
+
+      final chatDoc = await _firebaseFirestore
+          .collection('chat_rooms')
+          .doc(chatId)
+          .get();
+
+      if (!chatDoc.exists) return;
+
+      final data = chatDoc.data();
+      if (data == null || data['latest_message'] == null) return;
+
+      final latestMessage = data['latest_message'] as Map<String, dynamic>;
+
+      // Check if the latest message is from the other person and unread
+      debugPrint(
+        "senderId ${contactId} lms sender_id is ${latestMessage['sender_id']}",
+      );
+      if (latestMessage['sender_id'] == contactId &&
+          (latestMessage['is_read'] as bool? ?? false) == false) {
+        // Update the is_read field in latest_message
+        await _firebaseFirestore.collection('chat_rooms').doc(chatId).update({
+          'latest_message.is_read': true,
+          'latest_message.read_at':
+              FieldValue.serverTimestamp(), // Add read_at timestamp
+          'lastUpdated': FieldValue.serverTimestamp(),
+        });
+      }
+      debugPrint("Message marked as read");
+    } catch (e, s) {
+      debugPrint('Error updating latest message as read: $e');
+      debugPrintStack(stackTrace: s);
+    }
   }
 }

@@ -102,7 +102,6 @@ class _LoginScreenState extends State<LoginScreen> {
       Company? company = await ITCFirebaseLogic().getCompany(
         userCredential.user!.uid,
       );
-      debugPrint("Company id is ${company?.id ?? ""}");
 
       if (company == null) {
         _showError("Company profile not found. Please contact support.");

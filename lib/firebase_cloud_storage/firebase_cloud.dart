@@ -131,6 +131,7 @@ class FirebaseUploader {
       await ref.delete();
       return true;
     } catch (e) {
+      debugPrint("Error deleting file: $e");
       return false;
     }
   }
