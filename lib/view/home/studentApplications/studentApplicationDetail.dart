@@ -1,6 +1,10 @@
+import 'dart:math';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:itc_institute_admin/itc_logic/notification/fireStoreNotification.dart';
+import 'package:itc_institute_admin/model/notificationModel.dart';
 import 'package:itc_institute_admin/view/home/student/studentDetails.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -28,6 +32,7 @@ class _StudentApplicationDetailsPageState
   final DateFormat _dateTimeFormat = DateFormat('dd MMM yyyy, hh:mm a');
   final Company_Cloud company_cloud = Company_Cloud();
   final NotificationService notificationService = NotificationService();
+  final FireStoreNotification fireStoreNotification = FireStoreNotification();
 
   @override
   Widget build(BuildContext context) {
@@ -830,6 +835,17 @@ class _StudentApplicationDetailsPageState
                 body:
                     "Your application for ${application.internship.title} is ${GeneralMethods.normalizeApplicationStatus(action).toUpperCase()}",
               );
+
+              NotificationModel notification = NotificationModel(
+                title: application.internship.company.name,
+                body:
+                    "Your application for ${application.internship.title} is ${GeneralMethods.normalizeApplicationStatus(action).toUpperCase()}",
+                targetUserIds: [student.uid],
+                sentAt: DateTime.now(),
+                id: student.uid + Random().nextInt(5).toString(),
+              );
+              await fireStoreNotification.sendNotification(notification);
+
               if (!notificationSent) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(

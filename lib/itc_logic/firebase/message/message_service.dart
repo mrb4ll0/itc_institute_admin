@@ -153,6 +153,9 @@ class ChatService extends ChangeNotifier {
     String receiverID,
     String content, {
     Map<String, dynamic>? replyTo,
+    required String body,
+    required String type,
+    required String title,
   }) async {
     final String currentUserId = _firebaseAuth.currentUser!.uid;
 
@@ -185,12 +188,7 @@ class ChatService extends ChangeNotifier {
       'lastUpdated': Timestamp.now(),
     }, SetOptions(merge: true));
 
-    _notificationSender.sendNotification(
-      receiverID,
-      "Message",
-      "message",
-      "New Notification",
-    );
+    _notificationSender.sendNotification(receiverID, body, type, title);
   }
 
   Stream<QuerySnapshot> getMessages(String userId, String otherUserId) {

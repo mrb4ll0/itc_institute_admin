@@ -1,14 +1,18 @@
+import 'dart:math';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/ActionLogger.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/company_cloud.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/general_cloud.dart';
+import 'package:itc_institute_admin/itc_logic/notification/fireStoreNotification.dart';
 import 'package:itc_institute_admin/itc_logic/notification/notitification_service.dart';
 import 'package:itc_institute_admin/model/studentApplication.dart';
 import 'package:itc_institute_admin/view/home/studentApplications/studentApplicationDetail.dart';
 
 import '../../extensions/extensions.dart';
+import '../../model/notificationModel.dart';
 import '../../model/student.dart';
 import 'industrailTraining/newIndustrialTraining.dart';
 
@@ -43,6 +47,7 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
   final GlobalKey _statusFilterKey = GlobalKey();
   final GlobalKey _periodFilterKey = GlobalKey();
   final GlobalKey _supervisorFilterKey = GlobalKey();
+  final FireStoreNotification fireStoreNotification = FireStoreNotification();
 
   // Add these after your existing state variables
   bool _showFilters = false;
@@ -1928,6 +1933,17 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
                 body:
                     "Your application for ${application.internship.title} is ${GeneralMethods.normalizeApplicationStatus(action).toUpperCase()}",
               );
+
+              NotificationModel notification = NotificationModel(
+                title: application.internship.company.name,
+                body:
+                    "Your application for ${application.internship.title} is ${GeneralMethods.normalizeApplicationStatus(action).toUpperCase()}",
+                targetUserIds: [student.uid],
+                sentAt: DateTime.now(),
+                id: student.uid + Random().nextInt(5).toString(),
+              );
+              await fireStoreNotification.sendNotification(notification);
+
               if (!notificationSent) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(

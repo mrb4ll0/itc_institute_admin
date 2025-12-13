@@ -7,10 +7,12 @@ import 'package:flutter_keyboard_visibility/flutter_keyboard_visibility.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
+import 'package:itc_institute_admin/itc_logic/firebase/general_cloud.dart';
 import 'package:itc_institute_admin/view/home/student/studentDetails.dart';
 
 import '../../../itc_logic/firebase/message/message_service.dart';
 import '../../../itc_logic/service/userService.dart';
+import '../../../model/company.dart';
 import '../../../model/message.dart';
 import '../../../model/student.dart';
 
@@ -48,6 +50,8 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
   final ImagePicker _imagePicker = ImagePicker();
   bool _showStudentInfo = false; // For showing student profile card
   late dynamic _receiverData; // Store the receiver data
+  late Company? company;
+  ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic();
 
   @override
   void initState() {
@@ -110,7 +114,9 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
       setState(() {
         _isLoading = false;
       });
-
+      company = await itcFirebaseLogic.getCompany(
+        FirebaseAuth.instance.currentUser!.uid,
+      );
       // Scroll to bottom after messages load
       _scrollToBottomOnMessagesLoad();
     }
@@ -170,6 +176,9 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
         await _chatService.sendMessage(
           widget.receiverId,
           _messageController.text.trim(),
+          body: _messageController.text.trim(),
+          type: "message",
+          title: company?.name ?? "Company__",
         );
       }
 

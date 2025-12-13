@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:itc_institute_admin/auth/signup.dart';
 import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
+import 'package:itc_institute_admin/itc_logic/notification/notitification_service.dart';
 
 import '../itc_logic/firebase/general_cloud.dart';
 import '../model/company.dart';
@@ -22,6 +23,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   bool _isCheckingAuth = true; // Added for initial auth check
   int _currentStep = 0; // 0: Email, 1: Password, 2: Login
+  final NotificationService notificationService = NotificationService();
 
   @override
   void initState() {
@@ -73,7 +75,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       // Error checking auth, show login screen
-      print("Error checking auth: $e");
+      debugPrint("Error checking auth: $e");
       setState(() {
         _isCheckingAuth = false;
         _isLoading = false;
@@ -111,7 +113,7 @@ class _LoginScreenState extends State<LoginScreen> {
         });
         return;
       }
-
+      await notificationService.saveTokenToFirestore();
       // Successfully logged in with company, navigate to dashboard
       if (mounted) {
         GeneralMethods.replaceNavigationTo(
@@ -704,14 +706,60 @@ class _LoginScreenState extends State<LoginScreen> {
               child: const Text("Cancel"),
             ),
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 // Implement password reset
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("Password reset feature coming soon!"),
-                  ),
-                );
+                if (_emailController.text.isEmpty) {
+                  _showError("Please enter your email.");
+                  return;
+                }
+
+                try {
+                  // Get the email first
+                  final email = _emailController.text;
+                  debugPrint("email is $email");
+
+                  // Close the dialog first
+                  Navigator.pop(context);
+
+                  // Show a loading indicator
+                  final scaffoldMessenger = ScaffoldMessenger.of(context);
+                  scaffoldMessenger.showSnackBar(
+                    const SnackBar(
+                      content: Text("Sending password reset email..."),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+
+                  await FirebaseAuth.instance.sendPasswordResetEmail(
+                    email: email,
+                  );
+
+                  // Show success message
+                  scaffoldMessenger.showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        "Password reset email sent. Check your inbox.",
+                      ),
+                      duration: Duration(seconds: 3),
+                    ),
+                  );
+                } catch (e, s) {
+                  debugPrint("Error sending password reset email: $e");
+                  debugPrintStack(stackTrace: s);
+
+                  // Show error message
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          "Failed to send reset email. Please try again.",
+                        ),
+                        backgroundColor: Colors.red,
+                        duration: Duration(seconds: 3),
+                      ),
+                    );
+                  }
+                }
               },
               child: const Text("Send Reset Link"),
             ),

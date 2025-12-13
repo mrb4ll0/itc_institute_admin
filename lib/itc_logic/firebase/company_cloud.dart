@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:itc_institute_admin/firebase_cloud_storage/firebase_cloud.dart';
 import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/ActionLogger.dart';
+import 'package:itc_institute_admin/itc_logic/notification/fireStoreNotification.dart';
 
 import '../../model/RecentActions.dart';
 import '../../model/company.dart';
@@ -20,6 +21,7 @@ class Company_Cloud {
   final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic();
   final ActionLogger actionLogger = ActionLogger();
   final FirebaseUploader _cloudStorage = FirebaseUploader();
+  final FireStoreNotification fireStoreNotification = FireStoreNotification();
 
   Future<void> postInternship(IndustrialTraining internship) async {
     // Verify the user is a company
@@ -130,6 +132,63 @@ class Company_Cloud {
       debugPrint("Error updating internship: $e");
       debugPrint("Stack trace: $s");
       rethrow; // Re-throw the error so the UI can handle it
+    }
+  }
+
+  Future<void> incrementInternshipApplicationCount(
+    String companyId,
+    String internshipId,
+  ) async {
+    try {
+      // Check if IDs are provided
+      if (companyId.isEmpty || internshipId.isEmpty) {
+        throw Exception("Company ID and Internship ID are required");
+      }
+
+      // Reference to the internship document
+      final internshipRef = _firebaseFirestore
+          .collection(usersCollection)
+          .doc('companies')
+          .collection('companies')
+          .doc(companyId)
+          .collection('IT')
+          .doc(internshipId);
+
+      debugPrint(
+        "Incrementing application count for internship: $internshipId",
+      );
+
+      // Use FieldValue.increment to atomically increase the count
+      await internshipRef.update({
+        'applicationsCount': FieldValue.increment(1),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Log the action
+      final company = await _itcFirebaseLogic.getCompany(companyId);
+      if (company != null) {
+        final recentAction = RecentAction(
+          id: "",
+          userId: FirebaseAuth.instance.currentUser?.uid ?? "",
+          userName: company.name,
+          userEmail: company.email,
+          userRole: company.role,
+          actionType: "Application",
+          entityType: "Industrial Training",
+          entityId: internshipId,
+          entityName: "Internship Application",
+          description: "Accepted application count incremented",
+          timestamp: DateTime.now(),
+        );
+
+        await actionLogger.logAction(recentAction, companyId: companyId);
+      }
+
+      debugPrint("Application count incremented for internship: $internshipId");
+    } catch (e, s) {
+      debugPrint("Error incrementing application count: $e");
+      debugPrint("Stack trace: $s");
+      rethrow;
     }
   }
 
@@ -686,6 +745,9 @@ class Company_Cloud {
       timestamp: DateTime.now(),
     );
     // Log audit trail
+    if (status.toLowerCase() == 'accepted') {
+      await incrementInternshipApplicationCount(companyId, internshipId);
+    }
     await actionLogger.logAction(action, companyId: companyId);
   }
 
