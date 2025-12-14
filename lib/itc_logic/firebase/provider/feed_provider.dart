@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
 
-import '../itc_logic/admin_task.dart';
-import '../itc_logic/firebase/tweet/tweet_cloud.dart';
-import '../model/tweetModel.dart';
+import '../../../model/tweetModel.dart';
+import '../../admin_task.dart';
+import '../tweet/tweet_cloud.dart';
 
 class FeedProvider with ChangeNotifier {
   final TweetService _tweetService = TweetService();

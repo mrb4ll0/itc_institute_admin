@@ -4,34 +4,45 @@ class NotificationModel {
   final String id;
   final String title;
   final String body;
-  final List<String> targetUserIds;
-  final DateTime sentAt;
-  final String? postedBy;
-  final DateTime? createdAt;
+  final DateTime timestamp;
+  final String? imageUrl;
+  final String? action; // e.g., 'view_tweet', 'open_profile'
+  final Map<String, dynamic>? data;
+  final String type; // 'general' or 'private'
+  final String? targetStudentId;
+  final String? targetAudience; // For general notifications
+  final bool read;
 
   NotificationModel({
     required this.id,
     required this.title,
     required this.body,
-    required this.targetUserIds,
-    required this.sentAt,
-    this.postedBy,
-    this.createdAt,
+    required this.timestamp,
+    this.imageUrl,
+    this.action,
+    this.data,
+    required this.type,
+    this.targetStudentId,
+    this.targetAudience,
+    this.read = false,
   });
 
   factory NotificationModel.fromMap(Map<String, dynamic> map) {
     return NotificationModel(
       id: map['id'] ?? '',
-      title: map['title'] ?? '',
-      body: map['body'] ?? '',
-      targetUserIds: List<String>.from(map['targetUserIds'] ?? []),
-      sentAt: (map['sentAt'] is Timestamp)
-          ? (map['sentAt'] as Timestamp).toDate()
-          : map['sentAt'] ?? DateTime.now(),
-      postedBy: map['postedBy'],
-      createdAt: (map['createdAt'] is Timestamp)
-          ? (map['createdAt'] as Timestamp).toDate()
-          : (map['createdAt'] ?? null),
+      title: map['title'] ?? map['status'] ?? 'No Title',
+      body: map['body'] ?? map['message'] ?? 'No Message',
+      timestamp:
+          (map['timestamp'] as Timestamp?)?.toDate() ??
+          (map['createdAt'] as Timestamp?)?.toDate() ??
+          DateTime.now(),
+      imageUrl: map['imageUrl'],
+      action: map['action'],
+      data: map['data'] != null ? Map<String, dynamic>.from(map['data']) : null,
+      type: map['type'] ?? 'general',
+      targetStudentId: map['targetStudentId'],
+      targetAudience: map['targetAudience'],
+      read: map['read'] ?? false,
     );
   }
 
@@ -40,10 +51,14 @@ class NotificationModel {
       'id': id,
       'title': title,
       'body': body,
-      'targetUserIds': targetUserIds,
-      'sentAt': Timestamp.fromDate(sentAt),
-      if (postedBy != null) 'postedBy': postedBy,
-      if (createdAt != null) 'createdAt': Timestamp.fromDate(createdAt!),
+      'timestamp': Timestamp.fromDate(timestamp),
+      'imageUrl': imageUrl,
+      'action': action,
+      'data': data,
+      'type': type,
+      'targetStudentId': targetStudentId,
+      'targetAudience': targetAudience,
+      'read': read,
     };
   }
 }

@@ -563,7 +563,7 @@ class Company_Cloud {
     String internshipId,
   ) async {
     try {
-      // Modern way using count() aggregate query
+      // Count applications with status 'accept' or 'accepted'
       final snapshot = await _firebaseFirestore
           .collection("users")
           .doc("companies")
@@ -572,6 +572,7 @@ class Company_Cloud {
           .collection('IT')
           .doc(internshipId)
           .collection('applications')
+          .where('applicationStatus', whereIn: ['accept', 'accepted'])
           .count()
           .get();
 
@@ -579,7 +580,7 @@ class Company_Cloud {
     } catch (e) {
       debugPrint('Error getting applications count: $e');
 
-      // Fallback: Count manually
+      // Fallback: Count manually with the same condition
       try {
         final snapshot = await _firebaseFirestore
             .collection("users")
@@ -589,6 +590,7 @@ class Company_Cloud {
             .collection('IT')
             .doc(internshipId)
             .collection('applications')
+            .where('applicationStatus', whereIn: ['accept', 'accepted'])
             .get();
 
         return snapshot.docs.length;

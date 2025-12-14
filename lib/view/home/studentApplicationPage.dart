@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
@@ -12,7 +10,6 @@ import 'package:itc_institute_admin/model/studentApplication.dart';
 import 'package:itc_institute_admin/view/home/studentApplications/studentApplicationDetail.dart';
 
 import '../../extensions/extensions.dart';
-import '../../model/notificationModel.dart';
 import '../../model/student.dart';
 import 'industrailTraining/newIndustrialTraining.dart';
 
@@ -1433,31 +1430,33 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
                       ),
                     ),
                   ), // Delete  Button
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      _deleteApplication(context, application);
-                    },
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
+                  if (application.applicationStatus.toApplicationStatus() ==
+                      ApplicationStatus.pending)
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        _deleteApplication(context, application);
+                      },
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        side: BorderSide(
+                          color: colorScheme.outline.withOpacity(0.3),
+                        ),
                       ),
-                      side: BorderSide(
-                        color: colorScheme.outline.withOpacity(0.3),
-                      ),
-                    ),
-                    icon: Icon(
-                      Icons.delete_forever,
-                      size: 14,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                    label: Text(
-                      'Delete',
-                      style: theme.textTheme.labelSmall?.copyWith(
+                      icon: Icon(
+                        Icons.delete_forever,
+                        size: 14,
                         color: colorScheme.onSurfaceVariant,
                       ),
+                      label: Text(
+                        'Delete',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
                     ),
-                  ),
                 ],
               ),
             ],
@@ -1934,16 +1933,12 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
                     "Your application for ${application.internship.title} is ${GeneralMethods.normalizeApplicationStatus(action).toUpperCase()}",
               );
 
-              NotificationModel notification = NotificationModel(
+              await fireStoreNotification.sendNotificationToStudent(
+                studentUid: student.uid,
                 title: application.internship.company.name,
                 body:
                     "Your application for ${application.internship.title} is ${GeneralMethods.normalizeApplicationStatus(action).toUpperCase()}",
-                targetUserIds: [student.uid],
-                sentAt: DateTime.now(),
-                id: student.uid + Random().nextInt(5).toString(),
               );
-              await fireStoreNotification.sendNotification(notification);
-
               if (!notificationSent) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(

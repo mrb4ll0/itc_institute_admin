@@ -2,14 +2,15 @@ import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:itc_institute_admin/itc_logic/service/ConverterUserService.dart';
 import 'package:itc_institute_admin/model/company.dart';
 import 'package:itc_institute_admin/model/userProfile.dart';
 
-import '../itc_logic/firebase/tweet/tweet_cloud.dart';
-import '../model/comments_model.dart';
-import '../model/reply_model.dart';
-import '../model/tweetModel.dart';
+import '../../../model/comments_model.dart';
+import '../../../model/reply_model.dart';
+import '../../../model/student.dart';
+import '../../../model/tweetModel.dart';
+import '../general_cloud.dart';
+import '../tweet/tweet_cloud.dart';
 
 class TweetProvider extends ChangeNotifier {
   final TweetService _tweetService = TweetService();
@@ -203,13 +204,13 @@ class TweetProvider extends ChangeNotifier {
   Future<void> postCommentToTweet(
     String tweetId,
     String content,
-    UserConverter student,
+    Company company,
   ) async {
     if (content.isEmpty) return;
-    debugPrint("tweetPoster is ${student.displayName}");
+
     final comment = await _tweetService.postComment(
       tweetId: tweetId,
-      student: student,
+      student: UserConverter(company),
       content: content,
     );
 
@@ -238,7 +239,7 @@ class TweetProvider extends ChangeNotifier {
     String commentId,
     int commentIndex,
     String content,
-    UserConverter company,
+    Company student,
     String userReplyingTo,
   ) async {
     if (content.isEmpty) return;
@@ -247,7 +248,7 @@ class TweetProvider extends ChangeNotifier {
       userReplyingTo: userReplyingTo,
       tweetId: tweetId,
       commentId: commentId,
-      student: company,
+      student: UserConverter(student),
       content: content,
     );
 
@@ -505,7 +506,7 @@ class TweetProvider extends ChangeNotifier {
     }
   }
 
-  Future<Map<String, dynamic>> fetchAllStudents(List<TweetModel> tweets) async {
+  Future<Map<String, Student>> fetchAllStudents(List<TweetModel> tweets) async {
     try {
       final studentIds = tweets
           .map((t) => t.userId)
@@ -519,7 +520,7 @@ class TweetProvider extends ChangeNotifier {
         eagerError: false,
       );
 
-      final studentMap = <String, UserConverter>{};
+      final studentMap = <String, Student>{};
       for (var i = 0; i < studentIds.length; i++) {
         final student = studentResults[i];
         final studentId = studentIds.elementAt(i);
@@ -531,9 +532,8 @@ class TweetProvider extends ChangeNotifier {
       }
 
       return studentMap;
-    } catch (e, s) {
+    } catch (e) {
       debugPrint('Error fetching students: $e');
-      debugPrintStack(stackTrace: s);
       return {};
     }
   }
@@ -723,11 +723,11 @@ class TweetProvider extends ChangeNotifier {
 }
 
 class StudentCache {
-  static final Map<String, UserConverter> _cache = {};
+  static final Map<String, Student> _cache = {};
 
-  static Future<UserConverter?> getStudent(String id) async {
+  static Future<Student?> getStudent(String id) async {
     if (_cache.containsKey(id)) return _cache[id];
-    final student = await UserService().getUser(id);
+    final student = await ITCFirebaseLogic().getStudent(id);
     if (student != null) {
       _cache[id] = student;
     }

@@ -2,13 +2,14 @@ import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:itc_institute_admin/auth/tweet_provider.dart';
+import 'package:itc_institute_admin/model/userProfile.dart';
 
-import '../itc_logic/firebase/tweet/tweet_cloud.dart';
-import '../model/comments_model.dart';
-import '../model/reply_model.dart';
-import '../model/student.dart';
-import '../model/tweetModel.dart';
+import '../../../auth/tweet_provider.dart';
+import '../../../model/comments_model.dart';
+import '../../../model/company.dart';
+import '../../../model/reply_model.dart';
+import '../../../model/tweetModel.dart';
+import '../tweet/tweet_cloud.dart';
 
 class TweetDetailProvider extends ChangeNotifier {
   final TweetService _tweetService = TweetService();
@@ -62,7 +63,7 @@ class TweetDetailProvider extends ChangeNotifier {
         .getTweetWithCommentsAndReplies(tweetId)
         .listen(
           (tweet) {
-            _tweet = tweet;
+            _tweet = tweet as TweetModel?;
             _isLoading = false;
             notifyListeners();
           },
@@ -148,7 +149,7 @@ class TweetDetailProvider extends ChangeNotifier {
   // 🔹 Actions
   Future<void> postComment(
     String content,
-    Student student,
+    Company student,
     TweetProvider tweetProvider,
   ) async {
     if (content.isEmpty) return;
@@ -156,7 +157,7 @@ class TweetDetailProvider extends ChangeNotifier {
 
     Comment comment = await _tweetService.postComment(
       tweetId: tweetId,
-      student: student,
+      student: UserConverter(student),
       content: content,
     );
     if (tweet == null) {
@@ -174,7 +175,7 @@ class TweetDetailProvider extends ChangeNotifier {
     String commentId,
     int index,
     String content,
-    Student student,
+    Company student,
     TweetProvider provider,
     String userReplyingTo,
   ) async {
@@ -183,7 +184,7 @@ class TweetDetailProvider extends ChangeNotifier {
       userReplyingTo: userReplyingTo,
       tweetId: tweetId,
       commentId: commentId,
-      student: student,
+      student: UserConverter(student),
       content: content,
     );
     tweet?.comments[index].replies.insert(0, reply);
@@ -194,7 +195,7 @@ class TweetDetailProvider extends ChangeNotifier {
     required String commentId,
     required int index,
     required String content,
-    required Student student,
+    required Company student,
     required TweetProvider provider,
     required String mentionedId,
     required String userReplyingTo,
@@ -204,7 +205,7 @@ class TweetDetailProvider extends ChangeNotifier {
       userReplyingTo: userReplyingTo,
       tweetId: tweetId,
       commentId: commentId,
-      student: student,
+      student: UserConverter(student),
       content: "@$userReplyingTo#${mentionedId}## $content",
     );
     tweet?.comments[index].replies.add(reply);

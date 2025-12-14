@@ -6,13 +6,15 @@ import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
 import 'package:itc_institute_admin/view/home/chatListPage.dart';
 import 'package:itc_institute_admin/view/home/companyDashBoard.dart';
 import 'package:itc_institute_admin/view/home/studentApplicationPage.dart';
+import 'package:itc_institute_admin/view/home/tweet_view.dart';
 
 import '../../itc_logic/firebase/general_cloud.dart';
 import '../../model/company.dart';
 import 'iTList.dart';
 
 class CompanyDashboardController extends StatefulWidget {
-  const CompanyDashboardController({super.key});
+  final Company tweetCompany;
+  const CompanyDashboardController({super.key, required this.tweetCompany});
 
   @override
   State<CompanyDashboardController> createState() =>
@@ -29,6 +31,13 @@ class _CompanyDashboardControllerState
   @override
   void initState() {
     super.initState();
+    _pages = [
+      const Companydashboard(),
+      const StudentApplicationsPage(),
+      const IndustrialTrainingPostsPage(),
+      TweetView(company: widget.tweetCompany),
+      const ChatListPage(),
+    ];
     _loadCompany();
   }
 
@@ -60,12 +69,7 @@ class _CompanyDashboardControllerState
     _pageController.jumpToPage(index);
   }
 
-  final List<Widget> _pages = [
-    const Companydashboard(),
-    const StudentApplicationsPage(),
-    const IndustrialTrainingPostsPage(),
-    const ChatListPage(),
-  ];
+  List<Widget> _pages = [];
 
   @override
   Widget build(BuildContext context) {
@@ -248,6 +252,11 @@ class _CompanyDashboardControllerState
             icon: Icon(Icons.list_alt_outlined),
             activeIcon: Icon(Icons.list_alt),
             label: 'IT List',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.feedback_sharp),
+            activeIcon: Icon(Icons.message),
+            label: 'Feeds',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.message_outlined),

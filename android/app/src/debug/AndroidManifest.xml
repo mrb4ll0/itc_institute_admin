@@ -36,9 +36,10 @@
     <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
-        android:label="itc_institute_admin"
+        android:label="ITC Facility"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
+        tools:replace="android:label"
         android:requestLegacyExternalStorage="true">
 
         <activity

@@ -63,7 +63,7 @@ class _LoginScreenState extends State<LoginScreen> {
         if (mounted) {
           GeneralMethods.replaceNavigationTo(
             context,
-            CompanyDashboardController(),
+            CompanyDashboardController(tweetCompany: company),
           );
         }
       } else {
@@ -118,7 +118,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) {
         GeneralMethods.replaceNavigationTo(
           context,
-          CompanyDashboardController(),
+          CompanyDashboardController(tweetCompany: company),
         );
       }
     } on FirebaseAuthException catch (e) {

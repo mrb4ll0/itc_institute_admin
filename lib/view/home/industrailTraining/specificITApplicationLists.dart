@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
@@ -12,7 +10,6 @@ import 'package:itc_institute_admin/model/studentApplication.dart';
 import 'package:itc_institute_admin/view/home/studentApplications/studentApplicationDetail.dart';
 
 import '../../../extensions/extensions.dart';
-import '../../../model/notificationModel.dart';
 import '../../../model/student.dart';
 
 class SpecificITStudentApplicationsPage extends StatefulWidget {
@@ -1938,15 +1935,12 @@ class _SpecificITStudentApplicationsPageState
                     "Your application for ${application.internship.title} is ${GeneralMethods.normalizeApplicationStatus(action).toUpperCase()}",
               );
 
-              NotificationModel notification = NotificationModel(
+              await fireStoreNotification.sendNotificationToStudent(
+                studentUid: student.uid,
                 title: application.internship.company.name,
                 body:
                     "Your application for ${application.internship.title} is ${GeneralMethods.normalizeApplicationStatus(action).toUpperCase()}",
-                targetUserIds: [student.uid],
-                sentAt: DateTime.now(),
-                id: student.uid + Random().nextInt(5).toString(),
               );
-              await fireStoreNotification.sendNotification(notification);
 
               if (!notificationSent) {
                 ScaffoldMessenger.of(context).showSnackBar(
