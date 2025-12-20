@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../generalmethods/GeneralMethods.dart';
+
 class SupervisorsListPage extends StatefulWidget {
   const SupervisorsListPage({super.key});
 
@@ -71,6 +73,7 @@ class _SupervisorsListPageState extends State<SupervisorsListPage> {
         ),
       ),
       floatingActionButton: FloatingActionButton(
+        heroTag: GeneralMethods.getUniqueHeroTag(),
         onPressed: () {
           // Add new supervisor
         },

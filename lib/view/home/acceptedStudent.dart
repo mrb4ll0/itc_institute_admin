@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
 
 class AcceptedStudentsPage extends StatefulWidget {
   const AcceptedStudentsPage({super.key});
@@ -84,6 +85,7 @@ class _AcceptedStudentsPageState extends State<AcceptedStudentsPage> {
         ),
       ),
       floatingActionButton: FloatingActionButton(
+        heroTag: GeneralMethods.getUniqueHeroTag(),
         onPressed: () {
           // Add new accepted student
         },

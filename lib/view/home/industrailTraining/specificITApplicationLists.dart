@@ -313,6 +313,7 @@ class _SpecificITStudentApplicationsPageState
         ),
       ),
       floatingActionButton: FloatingActionButton(
+        heroTag: GeneralMethods.getUniqueHeroTag(),
         onPressed: () {
           // Add new application
         },

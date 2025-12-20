@@ -270,6 +270,7 @@ class _CompanydashboardState extends State<Companydashboard>
         ),
       ),
       floatingActionButton: FloatingActionButton(
+        heroTag: GeneralMethods.getUniqueHeroTag(),
         onPressed: () {
           GeneralMethods.navigateTo(context, CreateIndustrialTrainingPage());
         },

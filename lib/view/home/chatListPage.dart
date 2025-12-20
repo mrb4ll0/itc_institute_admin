@@ -96,7 +96,7 @@ class _ChatListPageState extends State<ChatListPage>
       for (final student in students) {
         final Map<String, dynamic>? latestMessageData = await chatService
             .getLatestMessageData(_currentUserId!, student.uid);
-
+        debugPrint("last message data ${latestMessageData.toString()}");
         final chat = UserChat.fromFirebaseData(
           contactId: student.uid,
           contactName: student.fullName,
@@ -106,7 +106,9 @@ class _ChatListPageState extends State<ChatListPage>
           currentUserId: _currentUserId!,
           latestMessageData: latestMessageData,
         );
-
+          debugPrint("before  the  innertial chart senderId ${chat.lastMessageSenderId}");
+          debugPrint("before  the  innertial chart receiverId ${chat.lastMessageReceiverId}");
+          debugPrint("before  the  innertial chart ${chat.toString()}");
         initialChats.add(chat);
       }
 
@@ -184,7 +186,7 @@ class _ChatListPageState extends State<ChatListPage>
         currentUserId: _currentUserId!,
         latestMessageData: messageData,
       );
-
+      debugPrint("updatedchat senderId ${updatedChat.lastMessageSenderId}");
       setState(() {
         _allChats[index] = updatedChat;
 
@@ -375,6 +377,7 @@ class _ChatListPageState extends State<ChatListPage>
       ),
       floatingActionButton: _currentUserRole == 'company'
           ? FloatingActionButton(
+        heroTag: GeneralMethods.getUniqueHeroTag(),
               onPressed: () {
                 // Show dialog to select from existing students
                 _showStudentSelectionDialog(context);
@@ -573,6 +576,9 @@ class _ChatListPageState extends State<ChatListPage>
   Widget _buildChatItem(BuildContext context, UserChat chat) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    debugPrint("chat is ${chat.lastMessageReceiverId}");
+    debugPrint("chat content is ${chat.lastMessage}");
+
 
     return Material(
       color: chat.isUnread
@@ -716,7 +722,7 @@ class _ChatListPageState extends State<ChatListPage>
                     const SizedBox(height: 2),
                     Text(
                       chat.lastMessage.isNotEmpty
-                          ? chat.lastMessage
+                          ? (chat.lastMessageSenderId == FirebaseAuth.instance.currentUser?.uid? 'You: ${chat.lastMessage}':chat.lastMessage)
                           : 'Tap to start conversation',
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: chat.isUnread
@@ -1031,6 +1037,7 @@ class UserChat {
   final dynamic userData;
   final String? chatId;
   final String? lastMessageReceiverId; // Add this
+  final String? lastMessageSenderId; // Add this
 
   UserChat({
     required this.id,
@@ -1045,6 +1052,7 @@ class UserChat {
     this.userData,
     this.chatId,
     this.lastMessageReceiverId, // Add this
+    this.lastMessageSenderId
   });
 
   // Factory method to create from Firebase data
@@ -1058,7 +1066,7 @@ class UserChat {
     Map<String, dynamic>? latestMessageData,
   }) {
     final chatId = _getChatId(currentUserId, contactId);
-
+     debugPrint("latest message data is ${latestMessageData.toString()}");
     String lastMessage = 'Tap to start conversation';
     Timestamp lastMessageTimestamp = Timestamp.now();
     bool isUnread = false;
@@ -1073,6 +1081,8 @@ class UserChat {
 
       isUnread = !isRead && senderId != currentUserId;
       receiverId = latestMessageData['receiver_id'] as String?;
+      debugPrint("receiver id ${receiverId}");
+      debugPrint("sender id now ${senderId}");
 
       // Get timestamp
       final timestamp = latestMessageData['timestamp'];
@@ -1094,6 +1104,8 @@ class UserChat {
       userData: userData,
       chatId: chatId,
       lastMessageReceiverId: receiverId,
+        lastMessageSenderId: latestMessageData!["sender_id"]
+
     );
   }
 

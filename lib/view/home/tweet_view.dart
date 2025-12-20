@@ -231,6 +231,7 @@ class _TweetViewState extends State<TweetView> {
         // Compose button
         if (!_isComposing)
           FloatingActionButton(
+            heroTag: GeneralMethods.getUniqueHeroTag(),
             onPressed: () => setState(() => _isComposing = true),
             backgroundColor: const Color(0xFF1DA1F2),
             child: const Icon(Icons.edit, color: Colors.white),

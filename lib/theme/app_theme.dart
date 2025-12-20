@@ -250,6 +250,7 @@ class AppTheme {
 
     // Floating Action Button
     floatingActionButtonTheme: FloatingActionButtonThemeData(
+
       backgroundColor: _primaryColor,
       foregroundColor: Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),

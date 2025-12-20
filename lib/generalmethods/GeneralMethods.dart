@@ -485,4 +485,8 @@ class GeneralMethods {
         return 'pending'; // Default fallback
     }
   }
+  static String getUniqueHeroTag() {
+    return 'fab_${DateTime.now().millisecondsSinceEpoch}_${Random()}';
+  }
+
 }

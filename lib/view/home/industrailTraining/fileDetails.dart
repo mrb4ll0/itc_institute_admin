@@ -10,16 +10,24 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 class FullScreenViewer extends StatefulWidget {
-  String firebasePath; // Changed from URL to Firebase path
-  String? fileName;
-  String? fileType;
+  final List<String>? firebasePaths; // Changed to support multiple paths
+  final String? firebasePath; // Keep for backward compatibility
+  final String? fileName;
+  final String? fileType;
+  final int initialIndex; // For gallery mode
 
   FullScreenViewer({
     Key? key,
-    required this.firebasePath,
+    this.firebasePaths, // List of paths for gallery mode
+    this.firebasePath, // Single path for backward compatibility
     this.fileName,
     this.fileType,
-  }) : super(key: key);
+    this.initialIndex = 0,
+  }) : super(key: key) {
+    // Validate that at least one path is provided
+    assert(firebasePaths != null || firebasePath != null,
+    'Either firebasePaths or firebasePath must be provided');
+  }
 
   @override
   _FullScreenViewerState createState() => _FullScreenViewerState();
@@ -32,37 +40,63 @@ class _FullScreenViewerState extends State<FullScreenViewer> {
   String? _localPath;
   String? _errorMessage;
   Uint8List? _fileBytes;
-  String? _downloadUrl;
+  List<String> _downloadUrls = []; // Changed to list
   PDFViewController? _pdfViewController;
   int _totalPages = 0;
   int _currentPage = 0;
   bool _pdfReady = false;
+  int _currentIndex = 0; // For gallery mode
+  PageController? _pageController;
+  bool _isGalleryMode = false;
+  List<bool> _loadedImages = []; // Track which images are loaded
 
   @override
   void initState() {
     super.initState();
+    _currentIndex = widget.initialIndex;
     _initialize();
   }
 
   Future<void> _initialize() async {
     try {
-      // Get download URL from Firebase
-      debugPrint("initialize got called ");
-      _downloadUrl = widget.firebasePath;
+      // Determine if we're in gallery mode
+      _isGalleryMode = widget.firebasePaths != null && widget.firebasePaths!.length > 1;
 
-      if (_downloadUrl == null) {
-        throw Exception('Could not get download URL from Firebase');
+      // Get all download URLs
+      final List<String> paths = _isGalleryMode
+          ? widget.firebasePaths!
+          : [widget.firebasePath!];
+
+      debugPrint("Initializing with ${paths.length} file(s)");
+
+      for (String path in paths) {
+        final url = await _getFirebaseDownloadUrl(path);
+        if (url != null) {
+          _downloadUrls.add(url);
+        }
       }
 
-      final fileType = _getFileTypeFromUrl(_downloadUrl!);
-      debugPrint("fileType is $fileType}");
+      if (_downloadUrls.isEmpty) {
+        throw Exception('Could not get download URLs from Firebase');
+      }
 
-      if (fileType == 'image') {
+      // Initialize loaded images tracker
+      _loadedImages = List.filled(_downloadUrls.length, false);
+
+      // Initialize page controller for gallery mode
+      if (_isGalleryMode) {
+        _pageController = PageController(initialPage: _currentIndex);
+      }
+
+      final firstFileType = _getFileTypeFromUrl(_downloadUrls.first);
+      debugPrint("First file type: $firstFileType");
+
+      if (firstFileType == 'image') {
         // For images, we can preview directly
         setState(() => _isLoading = false);
-      } else if (fileType == 'pdf') {
+      } else if (firstFileType == 'pdf') {
         // For PDFs, download first for preview
-        debugPrint("file is pdf ");
+        debugPrint("File is PDF");
         await _loadFileForPreview();
       } else {
         // For other files, just show download option
@@ -108,6 +142,13 @@ class _FullScreenViewerState extends State<FullScreenViewer> {
       if (path.contains('.gif')) return 'image';
       if (path.contains('.bmp')) return 'image';
       if (path.contains('.webp')) return 'image';
+      if (path.contains('.svg')) return 'image';
+      if (path.contains('.tiff') || path.contains('.tif')) return 'image';
+      if (path.contains('.ico')) return 'image';
+      if (path.contains('.heic') || path.contains('.heif')) return 'image';
+      if (path.contains('.avif')) return 'image';
+      if (path.contains('.apng')) return 'image';
+      if (path.contains('.jxl')) return 'image';
       return 'document';
     } catch (e) {
       return 'unknown';
@@ -115,13 +156,13 @@ class _FullScreenViewerState extends State<FullScreenViewer> {
   }
 
   Future<void> _loadFileForPreview() async {
-    if (_downloadUrl == null) return;
+    if (_downloadUrls.isEmpty) return;
 
     try {
       debugPrint("Downloading file for preview...");
 
       final response = await Dio().get(
-        _downloadUrl!,
+        _downloadUrls.first,
         options: Options(responseType: ResponseType.bytes),
         onReceiveProgress: (received, total) {
           if (total != -1) {
@@ -138,7 +179,7 @@ class _FullScreenViewerState extends State<FullScreenViewer> {
 
         // Save to temporary file
         final tempDir = await getTemporaryDirectory();
-        final fileType = _getFileTypeFromUrl(_downloadUrl!);
+        final fileType = _getFileTypeFromUrl(_downloadUrls.first);
         final extension = fileType == 'pdf' ? '.pdf' : '.file';
         final tempFile = File('${tempDir.path}/temp_preview$extension');
         await tempFile.writeAsBytes(_fileBytes!);
@@ -156,7 +197,7 @@ class _FullScreenViewerState extends State<FullScreenViewer> {
   }
 
   Widget _buildImagePreview() {
-    if (_downloadUrl == null) {
+    if (_downloadUrls.isEmpty) {
       return Center(
         child: Text(
           'No preview available',
@@ -165,54 +206,203 @@ class _FullScreenViewerState extends State<FullScreenViewer> {
       );
     }
 
-    return Container(
-      width: double.infinity,
-      height: double.infinity,
-      color: Colors.black,
-      child: InteractiveViewer(
-        minScale: 0.1,
-        maxScale: 5.0,
-        child: Image.network(
-          _downloadUrl!,
-          fit: BoxFit.cover, // Changed from contain to cover
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return Center(
-              child: CircularProgressIndicator(
-                value: loadingProgress.expectedTotalBytes != null
-                    ? loadingProgress.cumulativeBytesLoaded /
-                          loadingProgress.expectedTotalBytes!
-                    : null,
-              ),
-            );
-          },
-          errorBuilder: (context, error, stackTrace) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.error_outline, color: Colors.red, size: 60),
-                  SizedBox(height: 16),
-                  Text(
-                    'Failed to load image',
-                    style: TextStyle(fontSize: 16, color: Colors.red),
-                  ),
-                  SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: _downloadFile,
-                    child: Text('Download Instead'),
-                  ),
-                ],
-              ),
-            );
-          },
+    if (!_isGalleryMode) {
+      // Single image view
+      return Container(
+        width: double.infinity,
+        height: double.infinity,
+        color: Colors.black,
+        child: InteractiveViewer(
+          minScale: 0.1,
+          maxScale: 5.0,
+          child: Image.network(
+            _downloadUrls.first,
+            fit: BoxFit.contain,
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+              return Center(
+                child: CircularProgressIndicator(
+                  value: loadingProgress.expectedTotalBytes != null
+                      ? loadingProgress.cumulativeBytesLoaded /
+                      loadingProgress.expectedTotalBytes!
+                      : null,
+                ),
+              );
+            },
+            errorBuilder: (context, error, stackTrace) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error_outline, color: Colors.red, size: 60),
+                    SizedBox(height: 16),
+                    Text(
+                      'Failed to load image',
+                      style: TextStyle(fontSize: 16, color: Colors.red),
+                    ),
+                    SizedBox(height: 20),
+                    ElevatedButton(
+                      onPressed: _downloadCurrentFile,
+                      child: Text('Download Instead'),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
         ),
-      ),
-    );
+      );
+    } else {
+      // Gallery mode - multiple images
+      return Stack(
+        children: [
+          PageView.builder(
+            controller: _pageController,
+            itemCount: _downloadUrls.length,
+            onPageChanged: (index) {
+              setState(() {
+                _currentIndex = index;
+              });
+            },
+            itemBuilder: (context, index) {
+              return Container(
+                width: double.infinity,
+                height: double.infinity,
+                color: Colors.black,
+                child: InteractiveViewer(
+                  minScale: 0.1,
+                  maxScale: 5.0,
+                  child: Image.network(
+                    _downloadUrls[index],
+                    fit: BoxFit.contain,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) {
+                        _loadedImages[index] = true;
+                        return child;
+                      }
+                      return Center(
+                        child: CircularProgressIndicator(
+                          value: loadingProgress.expectedTotalBytes != null
+                              ? loadingProgress.cumulativeBytesLoaded /
+                              loadingProgress.expectedTotalBytes!
+                              : null,
+                        ),
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.error_outline, color: Colors.red, size: 60),
+                            SizedBox(height: 16),
+                            Text(
+                              'Failed to load image ${index + 1}',
+                              style: TextStyle(fontSize: 16, color: Colors.red),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              );
+            },
+          ),
+
+          // Gallery controls overlay
+          Positioned(
+            top: 16,
+            left: 0,
+            right: 0,
+            child: Container(
+              alignment: Alignment.center,
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '${_currentIndex + 1} / ${_downloadUrls.length}',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // Navigation arrows for gallery
+          if (_downloadUrls.length > 1)
+            Positioned(
+              left: 16,
+              top: 0,
+              bottom: 0,
+              child: Center(
+                child: IconButton(
+                  icon: Icon(
+                    Icons.chevron_left,
+                    color: Colors.white,
+                    size: 40,
+                  ),
+                  onPressed: _currentIndex > 0
+                      ? () {
+                    _pageController?.previousPage(
+                      duration: Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                    );
+                  }
+                      : null,
+                ),
+              ),
+            ),
+
+          if (_downloadUrls.length > 1)
+            Positioned(
+              right: 16,
+              top: 0,
+              bottom: 0,
+              child: Center(
+                child: IconButton(
+                  icon: Icon(
+                    Icons.chevron_right,
+                    color: Colors.white,
+                    size: 40,
+                  ),
+                  onPressed: _currentIndex < _downloadUrls.length - 1
+                      ? () {
+                    _pageController?.nextPage(
+                      duration: Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                    );
+                  }
+                      : null,
+                ),
+              ),
+            ),
+
+          // Download current image button
+          Positioned(
+            bottom: 16,
+            right: 16,
+            child: FloatingActionButton(
+              backgroundColor: Colors.black.withOpacity(0.6),
+              foregroundColor: Colors.white,
+              onPressed: _downloadCurrentFile,
+              child: Icon(Icons.download),
+              mini: true,
+            ),
+          ),
+        ],
+      );
+    }
   }
 
   Future<void> _downloadPdfForPreview() async {
-    if (_downloadUrl == null) return;
+    if (_downloadUrls.isEmpty) return;
 
     setState(() => _isLoading = true);
 
@@ -220,13 +410,13 @@ class _FullScreenViewerState extends State<FullScreenViewer> {
       debugPrint("Downloading PDF for preview...");
 
       final tempDir = await getTemporaryDirectory();
-      final fileName = _extractFileNameFromPath(widget.firebasePath);
+      final fileName = _extractFileNameFromPath(widget.firebasePath ?? _downloadUrls.first);
       final cleanFileName = _cleanFileName(fileName);
       final tempFile = File('${tempDir.path}/preview_$cleanFileName');
 
       // Download the file
       await Dio().download(
-        _downloadUrl!,
+        _downloadUrls.first,
         tempFile.path,
         onReceiveProgress: (received, total) {
           if (total != -1) {
@@ -270,6 +460,9 @@ class _FullScreenViewerState extends State<FullScreenViewer> {
   }
 
   Widget _buildPdfPreview() {
+    // ... (keep existing PDF preview code, but update to use _downloadUrls.first)
+    // (The PDF preview logic remains the same for single PDF files)
+
     if (_isLoading) {
       return Center(
         child: Column(
@@ -307,7 +500,7 @@ class _FullScreenViewerState extends State<FullScreenViewer> {
             ),
             SizedBox(height: 10),
             Text(
-              widget.fileName ?? _extractFileNameFromPath(widget.firebasePath),
+              widget.fileName ?? _extractFileNameFromPath(widget.firebasePath ?? _downloadUrls.first),
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 16, color: Colors.grey),
             ),
@@ -329,7 +522,7 @@ class _FullScreenViewerState extends State<FullScreenViewer> {
             ),
             SizedBox(height: 10),
             ElevatedButton.icon(
-              onPressed: _downloadFile,
+              onPressed: _downloadCurrentFile,
               icon: Icon(Icons.download),
               label: Text('Download to Device'),
             ),
@@ -403,8 +596,8 @@ class _FullScreenViewerState extends State<FullScreenViewer> {
                       icon: Icon(Icons.chevron_left, color: Colors.white),
                       onPressed: _currentPage > 0
                           ? () {
-                              _pdfViewController?.setPage(_currentPage - 1);
-                            }
+                        _pdfViewController?.setPage(_currentPage - 1);
+                      }
                           : null,
                     ),
                     Text(
@@ -415,8 +608,8 @@ class _FullScreenViewerState extends State<FullScreenViewer> {
                       icon: Icon(Icons.chevron_right, color: Colors.white),
                       onPressed: _currentPage < _totalPages - 1
                           ? () {
-                              _pdfViewController?.setPage(_currentPage + 1);
-                            }
+                        _pdfViewController?.setPage(_currentPage + 1);
+                      }
                           : null,
                     ),
                   ],
@@ -429,7 +622,7 @@ class _FullScreenViewerState extends State<FullScreenViewer> {
   }
 
   Widget _buildDocumentPreview() {
-    final fileType = _getFileTypeFromUrl(_downloadUrl ?? '');
+    final fileType = _getFileTypeFromUrl(_downloadUrls.first);
 
     return Center(
       child: Column(
@@ -447,13 +640,13 @@ class _FullScreenViewerState extends State<FullScreenViewer> {
           ),
           SizedBox(height: 10),
           Text(
-            widget.fileName ?? _extractFileNameFromPath(widget.firebasePath),
+            widget.fileName ?? _extractFileNameFromPath(widget.firebasePath ?? _downloadUrls.first),
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 16, color: Colors.grey),
           ),
           SizedBox(height: 20),
           ElevatedButton.icon(
-            onPressed: _downloadFile,
+            onPressed: _downloadCurrentFile,
             icon: Icon(Icons.download),
             label: Text('Download to View'),
           ),
@@ -462,8 +655,10 @@ class _FullScreenViewerState extends State<FullScreenViewer> {
     );
   }
 
-  Future<void> _downloadFile() async {
-    if (_downloadUrl == null) return;
+  Future<void> _downloadCurrentFile() async {
+    if (_downloadUrls.isEmpty) return;
+
+    final url = _isGalleryMode ? _downloadUrls[_currentIndex] : _downloadUrls.first;
 
     setState(() {
       _isDownloading = true;
@@ -478,15 +673,20 @@ class _FullScreenViewerState extends State<FullScreenViewer> {
         if (!await directory.exists()) {
           directory =
               await getExternalStorageDirectory() ??
-              await getTemporaryDirectory();
+                  await getTemporaryDirectory();
         }
       } else {
         directory = await getApplicationDocumentsDirectory();
       }
 
-      // Extract filename from Firebase path
-      String fileName = _extractFileNameFromPath(widget.firebasePath);
+      // Extract filename from URL
+      String fileName = _extractFileNameFromPath(url);
       fileName = _cleanFileName(fileName);
+
+      // Add index for gallery mode
+      if (_isGalleryMode) {
+        fileName = '${_currentIndex + 1}_$fileName';
+      }
 
       final savePath = '${directory.path}/$fileName';
       debugPrint("Saving to: $savePath");
@@ -497,7 +697,7 @@ class _FullScreenViewerState extends State<FullScreenViewer> {
 
       // Download the file
       await Dio().download(
-        _downloadUrl!,
+        url,
         savePath,
         onReceiveProgress: (received, total) {
           if (total != -1) {
@@ -541,7 +741,80 @@ class _FullScreenViewerState extends State<FullScreenViewer> {
     }
   }
 
+  Future<void> _downloadAllFiles() async {
+    if (!_isGalleryMode || _downloadUrls.length <= 1) {
+      await _downloadCurrentFile();
+      return;
+    }
+
+    setState(() {
+      _isDownloading = true;
+      _downloadProgress = 0.0;
+    });
+
+    try {
+      Directory directory;
+      if (Platform.isAndroid) {
+        directory = Directory('/storage/emulated/0/Download/Images_${DateTime.now().millisecondsSinceEpoch}');
+        if (!await directory.exists()) {
+          directory = await getExternalStorageDirectory() ?? await getTemporaryDirectory();
+        }
+      } else {
+        directory = await getApplicationDocumentsDirectory();
+      }
+
+      if (!await directory.exists()) {
+        await directory.create(recursive: true);
+      }
+
+      int downloadedCount = 0;
+      for (int i = 0; i < _downloadUrls.length; i++) {
+        final url = _downloadUrls[i];
+        String fileName = _extractFileNameFromPath(url);
+        fileName = _cleanFileName(fileName);
+        fileName = '${i + 1}_$fileName';
+
+        final savePath = '${directory.path}/$fileName';
+
+        await Dio().download(
+          url,
+          savePath,
+          onReceiveProgress: (received, total) {
+            if (total != -1) {
+              final progress = (downloadedCount + (received / total)) / _downloadUrls.length;
+              setState(() {
+                _downloadProgress = progress;
+              });
+            }
+          },
+        );
+
+        downloadedCount++;
+      }
+
+      setState(() {
+        _isDownloading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Downloaded ${_downloadUrls.length} images to ${directory.path}'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      setState(() => _isDownloading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Download failed: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   String _extractFileNameFromPath(String path) {
+    // ... (keep existing filename extraction logic)
     try {
       // If it's a URL, parse it
       if (path.startsWith("http://") || path.startsWith("https://")) {
@@ -609,18 +882,17 @@ class _FullScreenViewerState extends State<FullScreenViewer> {
     }
   }
 
-  Future<void> _shareFile(String path) async {
+  Future<void> _shareCurrentFile() async {
+    if (_downloadUrls.isEmpty) return;
+
     try {
-      final file = File(path);
-      if (await file.exists()) {
-        await SharePlus.instance.share(
-          ShareParams(
-            files: [XFile(path)],
-            text: 'Shared from ITC Institute Admin',
-            subject: widget.fileName ?? 'Document',
-          ),
-        );
-      }
+      // For immediate sharing, share the URL
+      await SharePlus.instance.share(
+        ShareParams(
+          text: _downloadUrls[_isGalleryMode ? _currentIndex : 0],
+          subject: 'Image from ITC Institute',
+        ),
+      );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -655,17 +927,33 @@ class _FullScreenViewerState extends State<FullScreenViewer> {
 
   @override
   Widget build(BuildContext context) {
-    debugPrint("url is ${widget.firebasePath}");
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
         elevation: 0,
-        title: Text(
-          widget.fileName ?? _extractFileNameFromPath(widget.firebasePath),
-          style: TextStyle(fontSize: 16),
-          overflow: TextOverflow.ellipsis,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (_isGalleryMode)
+              Text(
+                'Gallery',
+                style: TextStyle(fontSize: 16),
+              ),
+            Text(
+              widget.fileName ?? _extractFileNameFromPath(
+                  widget.firebasePath ?? _downloadUrls.first),
+              style: TextStyle(fontSize: 14),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+            if (_isGalleryMode)
+              Text(
+                '${_currentIndex + 1} of ${_downloadUrls.length}',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+          ],
         ),
         actions: [
           if (_isDownloading)
@@ -685,11 +973,48 @@ class _FullScreenViewerState extends State<FullScreenViewer> {
               ),
             )
           else if (!_isLoading && _errorMessage == null)
-            IconButton(
-              icon: Icon(Icons.download),
-              onPressed: _downloadFile,
-              tooltip: 'Download File',
-            ),
+            if (_isGalleryMode)
+              PopupMenuButton(
+                icon: Icon(Icons.more_vert),
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    child: Row(
+                      children: [
+                        Icon(Icons.download, size: 20),
+                        SizedBox(width: 8),
+                        Text('Download Current'),
+                      ],
+                    ),
+                    onTap: _downloadCurrentFile,
+                  ),
+                  PopupMenuItem(
+                    child: Row(
+                      children: [
+                        Icon(Icons.download_for_offline, size: 20),
+                        SizedBox(width: 8),
+                        Text('Download All'),
+                      ],
+                    ),
+                    onTap: _downloadAllFiles,
+                  ),
+                  PopupMenuItem(
+                    child: Row(
+                      children: [
+                        Icon(Icons.share, size: 20),
+                        SizedBox(width: 8),
+                        Text('Share Current'),
+                      ],
+                    ),
+                    onTap: _shareCurrentFile,
+                  ),
+                ],
+              )
+            else
+              IconButton(
+                icon: Icon(Icons.download),
+                onPressed: _downloadCurrentFile,
+                tooltip: 'Download File',
+              ),
           IconButton(
             icon: Icon(Icons.close),
             onPressed: () => Navigator.of(context).pop(),
@@ -698,68 +1023,66 @@ class _FullScreenViewerState extends State<FullScreenViewer> {
       ),
       body: _isLoading
           ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 20),
-                  Text(
-                    'Loading file...',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ],
-              ),
-            )
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 20),
+            Text(
+              _isGalleryMode ? 'Loading gallery...' : 'Loading file...',
+              style: TextStyle(color: Colors.white),
+            ),
+          ],
+        ),
+      )
           : _errorMessage != null
           ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.error_outline, color: Colors.red, size: 60),
-                    SizedBox(height: 20),
-                    Text(
-                      'Error Loading File',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    SizedBox(height: 10),
-                    Text(
-                      _errorMessage!,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                    SizedBox(height: 20),
-                    ElevatedButton(
-                      onPressed: _downloadFile,
-                      child: Text('Try Download Instead'),
-                    ),
-                  ],
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.error_outline, color: Colors.red, size: 60),
+              SizedBox(height: 20),
+              Text(
+                'Error Loading File',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
                 ),
               ),
-            )
+              SizedBox(height: 10),
+              Text(
+                _errorMessage!,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey),
+              ),
+              SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: _downloadCurrentFile,
+                child: Text('Try Download Instead'),
+              ),
+            ],
+          ),
+        ),
+      )
           : _buildContent(),
     );
   }
 
   Widget _buildContent() {
-    debugPrint("build content got called");
-    if (_downloadUrl == null) {
+    if (_downloadUrls.isEmpty) {
       return Center(
         child: Text('No file available', style: TextStyle(color: Colors.white)),
       );
     }
 
-    final fileType = _getFileTypeFromUrl(_downloadUrl!);
+    final fileType = _getFileTypeFromUrl(_downloadUrls.first);
 
     if (fileType == 'image') {
       return _buildImagePreview();
     } else if (fileType == 'pdf') {
-      debugPrint("in build content file is pdf");
       return _buildPdfPreview();
     } else {
       return _buildDocumentPreview();

@@ -185,6 +185,7 @@ class ChatService extends ChangeNotifier {
     await _firebaseFirestore.collection('chat_rooms').doc(chatRoomID).set({
       'participants': [currentUserId, receiverID],
       'latest_message': messageMap,
+       'receiver_id': receiverID,
       'lastUpdated': Timestamp.now(),
     }, SetOptions(merge: true));
 
@@ -337,12 +338,15 @@ class ChatService extends ChangeNotifier {
   }
 
   Future<void> sendImageMessage({required Message msg}) async {
-    if (msg.imageUrl == null) {
+    if (msg.imageUrl == null && msg.imageUrls == null) {
       print('sendImageMessage was called with null imageFile');
       return;
     }
+
+
     String receiverID = msg.receiverId;
-    String imageUrl = msg.imageUrl!, optionalText = msg.content;
+
+    String imageUrl = msg.imageUrl??"", optionalText = msg.content;
     final String currentUserId = _firebaseAuth.currentUser!.uid;
 
     List<String> chatID = [currentUserId, receiverID];
@@ -356,6 +360,7 @@ class ChatService extends ChangeNotifier {
       imageUrl: imageUrl,
       timestamp: Timestamp.now(),
       isRead: false,
+      imageUrls: msg.imageUrls
     );
     debugPrint("message name is ${message.content}");
 
@@ -372,6 +377,7 @@ class ChatService extends ChangeNotifier {
     await _firebaseFirestore.collection('chat_rooms').doc(chatRoomID).set({
       'participants': [currentUserId, receiverID],
       'latest_message': messageMap,
+      'receiver_id': receiverID,
       'lastUpdated': Timestamp.now(),
     }, SetOptions(merge: true));
   }
@@ -401,27 +407,67 @@ class ChatService extends ChangeNotifier {
       final latestMessage = data['latest_message'] as Map<String, dynamic>;
 
       // Extract both content and receiver_id
-      final String? content = latestMessage['content'] as String?;
-      final String? receiverId = latestMessage['receiverId'] as String?;
+       String? content = latestMessage['content'] as String?;
+      final String? senderId = latestMessage['sender_id'] as String?;
+      final String receiverId = data['receiver_id'];
 
       if (content == null && receiverId == null) {
         return null;
       }
 
+     content = determineContent(latestMessage);
+      debugPrint("content now is ${content}");
+
       return {
         'content': content,
         'receiver_id': receiverId,
-        'sender_id': latestMessage['senderId'] as String?,
+        'sender_id': latestMessage['sender_id'] as String?,
         'timestamp': latestMessage['timestamp'],
         'is_read': latestMessage['isRead'] as bool? ?? false,
+
       };
     } catch (e) {
       print('Error getting latest message data: $e');
       return null;
     }
   }
+  String determineContent(Map<String, dynamic> lastMessage) {
+    // Check if it has multiple images
+    if (lastMessage['imageUrls'] is List &&
+        (lastMessage['imageUrls'] as List).isNotEmpty) {
+      final imageCount = (lastMessage['imageUrls'] as List).length;
+      if (imageCount == 1) {
+        return '📷 Photo';
+      } else {
+        return '📷 $imageCount Photos';
+      }
+    }
 
-  // Stream version for real-time updates
+    // Check if it has single image
+    if (lastMessage['imageUrl'] is String &&
+        (lastMessage['imageUrl'] as String).isNotEmpty) {
+      return '📷 Photo';
+    }
+
+    // Check if it has reply
+    if (lastMessage['replyTo'] is Map &&
+        (lastMessage['replyTo'] as Map).isNotEmpty) {
+      final repliedContent = lastMessage['replyTo']['content'] ?? '';
+      if (repliedContent.isNotEmpty) {
+        return '↪️ ${repliedContent.length > 30 ? '${repliedContent.substring(0, 30)}...' : repliedContent}';
+      }
+      return '↪️ Replied to a message';
+    }
+
+    // Check if it has regular text content
+    final content = lastMessage['content'] as String? ?? '';
+    if (content.isNotEmpty) {
+      return content.length > 40 ? '${content.substring(0, 40)}...' : content;
+    }
+
+    // Fallback for empty messages
+    return 'No message yet';
+  }  // Stream version for real-time updates
   // In ChatService class, modify this method:
   Stream<Map<String, dynamic>?> getLatestMessageDataStream(
     String userId,
@@ -445,9 +491,9 @@ class ChatService extends ChangeNotifier {
 
           return {
             'contactId': contactId, // Add this to identify which chat
-            'content': latestMessage['content'] as String?,
-            'receiver_id': latestMessage['receiverId'] as String?,
-            'sender_id': latestMessage['senderId'] as String?,
+            'content': determineContent(latestMessage),
+            'receiver_id': data['receiver_id'] as String?,
+            'sender_id': latestMessage['sender_id'] as String?,
             'timestamp': latestMessage['timestamp'],
             'is_read': latestMessage['isRead'] as bool? ?? false,
           };

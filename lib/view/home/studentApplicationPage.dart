@@ -314,6 +314,7 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
         ),
       ),
       floatingActionButton: FloatingActionButton(
+        heroTag: GeneralMethods.getUniqueHeroTag(),
         onPressed: () {
           // Add new application
           GeneralMethods.navigateTo(context, CreateIndustrialTrainingPage());
@@ -1664,7 +1665,9 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
                 application: application,
               );
               isApplicationDeleted = true;
-              _filteredApplications.remove(application);
+              setState(() {
+                _filteredApplications.remove(application);
+              });
             } catch (error) {
               isApplicationDeleted = false;
             }

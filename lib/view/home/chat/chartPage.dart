@@ -6,8 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_keyboard_visibility/flutter_keyboard_visibility.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:itc_institute_admin/firebase_cloud_storage/firebase_cloud.dart';
 import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/general_cloud.dart';
+import 'package:itc_institute_admin/view/home/industrailTraining/fileDetails.dart';
 import 'package:itc_institute_admin/view/home/student/studentDetails.dart';
 
 import '../../../itc_logic/firebase/message/message_service.dart';
@@ -60,13 +62,9 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
     // Add listener for keyboard visibility
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _setupKeyboardListener();
-    });
-    _initializeChat();
-
-    // Mark messages as read when chat opens
-    WidgetsBinding.instance.addPostFrameCallback((_) {
       _markMessagesAsRead();
     });
+    _initializeChat();
   }
 
   Future<void> _markMessagesAsRead() async {
@@ -81,6 +79,9 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
       debugPrint('Error marking messages as read: $e');
     }
   }
+
+
+
 
   void _setupKeyboardListener() {
     // Listen for keyboard visibility changes
@@ -160,6 +161,7 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
         final firstImage = _selectedImages.first;
         // Upload image to storage and get URL
         // String imageUrl = await _uploadImage(firstImage);
+        List<String> imageUrls = await FirebaseUploader().uploadMultipleFiles(_selectedImages,FirebaseAuth.instance.currentUser!.uid, "chatImage");
 
         final message = Message(
           senderId: _currentUserId!,
@@ -167,7 +169,7 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
           content: _messageController.text,
           timestamp: Timestamp.now(),
           isRead: false,
-          imageUrl: null, // imageUrl after upload
+          imageUrls: imageUrls, // imageUrl after upload
         );
 
         await _chatService.sendImageMessage(msg: message);
@@ -370,6 +372,17 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
     final showDateHeader = _shouldShowDateHeader(message);
     final previousMessage = _getPreviousMessage(message);
 
+    // Get all images from the message (support both single and multiple)
+    final List<String> images = [];
+    if (message.imageUrls != null && message.imageUrls!.isNotEmpty) {
+      images.addAll(message.imageUrls!);
+    } else if (message.imageUrl != null && message.imageUrl!.isNotEmpty) {
+      images.add(message.imageUrl!);
+    }
+
+    final bool hasImages = images.isNotEmpty;
+    final bool hasMultipleImages = images.length > 1;
+
     return Column(
       children: [
         if (showDateHeader) _dateSeparator(message.timestamp, theme),
@@ -385,7 +398,7 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
               children: [
                 if (!isMe &&
                     (_shouldShowAvatar(message, previousMessage) ||
-                        message.imageUrl != null))
+                        hasImages))
                   CircleAvatar(
                     backgroundImage: widget.receiverAvatarUrl.isNotEmpty
                         ? NetworkImage(widget.receiverAvatarUrl)
@@ -396,9 +409,9 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
                         : null,
                     child: widget.receiverAvatarUrl.isEmpty
                         ? Text(
-                            widget.receiverName.substring(0, 1).toUpperCase(),
-                            style: const TextStyle(fontSize: 12),
-                          )
+                      widget.receiverName.substring(0, 1).toUpperCase(),
+                      style: const TextStyle(fontSize: 12),
+                    )
                         : null,
                   )
                 else if (!isMe)
@@ -430,12 +443,12 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
                         constraints: BoxConstraints(
                           maxWidth: MediaQuery.of(context).size.width * 0.7,
                         ),
-                        padding: message.imageUrl != null
+                        padding: hasImages
                             ? const EdgeInsets.all(8)
                             : const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 10,
-                              ),
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
                         decoration: BoxDecoration(
                           color: isMe
                               ? theme.colorScheme.primary
@@ -445,55 +458,174 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            if (message.imageUrl != null)
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Image.network(
-                                  message.imageUrl!,
-                                  width: 250,
-                                  height: 150,
-                                  fit: BoxFit.cover,
-                                  loadingBuilder:
-                                      (context, child, loadingProgress) {
-                                        if (loadingProgress == null)
-                                          return child;
-                                        return Container(
+                            // Image(s) display
+                            if (hasImages)
+                              Column(
+                                children: [
+                                  // Single image or grid for multiple images
+                                  if (!hasMultipleImages)
+                                  // Single image
+                                    InkWell(
+                                      onTap: () {
+                                        GeneralMethods.navigateTo(
+                                          context,
+                                          FullScreenViewer(
+                                            firebasePath: images[0],
+                                          ),
+                                        );
+                                      },
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Image.network(
+                                          images[0],
                                           width: 250,
                                           height: 150,
-                                          color: theme.colorScheme.surface,
-                                          child: Center(
-                                            child: CircularProgressIndicator(
-                                              value:
+                                          fit: BoxFit.cover,
+                                          loadingBuilder:
+                                              (context, child, loadingProgress) {
+                                            if (loadingProgress == null)
+                                              return child;
+                                            return Container(
+                                              width: 250,
+                                              height: 150,
+                                              color: theme.colorScheme.surface,
+                                              child: Center(
+                                                child: CircularProgressIndicator(
+                                                  value:
                                                   loadingProgress
-                                                          .expectedTotalBytes !=
+                                                      .expectedTotalBytes !=
                                                       null
-                                                  ? loadingProgress
-                                                            .cumulativeBytesLoaded /
-                                                        loadingProgress
-                                                            .expectedTotalBytes!
-                                                  : null,
+                                                      ? loadingProgress
+                                                      .cumulativeBytesLoaded /
+                                                      loadingProgress
+                                                          .expectedTotalBytes!
+                                                      : null,
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                          errorBuilder:
+                                              (context, error, stackTrace) {
+                                            return Container(
+                                              width: 250,
+                                              height: 150,
+                                              color:
+                                              theme.colorScheme.errorContainer,
+                                              child: Center(
+                                                child: Icon(
+                                                  Icons.broken_image,
+                                                  color: theme.colorScheme.error,
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    )
+                                  else
+                                  // Multiple images grid
+                                    GridView.builder(
+                                      shrinkWrap: true,
+                                      physics: const NeverScrollableScrollPhysics(),
+                                      gridDelegate:
+                                      const SliverGridDelegateWithFixedCrossAxisCount(
+                                        crossAxisCount: 2,
+                                        crossAxisSpacing: 4,
+                                        mainAxisSpacing: 4,
+                                        childAspectRatio: 1,
+                                      ),
+                                      itemCount: images.length > 4 ? 5 : images.length,
+                                      itemBuilder: (context, index) {
+                                        // Show "View All" on the 5th item if more than 4 images
+                                        if (index == 4 && images.length > 4) {
+                                          return GestureDetector(
+                                            onTap: () => _openImageGallery(message, images),
+                                            child: Container(
+                                              decoration: BoxDecoration(
+                                                color: theme.colorScheme.surface
+                                                    .withOpacity(0.7),
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                              child: Center(
+                                                child: Column(
+                                                  mainAxisAlignment: MainAxisAlignment.center,
+                                                  children: [
+                                                    Text(
+                                                      '+${images.length - 4}',
+                                                      style: theme.textTheme.titleLarge
+                                                          ?.copyWith(
+                                                        color: theme.colorScheme.primary,
+                                                        fontWeight: FontWeight.bold,
+                                                      ),
+                                                    ),
+                                                    Text(
+                                                      'View All',
+                                                      style: theme.textTheme.labelSmall
+                                                          ?.copyWith(
+                                                        color: theme.colorScheme.onSurface,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        }
+
+                                        final imageUrl = images[index];
+                                        return GestureDetector(
+                                          onTap: () => _openImageGallery(message, images, initialIndex: index),
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(8),
+                                            child: Image.network(
+                                              imageUrl,
+                                              fit: BoxFit.cover,
+                                              loadingBuilder:
+                                                  (context, child, loadingProgress) {
+                                                if (loadingProgress == null)
+                                                  return child;
+                                                return Container(
+                                                  color: theme.colorScheme.surface,
+                                                  child: Center(
+                                                    child: CircularProgressIndicator(
+                                                      value:
+                                                      loadingProgress
+                                                          .expectedTotalBytes !=
+                                                          null
+                                                          ? loadingProgress
+                                                          .cumulativeBytesLoaded /
+                                                          loadingProgress
+                                                              .expectedTotalBytes!
+                                                          : null,
+                                                    ),
+                                                  ),
+                                                );
+                                              },
+                                              errorBuilder:
+                                                  (context, error, stackTrace) {
+                                                return Container(
+                                                  color: theme
+                                                      .colorScheme.errorContainer,
+                                                  child: Center(
+                                                    child: Icon(
+                                                      Icons.broken_image,
+                                                      color: theme.colorScheme.error,
+                                                    ),
+                                                  ),
+                                                );
+                                              },
                                             ),
                                           ),
                                         );
                                       },
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Container(
-                                      width: 250,
-                                      height: 150,
-                                      color: theme.colorScheme.errorContainer,
-                                      child: Center(
-                                        child: Icon(
-                                          Icons.broken_image,
-                                          color: theme.colorScheme.error,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
+                                    ),
+
+                                  if (hasMultipleImages && images.length > 4)
+                                    const SizedBox(height: 4),
+                                ],
                               ),
 
-                            if (message.imageUrl != null &&
-                                message.content.isNotEmpty)
+                            if (hasImages && message.content.isNotEmpty)
                               const SizedBox(height: 8),
 
                             if (message.content.isNotEmpty)
@@ -513,19 +645,19 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
                                 decoration: BoxDecoration(
                                   color: isMe
                                       ? theme.colorScheme.primary.withOpacity(
-                                          0.3,
-                                        )
+                                    0.3,
+                                  )
                                       : theme.colorScheme.surfaceVariant
-                                            .withOpacity(0.7),
+                                      .withOpacity(0.7),
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(
                                     color: isMe
                                         ? theme.colorScheme.primary.withOpacity(
-                                            0.5,
-                                          )
+                                      0.5,
+                                    )
                                         : theme.colorScheme.outline.withOpacity(
-                                            0.5,
-                                          ),
+                                      0.5,
+                                    ),
                                   ),
                                 ),
                                 child: Column(
@@ -535,25 +667,25 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
                                       'Replying to',
                                       style: theme.textTheme.labelSmall
                                           ?.copyWith(
-                                            color: isMe
-                                                ? theme.colorScheme.onPrimary
-                                                      .withOpacity(0.8)
-                                                : theme
-                                                      .colorScheme
-                                                      .onSurfaceVariant
-                                                      .withOpacity(0.8),
-                                          ),
+                                        color: isMe
+                                            ? theme.colorScheme.onPrimary
+                                            .withOpacity(0.8)
+                                            : theme
+                                            .colorScheme
+                                            .onSurfaceVariant
+                                            .withOpacity(0.8),
+                                      ),
                                     ),
                                     Text(
                                       message.replyTo?['content'] ?? '',
                                       style: theme.textTheme.bodySmall
                                           ?.copyWith(
-                                            color: isMe
-                                                ? theme.colorScheme.onPrimary
-                                                : theme
-                                                      .colorScheme
-                                                      .onSurfaceVariant,
-                                          ),
+                                        color: isMe
+                                            ? theme.colorScheme.onPrimary
+                                            : theme
+                                            .colorScheme
+                                            .onSurfaceVariant,
+                                      ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
@@ -587,8 +719,8 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
                               color: message.isRead
                                   ? theme.colorScheme.primary
                                   : theme.colorScheme.onSurface.withOpacity(
-                                      0.6,
-                                    ),
+                                0.6,
+                              ),
                             ),
                           ],
                         ],
@@ -604,6 +736,18 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
     );
   }
 
+// Helper method to open image gallery
+  void _openImageGallery(Message message, List<String> images, {int initialIndex = 0}) {
+    // You'll need to implement this method based on your gallery viewer
+    // For example, using a package like photo_view or your own FullScreenViewer
+    GeneralMethods.navigateTo(
+      context,
+      FullScreenViewer(
+        firebasePaths: images,
+        initialIndex: initialIndex,
+      ),
+    );
+  }
   bool _shouldShowDateHeader(Message message) {
     return true;
   }
@@ -924,6 +1068,7 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
                     stream: _messagesStream,
                     builder: (context, snapshot) {
                       if (snapshot.hasError) {
+                         debugPrint("snapshot error ${snapshot.error}");
                         return Center(child: Text('Error: ${snapshot.error}'));
                       }
 
