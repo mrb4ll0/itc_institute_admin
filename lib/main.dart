@@ -2,6 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:itc_institute_admin/auth/tweet_provider.dart';
+import 'package:itc_institute_admin/itc_logic/firebase/provider/theme_provider.dart';
 import 'package:itc_institute_admin/theme/app_theme.dart';
 import 'package:provider/provider.dart';
 
@@ -17,7 +18,8 @@ void main() async {
 
   runApp(
     MultiProvider(
-      providers: [ChangeNotifierProvider(create: (_) => TweetProvider())],
+      providers: [ChangeNotifierProvider(create: (_) => TweetProvider()),
+      ChangeNotifierProvider(create: (_) => ThemeProvider())],
       child: const MyApp(),
     ),
   );
@@ -28,13 +30,16 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'ITC Company Portal',
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.system,
-      home: const LoginScreen(),
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, child) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData.light(), // Your light theme
+          darkTheme: ThemeData.dark(), // Your dark theme
+          themeMode: themeProvider.themeMode, // Use provider's theme
+          home: const LoginScreen(),
+        );
+      },
     );
   }
 }

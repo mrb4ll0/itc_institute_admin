@@ -193,222 +193,225 @@ class _LoginScreenState extends State<LoginScreen> {
     final isDarkMode = theme.brightness == Brightness.dark;
     final size = MediaQuery.of(context).size;
 
-    return Scaffold(
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Container(
-            padding: EdgeInsets.symmetric(
-              horizontal: size.width > 600 ? 80 : 24,
-              vertical: 40,
-            ),
-            height: size.height,
-            child: Column(
-              children: [
-                // Logo and Welcome
-                Column(
-                  children: [
-                    Container(
-                      width: 80,
-                      height: 80,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: isDarkMode ? Colors.grey[800] : Colors.grey[100],
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 12,
-                            spreadRadius: 2,
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.school_outlined,
-                        size: 40,
-                        color: Colors.blue,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      "Welcome Admin",
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: isDarkMode ? Colors.white : Colors.blueGrey[900],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      "Sign in to your dashboard",
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.7),
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 40),
-
-                // Progress Stepper
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
+        body: SafeArea(
+          child: SingleChildScrollView(
+            child: Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: size.width > 600 ? 80 : 24,
+                vertical: 40,
+              ),
+              height: size.height,
+              child: Column(
+                children: [
+                  // Logo and Welcome
+                  Column(
                     children: [
-                      _buildStepCircle(0, "Email", _currentStep >= 0),
-                      Expanded(
-                        child: Container(
-                          height: 2,
-                          color: _currentStep >= 1
-                              ? Colors.blue
-                              : Colors.grey[300],
-                        ),
-                      ),
-                      _buildStepCircle(1, "Password", _currentStep >= 1),
-                      Expanded(
-                        child: Container(
-                          height: 2,
-                          color: _currentStep >= 2
-                              ? Colors.blue
-                              : Colors.grey[300],
-                        ),
-                      ),
-                      _buildStepCircle(2, "Login", _currentStep == 2),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 40),
-
-                // Form Content
-                Expanded(
-                  child: Form(
-                    key: _formKey,
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 300),
-                      child: _currentStep == 0
-                          ? _buildEmailStep(isDarkMode)
-                          : _currentStep == 1
-                          ? _buildPasswordStep(isDarkMode)
-                          : _buildLoadingStep(),
-                    ),
-                  ),
-                ),
-
-                // Navigation Buttons
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    if (_currentStep > 0)
-                      TextButton(
-                        onPressed: _previousStep,
-                        child: Row(
-                          children: [
-                            const Icon(Icons.arrow_back, size: 18),
-                            const SizedBox(width: 8),
-                            Text(
-                              "Back",
-                              style: TextStyle(
-                                color: theme.colorScheme.primary,
-                                fontWeight: FontWeight.w500,
-                              ),
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isDarkMode ? Colors.grey[800] : Colors.grey[100],
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 12,
+                              spreadRadius: 2,
                             ),
                           ],
                         ),
-                      )
-                    else
-                      const SizedBox(width: 100),
-
-                    ElevatedButton(
-                      onPressed: _isLoading ? null : _nextStep,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: theme.colorScheme.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 32,
-                          vertical: 14,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                        child: const Icon(
+                          Icons.school_outlined,
+                          size: 40,
+                          color: Colors.blue,
                         ),
                       ),
-                      child: _isLoading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  _currentStep == 0
-                                      ? "Continue"
-                                      : _currentStep == 1
-                                      ? "Sign In"
-                                      : "Processing",
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                if (_currentStep < 2 && !_isLoading) ...[
-                                  const SizedBox(width: 8),
-                                  const Icon(Icons.arrow_forward, size: 18),
-                                ],
-                              ],
-                            ),
-                    ),
-                  ],
-                ),
+                      const SizedBox(height: 24),
+                      Text(
+                        "Welcome Admin",
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: isDarkMode ? Colors.white : Colors.blueGrey[900],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        "Sign in to your dashboard",
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          color: theme.colorScheme.onSurface.withOpacity(0.7),
+                        ),
+                      ),
+                    ],
+                  ),
 
-                const SizedBox(height: 20),
+                  const SizedBox(height: 40),
 
-                // Forgot Password
-                TextButton(
-                  onPressed: () {
-                    _showForgotPasswordDialog();
-                  },
-                  child: Text(
-                    "Forgot Password?",
-                    style: TextStyle(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.w500,
+                  // Progress Stepper
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _buildStepCircle(0, "Email", _currentStep >= 0),
+                        Expanded(
+                          child: Container(
+                            height: 2,
+                            color: _currentStep >= 1
+                                ? Colors.blue
+                                : Colors.grey[300],
+                          ),
+                        ),
+                        _buildStepCircle(1, "Password", _currentStep >= 1),
+                        Expanded(
+                          child: Container(
+                            height: 2,
+                            color: _currentStep >= 2
+                                ? Colors.blue
+                                : Colors.grey[300],
+                          ),
+                        ),
+                        _buildStepCircle(2, "Login", _currentStep == 2),
+                      ],
                     ),
                   ),
-                ),
 
-                // Sign Up
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      "Don't have an account? ",
-                      style: TextStyle(
-                        color: theme.colorScheme.onSurface.withOpacity(0.6),
+                  const SizedBox(height: 40),
+
+                  // Form Content
+                  Expanded(
+                    child: Form(
+                      key: _formKey,
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 300),
+                        child: _currentStep == 0
+                            ? _buildEmailStep(isDarkMode)
+                            : _currentStep == 1
+                            ? _buildPasswordStep(isDarkMode)
+                            : _buildLoadingStep(),
                       ),
                     ),
-                    TextButton(
-                      onPressed: () {
-                        GeneralMethods.navigateTo(
-                          context,
-                          CompanySignupScreen(),
-                        );
-                      },
-                      child: Text(
-                        "Sign Up",
+                  ),
+
+                  // Navigation Buttons
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      if (_currentStep > 0)
+                        TextButton(
+                          onPressed: _previousStep,
+                          child: Row(
+                            children: [
+                              const Icon(Icons.arrow_back, size: 18),
+                              const SizedBox(width: 8),
+                              Text(
+                                "Back",
+                                style: TextStyle(
+                                  color: theme.colorScheme.primary,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      else
+                        const SizedBox(width: 100),
+
+                      ElevatedButton(
+                        onPressed: _isLoading ? null : _nextStep,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: theme.colorScheme.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 32,
+                            vertical: 14,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    _currentStep == 0
+                                        ? "Continue"
+                                        : _currentStep == 1
+                                        ? "Sign In"
+                                        : "Processing",
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  if (_currentStep < 2 && !_isLoading) ...[
+                                    const SizedBox(width: 8),
+                                    const Icon(Icons.arrow_forward, size: 18),
+                                  ],
+                                ],
+                              ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Forgot Password
+                  TextButton(
+                    onPressed: () {
+                      _showForgotPasswordDialog();
+                    },
+                    child: Text(
+                      "Forgot Password?",
+                      style: TextStyle(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+
+                  // Sign Up
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        "Don't have an account? ",
                         style: TextStyle(
-                          color: theme.colorScheme.primary,
-                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.onSurface.withOpacity(0.6),
                         ),
                       ),
-                    ),
-                  ],
-                ),
+                      TextButton(
+                        onPressed: () {
+                          GeneralMethods.navigateTo(
+                            context,
+                            CompanySignupScreen(),
+                          );
+                        },
+                        child: Text(
+                          "Sign Up",
+                          style: TextStyle(
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
 
-                const SizedBox(height: 20),
-              ],
+                  const SizedBox(height: 20),
+                ],
+              ),
             ),
           ),
         ),

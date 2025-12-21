@@ -1,15 +1,21 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:itc_institute_admin/auth/login_view.dart';
 import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
+import 'package:itc_institute_admin/itc_logic/help_support/help.dart';
+import 'package:itc_institute_admin/view/company/companyDetailPage.dart';
+import 'package:itc_institute_admin/view/company/myProfile.dart';
 import 'package:itc_institute_admin/view/home/chatListPage.dart';
 import 'package:itc_institute_admin/view/home/companyDashBoard.dart';
 import 'package:itc_institute_admin/view/home/studentApplicationPage.dart';
+import 'package:itc_institute_admin/view/home/themePage.dart';
 import 'package:itc_institute_admin/view/home/tweet_view.dart';
 
 import '../../itc_logic/firebase/general_cloud.dart';
 import '../../model/company.dart';
+import '../company/companyEdit.dart';
 import 'iTList.dart';
 
 class CompanyDashboardController extends StatefulWidget {
@@ -108,6 +114,14 @@ class _CompanyDashboardControllerState
         padding: EdgeInsets.zero,
         children: [
           UserAccountsDrawerHeader(
+            onDetailsPressed: ()
+            {
+              GeneralMethods.navigateTo(context, CompanyMyProfilePage(company: company,
+              onProfileUpdated: (updatedCompany)
+                {
+                   company = updatedCompany;
+                },));
+            },
             accountName: Text(company.name),
             accountEmail: Text(company.email),
             currentAccountPicture: CircleAvatar(
@@ -122,19 +136,36 @@ class _CompanyDashboardControllerState
           _buildDrawerItem(
             icon: Icons.edit,
             text: 'Edit Profile',
-            onTap: () {},
+            onTap: () {
+               if(_company == null)
+                 {
+                   Fluttertoast.showToast(msg: "Company not found , kindly logout and login ");
+                   return;
+                 }
+              navigateToEditCompany(_company!);
+            },
           ),
           _buildDrawerItem(
             icon: Icons.settings,
             text: 'Settings',
-            onTap: () {},
+            onTap: () {
+              GeneralMethods.navigateTo(context, CompanyMyProfilePage(company: company, onProfileUpdated: (company)
+              {
+
+              }));
+            },
           ),
           _buildDrawerItem(
             icon: Icons.help_outline,
             text: 'Help & Support',
-            onTap: () {},
+            onTap: () {
+              debugPrint("help and support ");
+              GeneralMethods.navigateTo(context, CompanyHelpPage());
+            },
           ),
-          _buildDrawerItem(icon: Icons.nightlight, text: 'Theme', onTap: () {}),
+          _buildDrawerItem(icon: Icons.nightlight, text: 'Theme', onTap: () {
+            GeneralMethods.navigateTo(context,ThemeSettingsPage());
+          }),
           const Divider(),
           _buildDrawerItem(
             icon: Icons.logout,
@@ -144,6 +175,27 @@ class _CompanyDashboardControllerState
             },
           ),
         ],
+      ),
+    );
+  }
+
+  void navigateToEditCompany(Company company) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CompanyEditPage(
+          company: company,
+          onSave: (updatedCompany) {
+            // Update your local state
+            setState(() {
+              // Replace company in your list
+            });
+            Navigator.pop(context);
+          },
+          onCancel: () {
+            Navigator.pop(context);
+          },
+        ),
       ),
     );
   }
@@ -254,8 +306,8 @@ class _CompanyDashboardControllerState
             label: 'IT List',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.feedback_sharp),
-            activeIcon: Icon(Icons.message),
+            icon: Icon(Icons.feed),
+            activeIcon: Icon(Icons.feed),
             label: 'Feeds',
           ),
           BottomNavigationBarItem(

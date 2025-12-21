@@ -1673,4 +1673,18 @@ class Company_Cloud {
       rethrow;
     }
   }
+
+  // In your ITCFirebaseLogic class
+  Future<void> updateCompany(Company company) async {
+    try {
+      await FirebaseFirestore.instance
+           .collection('users')
+           .doc('companies')
+          .collection('companies')
+          .doc(company.id)
+          .update(company.toMap());
+    } catch (e) {
+      throw Exception('Failed to update company: $e');
+    }
+  }
 }
