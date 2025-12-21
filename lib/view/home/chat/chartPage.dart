@@ -54,17 +54,74 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
   late dynamic _receiverData; // Store the receiver data
   late Company? company;
   ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic();
+  int? _previousMessageCount;
+  bool _showScrollToBottomButton = false;
 
   @override
   void initState() {
     super.initState();
     _receiverData = widget.receiverData;
-    // Add listener for keyboard visibility
+    _initializeChat();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _setupKeyboardListener();
       _markMessagesAsRead();
     });
-    _initializeChat();
+  }
+  void _scrollToBottom() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+
+
+  bool get _isAtBottom {
+    if (!_scrollController.hasClients) return true;
+
+    final maxScroll = _scrollController.position.maxScrollExtent;
+    final currentScroll = _scrollController.offset;
+
+    // If maxScroll is 0, we're at bottom (empty list)
+    if (maxScroll == 0) return true;
+
+    // Check if we're within 50 pixels of the bottom
+    return (maxScroll - currentScroll) <= 50;
+  }
+  
+  Widget _buildScrollToBottomButton(ThemeData theme) {
+    if (!_showScrollToBottomButton) return const SizedBox.shrink();
+
+    return Positioned(
+      bottom: 80, // Position above the input bar
+      right: 16,
+      child: GestureDetector(
+        onTap: _scrollToBottom,
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primary,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Icon(
+            Icons.arrow_downward,
+            color: theme.colorScheme.onPrimary,
+            size: 20,
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _markMessagesAsRead() async {
@@ -135,16 +192,6 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
     });
   }
 
-  void _scrollToBottom() {
-    if (_scrollController.hasClients) {
-      // Use this to scroll to the maximum scroll extent
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
-    }
-  }
 
   Future<void> _sendMessage() async {
     if (_messageController.text.trim().isEmpty && _selectedImages.isEmpty) {
@@ -248,6 +295,7 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
       );
     }
   }
+
 
   void _showImageOptions() {
     showModalBottomSheet(
@@ -382,6 +430,11 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
 
     final bool hasImages = images.isNotEmpty;
     final bool hasMultipleImages = images.length > 1;
+    final bool isSingleImage = hasImages && !hasMultipleImages;
+
+    // Check if the content is just an image URL that we're already displaying
+    final bool contentIsImageUrl = hasImages &&
+        GeneralMethods.contentIsOnlyImageUrl(message.content, images);
 
     return Column(
       children: [
@@ -458,184 +511,39 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Image(s) display
+                            // Image(s) display - UPDATED
                             if (hasImages)
-                              Column(
-                                children: [
-                                  // Single image or grid for multiple images
-                                  if (!hasMultipleImages)
-                                  // Single image
-                                    InkWell(
-                                      onTap: () {
-                                        GeneralMethods.navigateTo(
-                                          context,
-                                          FullScreenViewer(
-                                            firebasePath: images[0],
-                                          ),
-                                        );
-                                      },
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(8),
-                                        child: Image.network(
-                                          images[0],
-                                          width: 250,
-                                          height: 150,
-                                          fit: BoxFit.cover,
-                                          loadingBuilder:
-                                              (context, child, loadingProgress) {
-                                            if (loadingProgress == null)
-                                              return child;
-                                            return Container(
-                                              width: 250,
-                                              height: 150,
-                                              color: theme.colorScheme.surface,
-                                              child: Center(
-                                                child: CircularProgressIndicator(
-                                                  value:
-                                                  loadingProgress
-                                                      .expectedTotalBytes !=
-                                                      null
-                                                      ? loadingProgress
-                                                      .cumulativeBytesLoaded /
-                                                      loadingProgress
-                                                          .expectedTotalBytes!
-                                                      : null,
-                                                ),
-                                              ),
-                                            );
-                                          },
-                                          errorBuilder:
-                                              (context, error, stackTrace) {
-                                            return Container(
-                                              width: 250,
-                                              height: 150,
-                                              color:
-                                              theme.colorScheme.errorContainer,
-                                              child: Center(
-                                                child: Icon(
-                                                  Icons.broken_image,
-                                                  color: theme.colorScheme.error,
-                                                ),
-                                              ),
-                                            );
-                                          },
-                                        ),
-                                      ),
-                                    )
-                                  else
-                                  // Multiple images grid
-                                    GridView.builder(
-                                      shrinkWrap: true,
-                                      physics: const NeverScrollableScrollPhysics(),
-                                      gridDelegate:
-                                      const SliverGridDelegateWithFixedCrossAxisCount(
-                                        crossAxisCount: 2,
-                                        crossAxisSpacing: 4,
-                                        mainAxisSpacing: 4,
-                                        childAspectRatio: 1,
-                                      ),
-                                      itemCount: images.length > 4 ? 5 : images.length,
-                                      itemBuilder: (context, index) {
-                                        // Show "View All" on the 5th item if more than 4 images
-                                        if (index == 4 && images.length > 4) {
-                                          return GestureDetector(
-                                            onTap: () => _openImageGallery(message, images),
-                                            child: Container(
-                                              decoration: BoxDecoration(
-                                                color: theme.colorScheme.surface
-                                                    .withOpacity(0.7),
-                                                borderRadius: BorderRadius.circular(8),
-                                              ),
-                                              child: Center(
-                                                child: Column(
-                                                  mainAxisAlignment: MainAxisAlignment.center,
-                                                  children: [
-                                                    Text(
-                                                      '+${images.length - 4}',
-                                                      style: theme.textTheme.titleLarge
-                                                          ?.copyWith(
-                                                        color: theme.colorScheme.primary,
-                                                        fontWeight: FontWeight.bold,
-                                                      ),
-                                                    ),
-                                                    Text(
-                                                      'View All',
-                                                      style: theme.textTheme.labelSmall
-                                                          ?.copyWith(
-                                                        color: theme.colorScheme.onSurface,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-                                          );
-                                        }
-
-                                        final imageUrl = images[index];
-                                        return GestureDetector(
-                                          onTap: () => _openImageGallery(message, images, initialIndex: index),
-                                          child: ClipRRect(
-                                            borderRadius: BorderRadius.circular(8),
-                                            child: Image.network(
-                                              imageUrl,
-                                              fit: BoxFit.cover,
-                                              loadingBuilder:
-                                                  (context, child, loadingProgress) {
-                                                if (loadingProgress == null)
-                                                  return child;
-                                                return Container(
-                                                  color: theme.colorScheme.surface,
-                                                  child: Center(
-                                                    child: CircularProgressIndicator(
-                                                      value:
-                                                      loadingProgress
-                                                          .expectedTotalBytes !=
-                                                          null
-                                                          ? loadingProgress
-                                                          .cumulativeBytesLoaded /
-                                                          loadingProgress
-                                                              .expectedTotalBytes!
-                                                          : null,
-                                                    ),
-                                                  ),
-                                                );
-                                              },
-                                              errorBuilder:
-                                                  (context, error, stackTrace) {
-                                                return Container(
-                                                  color: theme
-                                                      .colorScheme.errorContainer,
-                                                  child: Center(
-                                                    child: Icon(
-                                                      Icons.broken_image,
-                                                      color: theme.colorScheme.error,
-                                                    ),
-                                                  ),
-                                                );
-                                              },
-                                            ),
-                                          ),
-                                        );
-                                      },
+                              _ImagePreviewCard(
+                                images: images,
+                                isMe: isMe,
+                                theme: theme,
+                                onViewImage: (imageUrl) {
+                                  GeneralMethods.navigateTo(
+                                    context,
+                                    FullScreenViewer(
+                                      firebasePath: imageUrl,
                                     ),
-
-                                  if (hasMultipleImages && images.length > 4)
-                                    const SizedBox(height: 4),
-                                ],
+                                  );
+                                },
+                                onViewGallery: () {
+                                  _openImageGallery(message, images);
+                                },
                               ),
 
-                            if (hasImages && message.content.isNotEmpty)
-                              const SizedBox(height: 8),
-
-                            if (message.content.isNotEmpty)
-                              Text(
-                                message.content,
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: isMe
-                                      ? theme.colorScheme.onPrimary
-                                      : theme.colorScheme.onSurfaceVariant,
-                                ),
+                            // Only show content if it's NOT just an image URL
+                            if (!contentIsImageUrl && message.content.isNotEmpty)
+                              Column(
+                                children: [
+                                  if (hasImages) const SizedBox(height: 8),
+                                  Text(
+                                    message.content,
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: isMe
+                                          ? theme.colorScheme.onPrimary
+                                          : theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
                               ),
 
                             if (message.replyTo != null)
@@ -735,11 +643,9 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
       ],
     );
   }
-
 // Helper method to open image gallery
   void _openImageGallery(Message message, List<String> images, {int initialIndex = 0}) {
-    // You'll need to implement this method based on your gallery viewer
-    // For example, using a package like photo_view or your own FullScreenViewer
+
     GeneralMethods.navigateTo(
       context,
       FullScreenViewer(
@@ -1067,6 +973,8 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
                 : StreamBuilder<List<Message>>(
                     stream: _messagesStream,
                     builder: (context, snapshot) {
+
+
                       if (snapshot.hasError) {
                          debugPrint("snapshot error ${snapshot.error}");
                         return Center(child: Text('Error: ${snapshot.error}'));
@@ -1076,21 +984,35 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
                         return const Center(child: CircularProgressIndicator());
                       }
 
+
+
                       final messages = snapshot.data!;
+                      final listKey = ValueKey(messages.length);
+
+                      // Scroll to bottom when new messages arrive
                       WidgetsBinding.instance.addPostFrameCallback((_) {
                         if (_scrollController.hasClients) {
-                          // Check if we're near the bottom (within 100 pixels)
-                          final isNearBottom =
-                              _scrollController.offset >=
-                              _scrollController.position.maxScrollExtent - 100;
+                          // Check if this is a new message (not just initial load)
+                          final hasNewMessages = _previousMessageCount != null &&
+                              messages.length > _previousMessageCount!;
 
-                          // Only auto-scroll if user is already near the bottom
-                          if (isNearBottom) {
+                          if (hasNewMessages) {
+                            // Always scroll for new incoming messages
                             _scrollToBottom();
+                          } else {
+                            // For initial load, check if user is near bottom
+                            final isNearBottom = _scrollController.offset >=
+                                _scrollController.position.maxScrollExtent - 100;
+
+                            if (isNearBottom) {
+                              _scrollToBottom();
+                            }
                           }
+
+                          // Update the previous count
+                          _previousMessageCount = messages.length;
                         }
                       });
-
                       if (messages.isEmpty) {
                         return Center(
                           child: Column(
@@ -1134,21 +1056,36 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
                         );
                       }
 
-                      return ListView.builder(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.all(16),
-                        itemCount: messages.length + 1,
-                        itemBuilder: (context, index) {
-                          if (index == 0) {
-                            return _isTyping
-                                ? _typingIndicator(theme)
-                                : const SizedBox.shrink();
-                          }
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        _scrollToBottom();
+                      });
 
-                          final messageIndex = index - 1;
-                          final message = messages[messageIndex];
-                          return _buildMessageBubble(message, theme);
-                        },
+                      return Stack(
+                        children: [
+                          ListView.builder(
+                            controller: _scrollController,
+                            padding: const EdgeInsets.all(16),
+                            itemCount: messages.length + 1,
+                            itemBuilder: (context, index) {
+                              if (index == 0) {
+                                return _isTyping
+                                    ? _typingIndicator(theme)
+                                    : const SizedBox.shrink();
+                              }
+
+                              final messageIndex = index - 1;
+                              final message = messages[messageIndex];
+
+                              Widget messageBubble = _buildMessageBubble(message, theme);
+
+                              return messageBubble;
+                            },
+                          ),
+
+                          // Add the scroll-to-bottom button
+
+                          _buildScrollToBottomButton(theme),
+                        ],
                       );
                     },
                   ),
@@ -1594,5 +1531,349 @@ class _DotState extends State<_Dot> with SingleTickerProviderStateMixin {
         ),
       ),
     );
+  }
+}
+
+class _ImagePreviewCard extends StatefulWidget {
+  final List<String> images;
+  final bool isMe;
+  final ThemeData theme;
+  final Function(String) onViewImage;
+  final VoidCallback onViewGallery;
+
+  const _ImagePreviewCard({
+    required this.images,
+    required this.isMe,
+    required this.theme,
+    required this.onViewImage,
+    required this.onViewGallery,
+  });
+
+  @override
+  State<_ImagePreviewCard> createState() => _ImagePreviewCardState();
+}
+
+class _ImagePreviewCardState extends State<_ImagePreviewCard> {
+  final Map<String, bool> _loadedImages = {};
+  bool _showAllImages = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isSingleImage = widget.images.length == 1;
+    final bool showViewAll = widget.images.length > 4 && !_showAllImages;
+    final displayCount = showViewAll ? 5 : widget.images.length;
+
+    return Column(
+      children: [
+        // Header showing image count
+        Row(
+          children: [
+            Icon(
+              Icons.image,
+              size: 16,
+              color: widget.isMe
+                  ? widget.theme.colorScheme.onPrimary.withOpacity(0.8)
+                  : widget.theme.colorScheme.onSurfaceVariant.withOpacity(0.8),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              '${widget.images.length} photo${widget.images.length > 1 ? 's' : ''}',
+              style: widget.theme.textTheme.labelSmall?.copyWith(
+                color: widget.isMe
+                    ? widget.theme.colorScheme.onPrimary.withOpacity(0.8)
+                    : widget.theme.colorScheme.onSurfaceVariant.withOpacity(0.8),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+
+        // Grid of image previews
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 4,
+            mainAxisSpacing: 4,
+            childAspectRatio: 1,
+          ),
+          itemCount: displayCount,
+          itemBuilder: (context, index) {
+            // "View All" button for multiple images
+            if (showViewAll && index == 4) {
+              return GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _showAllImages = true;
+                  });
+                },
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: widget.theme.colorScheme.surface.withOpacity(0.7),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: widget.isMe
+                          ? widget.theme.colorScheme.primary.withOpacity(0.3)
+                          : widget.theme.colorScheme.outline.withOpacity(0.3),
+                    ),
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          '+${widget.images.length - 4}',
+                          style: widget.theme.textTheme.titleLarge?.copyWith(
+                            color: widget.isMe
+                                ? widget.theme.colorScheme.onPrimary
+                                : widget.theme.colorScheme.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          'View All',
+                          style: widget.theme.textTheme.labelSmall?.copyWith(
+                            color: widget.isMe
+                                ? widget.theme.colorScheme.onPrimary.withOpacity(0.8)
+                                : widget.theme.colorScheme.onSurface,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }
+
+            final imageUrl = widget.images[index];
+            final isLoaded = _loadedImages[imageUrl] ?? false;
+
+            return GestureDetector(
+              onTap: () {
+                if (isSingleImage) {
+                  widget.onViewImage(imageUrl);
+                } else {
+                  widget.onViewGallery();
+                }
+              },
+              child: Container(
+                decoration: BoxDecoration(
+                  color: widget.isMe
+                      ? widget.theme.colorScheme.primary.withOpacity(0.2)
+                      : widget.theme.colorScheme.surfaceVariant.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: widget.isMe
+                        ? widget.theme.colorScheme.primary.withOpacity(0.3)
+                        : widget.theme.colorScheme.outline.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // Show image if loaded
+                    if (isLoaded)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          imageUrl,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+
+                    // Preview overlay with icon
+                    Container(
+                      decoration: BoxDecoration(
+                        color: isLoaded
+                            ? Colors.black.withOpacity(0.2)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            // Show different icons based on state
+                            if (!isLoaded)
+                              Icon(
+                                Icons.download,
+                                size: 24,
+                                color: widget.isMe
+                                    ? widget.theme.colorScheme.onPrimary
+                                    : widget.theme.colorScheme.primary,
+                              ),
+                            if (isLoaded)
+                              Icon(
+                                Icons.remove_red_eye,
+                                size: 24,
+                                color: widget.isMe
+                                    ? widget.theme.colorScheme.onPrimary
+                                    : Colors.white,
+                              ),
+
+                            const SizedBox(height: 4),
+
+                            if (!isLoaded)
+                              Text(
+                                'Tap to load',
+                                style: widget.theme.textTheme.labelSmall?.copyWith(
+                                  color: widget.isMe
+                                      ? widget.theme.colorScheme.onPrimary
+                                      : widget.theme.colorScheme.primary,
+                                ),
+                              ),
+                            if (isLoaded)
+                              Text(
+                                'Tap to view',
+                                style: widget.theme.textTheme.labelSmall?.copyWith(
+                                  color: widget.isMe
+                                      ? widget.theme.colorScheme.onPrimary
+                                      : Colors.white,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // Load button in corner
+                    if (!isLoaded)
+                      Positioned(
+                        top: 4,
+                        right: 4,
+                        child: GestureDetector(
+                          onTap: () => _loadImage(imageUrl),
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: widget.isMe
+                                  ? widget.theme.colorScheme.primary
+                                  : widget.theme.colorScheme.surface,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.download,
+                              size: 14,
+                              color: widget.isMe
+                                  ? widget.theme.colorScheme.onPrimary
+                                  : widget.theme.colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+
+        // Action buttons
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    // Download all images
+                    _downloadAllImages(widget.images);
+                  },
+                  icon: Icon(
+                    Icons.download,
+                    size: 16,
+                    color: widget.isMe
+                        ? widget.theme.colorScheme.onPrimary
+                        : widget.theme.colorScheme.primary,
+                  ),
+                  label: Text(
+                    'Download All',
+                    style: widget.theme.textTheme.labelSmall?.copyWith(
+                      color: widget.isMe
+                          ? widget.theme.colorScheme.onPrimary
+                          : widget.theme.colorScheme.primary,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: widget.isMe
+                        ? widget.theme.colorScheme.primary.withOpacity(0.3)
+                        : widget.theme.colorScheme.surfaceVariant,
+                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+                    minimumSize: const Size(0, 30),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              if(widget.images.length >1)
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: widget.onViewGallery,
+                  icon: Icon(
+                    Icons.remove_red_eye,
+                    size: 16,
+                    color: widget.isMe
+                        ? widget.theme.colorScheme.onPrimary
+                        : widget.theme.colorScheme.primary,
+                  ),
+                  label: Text(
+                    'View Gallery',
+                    style: widget.theme.textTheme.labelSmall?.copyWith(
+                      color: widget.isMe
+                          ? widget.theme.colorScheme.onPrimary
+                          : widget.theme.colorScheme.primary,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: widget.isMe
+                        ? widget.theme.colorScheme.primary.withOpacity(0.3)
+                        : widget.theme.colorScheme.surfaceVariant,
+                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+                    minimumSize: const Size(0, 30),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _loadImage(String imageUrl) async {
+    // Pre-cache the image
+    try {
+      final image = NetworkImage(imageUrl);
+      await precacheImage(image, context);
+
+      setState(() {
+        _loadedImages[imageUrl] = true;
+      });
+    } catch (e) {
+      // Show error snackbar or handle error
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to load image: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _downloadAllImages(List<String> images) async {
+    // Implement download logic here
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Downloading ${images.length} images...'),
+      ),
+    );
+
+    // Load all images
+    for (final imageUrl in images) {
+      if (!_loadedImages.containsKey(imageUrl) || !_loadedImages[imageUrl]!) {
+        _loadImage(imageUrl);
+      }
+    }
   }
 }

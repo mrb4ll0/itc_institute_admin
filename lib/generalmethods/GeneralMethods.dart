@@ -489,4 +489,26 @@ class GeneralMethods {
     return 'fab_${DateTime.now().millisecondsSinceEpoch}_${Random()}';
   }
 
+  static bool isImageUrl(String url) {
+    final imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
+    return imageExtensions.any((ext) => url.toLowerCase().contains(ext));
+  }
+
+  static bool contentIsOnlyImageUrl(String content, List<String> images) {
+    if (content.isEmpty) return false;
+
+    // Check if content is exactly one of the image URLs
+    if (images.contains(content)) return true;
+
+    // Check if content looks like an image URL
+    if (isImageUrl(content)) {
+      // Check if it's similar to our image URLs (Firebase Storage URLs often have query params)
+      return images.any((imageUrl) =>
+      content.contains(imageUrl.split('?').first) ||
+          imageUrl.contains(content.split('?').first));
+    }
+
+    return false;
+  }
+
 }
