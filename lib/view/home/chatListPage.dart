@@ -1,1116 +1,1147 @@
-import 'dart:async';
+import 'dart:io';
 
-import 'package:async/async.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:fluttertoast/fluttertoast.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:itc_institute_admin/model/userProfile.dart';
 import 'package:itc_institute_admin/view/home/chat/chartPage.dart';
-import 'package:itc_institute_admin/view/home/student/studentDetails.dart';
+import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 
-import '../../generalmethods/GeneralMethods.dart';
-import '../../itc_logic/firebase/company_cloud.dart'; // Import company cloud
+import '../../../../itc_logic/admin_task.dart';
+import '../../firebase_cloud_storage/firebase_cloud.dart';
+import '../../itc_logic/firebase/general_cloud.dart';
 import '../../itc_logic/firebase/message/message_service.dart';
-import '../../itc_logic/service/userService.dart';
+import '../../itc_logic/firebase/provider/groupChatProvider.dart';
 import '../../model/company.dart';
 import '../../model/message.dart';
 import '../../model/student.dart';
+import 'chat/groupChatPage.dart';
 
-class ChatListPage extends StatefulWidget {
-  const ChatListPage({super.key});
+class MessagesView extends StatefulWidget {
+
+  MessagesView({super.key});
 
   @override
-  State<ChatListPage> createState() => _ChatListPageState();
+  State<MessagesView> createState() => _MessagesViewState();
 }
 
-class _ChatListPageState extends State<ChatListPage>
-    with AutomaticKeepAliveClientMixin {
-  final TextEditingController _searchController = TextEditingController();
-  int _selectedFilter = 0; // 0: All, 1: Unread, 2: Accepted, 3: Archived
-  final chatService = ChatService();
+class _MessagesViewState extends State<MessagesView> {
+  final ChatService _chatService = ChatService();
+  final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
+  final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic();
+  final AdminCloud _adminCloud = AdminCloud();
 
-  // Variables for real data
-  List<UserChat> _filteredChats = [];
-  List<UserChat> _allChats = [];
-  bool _isLoading = true;
-  String? _currentUserId;
-  String? _currentUserRole; // 'student' or 'company'
-  StreamSubscription? _messagesStreamSubscription;
-  StreamSubscription? _latestMessagesStreamSubscription;
-  List<Student> _availableStudents = [];
+  late Stream<List<Message>> _messageStream;
+  late Stream<List<Map<String, dynamic>>> _groupStream;
+  bool _isLoading = true;  // Add this flag
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
-    _loadCurrentUser();
-  }
 
-  @override
-  void dispose() {
-    _messagesStreamSubscription?.cancel();
-    _latestMessagesStreamSubscription?.cancel();
-    super.dispose();
-  }
+    _messageStream = Stream.value([]);
+    _groupStream = Stream.value([]);
 
-  Future<void> _loadCurrentUser() async {
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        setState(() => _isLoading = false);
-        return;
-      }
-
-      _currentUserId = user.uid;
-
-      // Determine if current user is a student or company
-      final userService = UserService();
-      final userData = await userService.getCurrentUserData();
-      _currentUserRole = userData?['role'] ?? 'student';
-
-      if (_currentUserRole == 'company') {
-        // Cancel any existing stream
-        _messagesStreamSubscription?.cancel();
-        await _loadStudentsForCompany();
-        _setupMessageStreamForCompany();
-      } else {
-        // Student user: Load all chats normally
-        await _loadAllChats();
-      }
-    } catch (e) {
-      print('Error loading user: $e');
-      setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _loadStudentsForCompany() async {
-    try {
-      if (_currentUserId == null) return;
-
-      final companyCloud = Company_Cloud();
-      final List<Student> students = await companyCloud
-          .getStudentsThatAppliedForCompany(_currentUserId!);
-
-      // Convert students to UserChat format initially
-      final List<UserChat> initialChats = [];
-
-      for (final student in students) {
-        final Map<String, dynamic>? latestMessageData = await chatService
-            .getLatestMessageData(_currentUserId!, student.uid);
-        debugPrint("last message data ${latestMessageData.toString()}");
-        final chat = UserChat.fromFirebaseData(
-          contactId: student.uid,
-          contactName: student.fullName,
-          avatarUrl: student.imageUrl,
-          userRole: 'student',
-          userData: student,
-          currentUserId: _currentUserId!,
-          latestMessageData: latestMessageData,
-        );
-          debugPrint("before  the  innertial chart senderId ${chat.lastMessageSenderId}");
-          debugPrint("before  the  innertial chart receiverId ${chat.lastMessageReceiverId}");
-          debugPrint("before  the  innertial chart ${chat.toString()}");
-        initialChats.add(chat);
-      }
-
+    _searchController.addListener(() {
       setState(() {
-        _allChats = initialChats;
-        _filteredChats = _applyFilter(initialChats, _selectedFilter);
-        _isLoading = false;
+        _searchQuery = _searchController.text.trim().toLowerCase();
       });
-
-      // Store students for later use in streams
-      _availableStudents = students;
-    } catch (e) {
-      print('Error loading students for company: $e');
-      setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _loadAllChats() async {
-    try {
-      // Listen to messages stream
-      chatService.getAllMessagesForCurrentUser().listen((messages) {
-        if (mounted) {
-          _processMessages(messages);
-        }
-      });
-    } catch (e) {
-      print('Error loading chats: $e');
-      setState(() => _isLoading = false);
-    }
-  }
-
-  void _setupMessageStreamForCompany() {
-    if (_currentUserId == null || _availableStudents.isEmpty) return;
-
-    // Cancel any existing stream
-    _latestMessagesStreamSubscription?.cancel();
-
-    // Create a stream for each student to listen for message updates
-    final streams = _availableStudents.map((student) {
-      return chatService.getLatestMessageDataStream(
-        _currentUserId!,
-        student.uid,
-      );
-    }).toList();
-
-    // Merge all streams
-    final mergedStream = StreamGroup.merge(streams);
-
-    _latestMessagesStreamSubscription = mergedStream.listen((data) {
-      if (data == null || !mounted) return;
-
-      // Update the specific chat with new message data
-      _updateChatWithNewMessage(data);
     });
+
+    loadCompany();
+
   }
-
-  void _updateChatWithNewMessage(Map<String, dynamic> messageData) {
-    // Extract contactId from the data (you'll need to modify getLatestMessageDataStream
-    // to include contactId in the returned data)
-    final contactId =
-        messageData['contactId']; // You need to add this to the stream
-
-    if (contactId == null) return;
-
-    // Find and update the chat
-    final index = _allChats.indexWhere((chat) => chat.id == contactId);
-
-    if (index != -1) {
-      final updatedChat = UserChat.fromFirebaseData(
-        contactId: _allChats[index].id,
-        contactName: _allChats[index].name,
-        avatarUrl: _allChats[index].avatarUrl,
-        userRole: _allChats[index].userRole,
-        userData: _allChats[index].userData,
-        currentUserId: _currentUserId!,
-        latestMessageData: messageData,
-      );
-      debugPrint("updatedchat senderId ${updatedChat.lastMessageSenderId}");
-      setState(() {
-        _allChats[index] = updatedChat;
-
-        // Re-sort by timestamp
-        _allChats.sort(
-          (a, b) => b.lastMessageTimestamp.compareTo(a.lastMessageTimestamp),
-        );
-
-        _filteredChats = _applyFilter(_allChats, _selectedFilter);
-      });
-    }
-  }
-
-  void _processMessages(List<Message> messages) async {
-    final userService = UserService();
-    final List<UserChat> chats = [];
-
-    // Group messages by chat partner
-    final Map<String, List<Message>> messagesByPartner = {};
-
-    for (final message in messages) {
-      final partnerId = message.senderId == _currentUserId
-          ? message.receiverId
-          : message.senderId;
-
-      if (!messagesByPartner.containsKey(partnerId)) {
-        messagesByPartner[partnerId] = [];
-      }
-      messagesByPartner[partnerId]!.add(message);
-    }
-
-    // Convert to UserChat objects
-    for (final entry in messagesByPartner.entries) {
-      final partnerId = entry.key;
-      final partnerMessages = entry.value;
-
-      // Sort messages by timestamp (newest first)
-      partnerMessages.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-
-      final latestMessage = partnerMessages.first;
-
-      // Get user details
-      final userDetails = await userService.getUserDetails(partnerId);
-
-      // Determine user role
-      bool isStudent = false;
-      dynamic userData;
-
-      if (userDetails is Student) {
-        isStudent = true;
-        userData = userDetails;
-      } else if (userDetails is Company) {
-        userData = userDetails;
-      }
-
-      final chat = UserChat(
-        id: partnerId,
-        name: isStudent
-            ? (userDetails as Student).fullName
-            : (userDetails as Company).name ?? 'Unknown User',
-        lastMessage: latestMessage.content,
-        timestamp: _formatTimestamp(latestMessage.timestamp),
-        isUnread:
-            !latestMessage.isRead && latestMessage.senderId != _currentUserId,
-        avatarUrl: isStudent
-            ? (userDetails as Student).imageUrl
-            : (userDetails as Company).logoURL ?? '',
-        unreadCount: partnerMessages
-            .where((msg) => !msg.isRead && msg.senderId != _currentUserId)
-            .length,
-        lastMessageTimestamp: latestMessage.timestamp,
-        userRole: isStudent ? 'student' : 'company',
-        userData: userData,
-      );
-
-      chats.add(chat);
-    }
-
-    // Sort chats by last message timestamp (newest first)
-    chats.sort(
-      (a, b) => b.lastMessageTimestamp.compareTo(a.lastMessageTimestamp),
-    );
-
+Company? company;
+  loadCompany()async
+  {
+    company = await _itcFirebaseLogic.getCompany(FirebaseAuth.instance.currentUser!.uid);
+     if(company == null)
+       {
+         debugPrint("company is null");
+         setState(() {
+           _isLoading = false;
+         });
+         return;
+       }
+    _messageStream = _chatService.getAllMessagesForCurrentUser();
+    _groupStream = _chatService.getUserGroups(company!.id);
     setState(() {
-      _allChats = chats;
-      _filteredChats = _applyFilter(chats, _selectedFilter);
       _isLoading = false;
     });
   }
 
-  String _formatTimestamp(Timestamp timestamp) {
-    final now = DateTime.now();
-    final messageDate = timestamp.toDate();
-    final today = DateTime(now.year, now.month, now.day);
-    final yesterday = DateTime(now.year, now.month, now.day - 1);
-    final messageDay = DateTime(
-      messageDate.year,
-      messageDate.month,
-      messageDate.day,
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    if (_isLoading) {
+      return Center(child: CircularProgressIndicator());
+    }
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: isDark ? Colors.grey[900] : Colors.white,
+        elevation: 0,
+        title: Text(
+          'Messages',
+          style: TextStyle(
+            color: isDark ? Colors.white : Colors.blueGrey[900],
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
+        ),
+      ),
+      body: Container(
+        decoration:
+        BoxDecoration(color: isDark ? Colors.grey[900] : Colors.white),
+        child: Column(
+          children: [
+            // Modern Search Bar
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: isDark
+                        ? [Color(0xFF232526), Color(0xFF414345)]
+                        : [
+                      Colors.white.withOpacity(0.7),
+                      Colors.blue[50]!.withOpacity(0.9)
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: isDark
+                          ? Colors.black.withOpacity(0.08)
+                          : Colors.blue[100]!.withOpacity(0.13),
+                      blurRadius: 8,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Search by name...',
+                    hintStyle: TextStyle(
+                        color: isDark ? Colors.white54 : Colors.blueGrey[400]),
+                    prefixIcon: Icon(Icons.search,
+                        color: isDark ? Colors.white54 : Colors.blueGrey[400]),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 14),
+                  ),
+                  style: TextStyle(
+                      color: isDark ? Colors.white : Colors.blueGrey[900]),
+                ),
+              ),
+            ),
+            // GROUPS SECTION
+            StreamBuilder<List<Map<String, dynamic>>>(
+              stream: _groupStream,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                final groups = snapshot.data ?? [];
+                if (groups.isEmpty) return SizedBox.shrink();
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      child: Text(
+                        'Groups',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Color(0xFF23243a),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    SizedBox(
+                      height: 110,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: groups.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 16),
+                        itemBuilder: (context, index) {
+                          final group = groups[index];
+                          return FutureBuilder<QuerySnapshot>(
+                            future: ChatService()
+                                .groupsCollection
+                                .doc(group['id'])
+                                .collection('messages')
+                                .orderBy('timestamp', descending: true)
+                                .limit(1)
+                                .get(),
+                            builder: (context, lastMsgSnap) {
+                              String lastMsg = '';
+                              String lastType = 'text';
+                              DateTime? lastTime;
+                              if (lastMsgSnap.hasData &&
+                                  lastMsgSnap.data!.docs.isNotEmpty) {
+                                final msg = lastMsgSnap.data!.docs.first.data()
+                                as Map<String, dynamic>;
+                                lastMsg = msg['content'] ?? '';
+                                lastType = msg['type'] ?? 'text';
+                                if (msg['timestamp'] is Timestamp)
+                                  lastTime =
+                                      (msg['timestamp'] as Timestamp).toDate();
+                              }
+                              return GestureDetector(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => ChangeNotifierProvider(
+                                        create: (_) => GroupChatProvider()
+                                          ..setGroup(group),
+                                        child: GroupChatPage(
+                                            currentUser: UserConverter(company)),
+                                      ),
+                                    ),
+                                  );
+                                },
+                                child: Container(
+                                  width: 220,
+                                  decoration: BoxDecoration(
+                                    color: isDark
+                                        ? const Color(0xFF23243a)
+                                        : Colors.white,
+                                    borderRadius: BorderRadius.circular(20),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: isDark
+                                            ? Colors.black.withOpacity(0.10)
+                                            : const Color(0xFF667eea)
+                                            .withOpacity(0.08),
+                                        blurRadius: 14,
+                                        offset: const Offset(0, 6),
+                                      ),
+                                    ],
+                                    border: Border.all(
+                                      color: isDark
+                                          ? Colors.white12
+                                          : const Color(0xFF667eea)
+                                          .withOpacity(0.18),
+                                      width: 1.2,
+                                    ),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 14),
+                                  child: Row(
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 26,
+                                        backgroundColor: Colors.white,
+                                        child: Icon(Icons.group,
+                                            color: Color(0xFF667eea), size: 28),
+                                      ),
+                                      const SizedBox(width: 14),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              group['name'] ?? '',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 15,
+                                                color: isDark
+                                                    ? Colors.white
+                                                    : Colors.blueGrey[900],
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              lastType == 'image'
+                                                  ? '[Image]'
+                                                  : lastMsg,
+                                              style: TextStyle(
+                                                color: isDark
+                                                    ? Colors.white70
+                                                    : Colors.blueGrey[700],
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            if (lastTime != null)
+                                              Padding(
+                                                padding: const EdgeInsets.only(
+                                                    top: 4.0),
+                                                child: Text(
+                                                  TimeOfDay.fromDateTime(
+                                                      lastTime)
+                                                      .format(context),
+                                                  style: TextStyle(
+                                                    color: isDark
+                                                        ? Colors.white54
+                                                        : Colors.blueGrey[400],
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+            // Horizontally scrollable list of students
+            FutureBuilder<List<Student>>(
+              future: _adminCloud.getPotentialStudents(company: company),
+              builder: (context, studentSnap) {
+                if (!studentSnap.hasData) {
+                  return const SizedBox(
+                    height: 110,
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                final students = studentSnap.data!
+                    .where((s) => s.uid != company?.id)
+                    .where((s) =>
+                _searchQuery.isEmpty ||
+                    s.fullName.toLowerCase().contains(_searchQuery))
+                    .toList();
+                if (students.isEmpty) {
+                  return const SizedBox(height: 110);
+                }
+                return SizedBox(
+                  height: 110,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 16),
+                    itemCount: students.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 16),
+                    itemBuilder: (context, index) {
+                      final s = students[index];
+                      return SizedBox(
+                        width: 80,
+                        child: GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ChatDetailsPage(
+                                  receiverName: s.fullName,
+                                  receiverAvatarUrl: s.imageUrl,
+                                  receiverId: s.uid,
+                                ),
+                              ),
+                            );
+                          },
+                          child: SingleChildScrollView(
+                            physics: NeverScrollableScrollPhysics(),
+                            scrollDirection: Axis.vertical,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              mainAxisAlignment: MainAxisAlignment.start,
+                              children: [
+                                ClipOval(
+                                  child: SizedBox(
+                                    width: 56,
+                                    height: 56,
+                                    child: s.imageUrl.isNotEmpty
+                                        ? Image.network(
+                                      s.imageUrl,
+                                      fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (context, error, stackTrace) =>
+                                          Container(
+                                            color: Colors.blueGrey.shade200,
+                                            child: const Icon(Icons.person,
+                                                color: Colors.white,
+                                                size: 28),
+                                          ),
+                                    )
+                                        : Container(
+                                      color: Colors.blueGrey.shade200,
+                                      child: const Icon(Icons.person,
+                                          color: Colors.white, size: 28),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                SizedBox(
+                                  width: 72,
+                                  child: Text(
+                                    s.fullName.split(' ').first,
+                                    style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                );
+              },
+            ),
+            // Expanded chat list or student list
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  setState(() {});
+                },
+                child: StreamBuilder<List<Message>>(
+                  stream: _messageStream,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    if (snapshot.hasError) {
+                      debugPrint("${snapshot.error}");
+                      return const Center(
+                          child: Text("Error loading messages."));
+                    }
+
+                    final userId = _firebaseAuth.currentUser?.uid;
+                    final messages = (snapshot.data ?? [])
+                        .where((msg) =>
+                    msg.deletedFor == null ||
+                        !(msg.deletedFor?.contains(userId) ?? false))
+                        .toList();
+
+                    if (messages.isEmpty) {
+                      // Show all students (except current user) in Messenger style (vertical list)
+                      return FutureBuilder<List<Student>>(
+                        future: _adminCloud.getAllStudents(),
+                        builder: (context, studentSnap) {
+                          if (!studentSnap.hasData) {
+                            return const Center(
+                                child: CircularProgressIndicator());
+                          }
+                          final students = studentSnap.data!
+                              .where((s) => s.uid != company?.id)
+                              .where((s) =>
+                          _searchQuery.isEmpty ||
+                              s.fullName
+                                  .toLowerCase()
+                                  .contains(_searchQuery))
+                              .toList();
+                          if (students.isEmpty) {
+                            return const Center(
+                                child:
+                                Text("No other students registered yet."));
+                          }
+                          return ListView.builder(
+                            padding: const EdgeInsets.all(16),
+                            itemCount: students.length,
+                            itemBuilder: (context, index) {
+                              final s = students[index];
+                              return Card(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                elevation: 4,
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16)),
+                                child: ListTile(
+                                  leading: ClipOval(
+                                    child: SizedBox(
+                                      width: 48,
+                                      height: 48,
+                                      child: s.imageUrl != null &&
+                                          s.imageUrl.isNotEmpty
+                                          ? Image.network(
+                                        s.imageUrl,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error,
+                                            stackTrace) =>
+                                            Container(
+                                              color: Colors.blueGrey.shade200,
+                                              child: const Icon(Icons.person,
+                                                  color: Colors.white,
+                                                  size: 24),
+                                            ),
+                                      )
+                                          : Container(
+                                        color: Colors.blueGrey.shade200,
+                                        child: const Icon(Icons.person,
+                                            color: Colors.white,
+                                            size: 24),
+                                      ),
+                                    ),
+                                  ),
+                                  title: Text(s.fullName,
+                                      style: theme.textTheme.titleMedium),
+                                  subtitle: Text(s.email),
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => ChatDetailsPage(
+                                          receiverName: s.fullName,
+                                          receiverAvatarUrl: s.imageUrl,
+                                          receiverId: s.uid,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      );
+                    }
+                    // Filter messages by search query (name)
+                    return ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: messages.length,
+                      itemBuilder: (context, index) {
+                        final message = messages[index];
+                        final otherUserId =
+                        message.senderId == _firebaseAuth.currentUser!.uid
+                            ? message.receiverId
+                            : message.senderId;
+                        debugPrint(
+                            'Fetching message: currentUser=${_firebaseAuth.currentUser!.uid}, otherUserId=$otherUserId, messageId=${message.id}');
+
+                        return FutureBuilder<dynamic>(
+                          future: otherUserId.startsWith('admin_')
+                              ? Future.value({
+                            'isAdmin': true,
+                            'id': otherUserId,
+                            'name': 'Admin'
+                          })
+                              : _itcFirebaseLogic.getUserById(otherUserId),
+                          builder: (context, snapshot) {
+                            if (!snapshot.hasData) {
+                              return const SizedBox();
+                            }
+                            final user = snapshot.data;
+                            String name = "Unknown";
+                            String image = "";
+                            String id = otherUserId;
+                            bool isAdmin = false;
+                            if (user is Company) {
+                              name = user.name;
+                              image = user.logoURL;
+                            } else if (user is Student) {
+                              name = user.fullName;
+                              image = user.imageUrl;
+                            } else if (user is Map && user['isAdmin'] == true) {
+                              isAdmin = true;
+                              name = user['name'] ?? 'Admin';
+                              id = user['id'] ?? otherUserId;
+                            }
+                            if (_searchQuery.isNotEmpty &&
+                                !name.toLowerCase().contains(_searchQuery)) {
+                              return const SizedBox.shrink();
+                            }
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              elevation: 4,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16)),
+                              child: ListTile(
+                                leading: ClipOval(
+                                  child: SizedBox(
+                                    width: 48,
+                                    height: 48,
+                                    child: isAdmin
+                                        ? Container(
+                                      color: Colors.blueGrey.shade200,
+                                      child: const Icon(Icons.person,
+                                          color: Colors.white, size: 24),
+                                    )
+                                        : (image.isNotEmpty
+                                        ? Image.network(
+                                      image,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error,
+                                          stackTrace) =>
+                                          Container(
+                                            color:
+                                            Colors.blueGrey.shade200,
+                                            child: const Icon(
+                                                Icons.person,
+                                                color: Colors.white,
+                                                size: 24),
+                                          ),
+                                    )
+                                        : Container(
+                                      color: Colors.blueGrey.shade200,
+                                      child: const Icon(Icons.person,
+                                          color: Colors.white,
+                                          size: 24),
+                                    )),
+                                  ),
+                                ),
+                                title: Text(name,
+                                    style: theme.textTheme.titleMedium),
+                                subtitle: Text(
+                                  message.senderId == FirebaseAuth.instance.currentUser!.uid?
+                                  "You: ${message.content
+                                      .replaceAll(RegExp(r'\([^)]*\)$'), '')}":message.content
+                                      .replaceAll(RegExp(r'\([^)]*\)$'), ''),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                trailing: Column(
+                                  mainAxisAlignment:
+                                  MainAxisAlignment.spaceAround,
+                                  children: [
+                                    Text(
+                                      "${TimeOfDay.fromDateTime(message.timestamp.toDate()).hour}:${TimeOfDay.fromDateTime(message.timestamp.toDate()).minute.toString().padLeft(2, '0')}",
+                                    ),
+                                    if (!message.isRead &&
+                                        message.receiverId ==
+                                            _firebaseAuth.currentUser!.uid)
+                                      Container(
+                                        height: 24,
+                                        width: 24,
+                                        decoration: BoxDecoration(
+                                          borderRadius:BorderRadius.circular(20),
+                                        ),
+                                        child: const Center(
+                                          child: Text("1+",
+                                              style: TextStyle(
+                                                  color: Colors.blue,
+                                                  fontSize: 12)),
+                                        ),
+                                      )
+                                  ],
+                                ),
+                                onTap: () {
+                                  final isAdminChat = id.startsWith('admin_');
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => ChatDetailsPage(
+                                        receiverName: name,
+                                        receiverAvatarUrl:image,
+                                        receiverId: id,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                onLongPress: () async {
+                                  final confirm = await showDialog<bool>(
+                                    context: context,
+                                    builder: (context) => AlertDialog(
+                                      title: const Text('Delete Chat'),
+                                      content: const Text(
+                                          'Are you sure you want to delete this chat? This cannot be undone.'),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.of(context).pop(false),
+                                          child: const Text('Cancel'),
+                                        ),
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.of(context).pop(true),
+                                          child: const Text('Delete',
+                                              style:
+                                              TextStyle(color: Colors.red)),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                  if (confirm == true) {
+                                    // Show progress dialog
+                                    showDialog(
+                                      context: context,
+                                      barrierDismissible: false,
+                                      builder: (context) => const Center(
+                                        child: CircularProgressIndicator(),
+                                      ),
+                                    );
+                                    await _deleteChatWithUser(id);
+                                    Navigator.of(context, rootNavigator: true)
+                                        .pop(); // Dismiss progress dialog
+                                    setState(() {}); // Refresh the list
+                                  }
+                                },
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      floatingActionButton: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF667eea), Color(0xFF764ba2)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(30),
+          boxShadow: [
+            BoxShadow(
+              color: Color(0xFF667eea).withOpacity(0.18),
+              blurRadius: 12,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: FloatingActionButton(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          onPressed: () async {
+            final result = await showModalBottomSheet<String>(
+              context: context,
+              shape: RoundedRectangleBorder(
+                  borderRadius:
+                  BorderRadius.vertical(top: Radius.circular(18))),
+              builder: (context) => Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ListTile(
+                    leading: Icon(Icons.group_add),
+                    title: Text('Create Group'),
+                    onTap: () => Navigator.pop(context, 'group'),
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.person_add),
+                    title: Text('Start New Chat'),
+                    onTap: () => Navigator.pop(context, 'chat'),
+                  ),
+                ],
+              ),
+            );
+            if (result == 'group') {
+              if(company == null)
+                {
+                  Fluttertoast.showToast(msg: "company is null");
+                  return;
+                }
+              await showDialog(
+                context: context,
+                builder: (context) =>
+                    CreateGroupDialog(currentUser: UserConverter(company)),
+              );
+            } else if (result == 'chat') {
+              await showDialog(
+                context: context,
+                builder: (context) => _StartNewChatDialog(
+                  student: UserConverter(company),
+                  adminCloud: _adminCloud,
+                  chatService: _chatService,
+                  itcFirebaseLogic: _itcFirebaseLogic,
+                  firebaseAuth: _firebaseAuth,
+                ),
+              );
+            }
+          },
+          child: Icon(Icons.add, color: Colors.white, size: 28),
+        ),
+      ),
     );
-
-    if (messageDay == today) {
-      return DateFormat('h:mm a').format(messageDate);
-    } else if (messageDay == yesterday) {
-      return 'Yesterday';
-    } else if (now.difference(messageDate).inDays < 7) {
-      return DateFormat('EEEE').format(messageDate);
-    } else {
-      return DateFormat('MM/dd/yy').format(messageDate);
-    }
   }
 
-  List<UserChat> _applyFilter(List<UserChat> chats, int filterIndex) {
-    switch (filterIndex) {
-      case 1: // Unread
-        return chats.where((chat) => chat.isUnread).toList();
-      case 2: // Students only (if company user)
-        if (_currentUserRole == 'company') {
-          return chats.where((chat) => chat.userRole == 'student').toList();
-        }
-        return chats;
-      case 3: // Companies only (if student user)
-        if (_currentUserRole == 'student') {
-          return chats.where((chat) => chat.userRole == 'company').toList();
-        }
-        return chats;
-      default: // All
-        return chats;
+  Future<void> _deleteChatWithUser(String otherUserId) async {
+    final userId = _firebaseAuth.currentUser?.uid;
+    if (userId == null) return;
+    try {
+      // Compute chatRoomID
+      List<String> ids = [userId, otherUserId];
+      ids.sort();
+      String chatRoomID = ids.join('_');
+      final chatRoomRef =
+      FirebaseFirestore.instance.collection('chat_rooms').doc(chatRoomID);
+      final messagesRef = chatRoomRef.collection('messages');
+      final messages = await messagesRef.get();
+      for (var doc in messages.docs) {
+        await doc.reference.update({
+          'deletedFor': FieldValue.arrayUnion([userId]),
+        });
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Chat deleted for you.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to delete chat: $e')),
+        );
+      }
     }
   }
+}
 
-  void _onSearchChanged(String query) {
-    if (query.isEmpty) {
+class _StartNewChatDialog extends StatefulWidget {
+  final UserConverter student;
+  final AdminCloud adminCloud;
+  final ChatService chatService;
+  final ITCFirebaseLogic itcFirebaseLogic;
+  final FirebaseAuth firebaseAuth;
+  const _StartNewChatDialog({
+    required this.student,
+    required this.adminCloud,
+    required this.chatService,
+    required this.itcFirebaseLogic,
+    required this.firebaseAuth,
+  });
+
+  @override
+  State<_StartNewChatDialog> createState() => _StartNewChatDialogState();
+}
+
+class _StartNewChatDialogState extends State<_StartNewChatDialog> {
+  final TextEditingController _searchController = TextEditingController();
+  bool _isLoading = false;
+  String? _error;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Start New Chat'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _searchController,
+            decoration: const InputDecoration(
+              labelText: 'Enter student name',
+              prefixIcon: Icon(Icons.search),
+            ),
+            keyboardType: TextInputType.text,
+          ),
+          if (_isLoading)
+            const Padding(
+              padding: EdgeInsets.only(top: 16),
+              child: CircularProgressIndicator(),
+            ),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 16),
+              child: Text("Student not found",
+                  style: const TextStyle(color: Colors.red)),
+            ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _isLoading ? null : _startChat,
+          child: const Text('Start Chat'),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _startChat() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    final input = _searchController.text.trim();
+    if (input.isEmpty) {
       setState(() {
-        _filteredChats = _applyFilter(_allChats, _selectedFilter);
+        _isLoading = false;
+        _error = 'Please enter a name.';
       });
-    } else {
+      return;
+    }
+    try {
+      dynamic user;
+      // Search all students and match by name (case-insensitive)
+      final allStudents = await widget.adminCloud.getAllStudents();
+      user = allStudents.firstWhere(
+            (s) => s.fullName.toLowerCase() == input.toLowerCase(),
+        orElse: () => null as dynamic,
+      );
+      if (user == null || (user is Student && user.uid == widget.student.uid)) {
+        // Not found or self
+        setState(() {
+          _isLoading = false;
+        });
+        await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Student Not Found'),
+            content: const Text(
+                'This student is not on ITConnect. Would you like to share the app link with them?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Share.share(
+                    'Check out my app: https://play.google.com/store/apps/details?id=com.mrb4ll0.it_connect',
+                    subject: 'IT Connect , Find your IT Placement fast!',
+                  );
+                  Navigator.pop(context);
+                },
+                child: const Text('Share App Link'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+      // If found, open chat page
+      Navigator.pop(context);
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ChatDetailsPage(
+            receiverName: user.fullName,
+            receiverAvatarUrl: user.imageUrl,
+            receiverId: user.uid,
+          ),
+        ),
+      );
+    } catch (e) {
       setState(() {
-        _filteredChats = _applyFilter(_allChats, _selectedFilter)
-            .where(
-              (chat) =>
-                  chat.name.toLowerCase().contains(query.toLowerCase()) ||
-                  chat.lastMessage.toLowerCase().contains(query.toLowerCase()),
-            )
-            .toList();
+        _error = 'Error: ${e.toString()}';
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+}
+
+// GROUP CREATION DIALOG
+class CreateGroupDialog extends StatefulWidget {
+  final UserConverter currentUser;
+  const CreateGroupDialog({required this.currentUser});
+  @override
+  State<CreateGroupDialog> createState() => _CreateGroupDialogState();
+}
+
+class _CreateGroupDialogState extends State<CreateGroupDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _descController = TextEditingController();
+  File? _avatarFile;
+  String? _avatarUrl;
+  List<Student> _allStudents = [];
+  List<Student> _selectedMembers = [];
+  List<Student> _selectedAdmins = [];
+  bool _isLoading = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStudents();
+  }
+
+  Future<void> _loadStudents() async {
+    Company? company = widget.currentUser.getAs<Company>();
+     if(company == null)
+       {
+         Fluttertoast.showToast(msg: "Error showing dialog, the company model is null");
+         return;
+       }
+
+    final students = await AdminCloud().getPotentialStudents(company: company);
+    setState(() {
+      _allStudents =
+          students.where((s) => s.uid != widget.currentUser.uid).toList();
+    });
+  }
+
+  Future<void> _pickAvatar() async {
+    final picker = ImagePicker();
+    final picked =
+    await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+    if (picked != null) {
+      setState(() {
+        _avatarFile = File(picked.path);
+      });
+    }
+  }
+
+  Future<void> _createGroup() async {
+    if (!_formKey.currentState!.validate() || _selectedMembers.isEmpty) return;
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      String? avatarUrl;
+      if (_avatarFile != null) {
+        avatarUrl = await FirebaseUploader()
+            .uploadFile(_avatarFile!, widget.currentUser.uid, 'group_avatar');
+      }
+      final groupId = await ChatService().createGroup(
+        name: _nameController.text.trim(),
+        createdBy: widget.currentUser.uid,
+        members: _selectedMembers.map((s) => s.uid).toList(),
+        admins: [widget.currentUser.uid, ..._selectedAdmins.map((s) => s.uid)],
+        description: _descController.text.trim(),
+        avatarUrl: avatarUrl,
+      );
+      Navigator.pop(context);
+      // Optionally: show success or open group chat
+    } catch (e) {
+      setState(() {
+        _error = 'Failed to create group: $e';
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
       });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    super.build(context);
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final colorScheme = theme.colorScheme;
-
-    return Scaffold(
-      backgroundColor: colorScheme.surfaceContainerLowest,
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: () async {
-            await _loadCurrentUser();
-          },
-          child: Column(
-            children: [
-              // Top App Bar
-              _buildTopAppBar(context),
-
-              // Search Bar
-              _buildSearchBar(context),
-
-              // Filter Chips
-              if (_currentUserRole !=
-                  null) // Only show filters if we know user role
-                _buildFilterChips(context),
-
-              // Loading or Chat List
-              Expanded(
-                child: _isLoading
-                    ? _buildLoadingIndicator(context)
-                    : _filteredChats.isEmpty
-                    ? _buildEmptyState(context)
-                    : _buildChatList(context),
-              ),
-            ],
-          ),
-        ),
-      ),
-      floatingActionButton: _currentUserRole == 'company'
-          ? FloatingActionButton(
-        heroTag: GeneralMethods.getUniqueHeroTag(),
-              onPressed: () {
-                // Show dialog to select from existing students
-                _showStudentSelectionDialog(context);
-              },
-              child: Icon(Icons.add),
-            )
-          : null,
-    );
-  }
-
-  Widget _buildTopAppBar(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Container(
-      height: 56,
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: colorScheme.outline.withOpacity(0.1)),
-        ),
-        color: colorScheme.surface.withOpacity(0.85),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Row(
-          children: [
-            Expanded(
-              child: Align(
-                alignment: Alignment.bottomLeft,
-                child: Text(
-                  _currentUserRole == 'company' ? 'Students Chat' : 'Chats',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.onSurface,
-                  ),
-                ),
-              ),
-            ),
-            if (_currentUserRole != 'company')
-              IconButton(
-                icon: Icon(
-                  Icons.group_add,
-                  color: colorScheme.onSurface,
-                  size: 28,
-                ),
-                onPressed: () {
-                  // Navigate to create group chat
-                  // GeneralMethods.navigateTo(context, CreateGroupPage());
-                },
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFilterChips(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final colorScheme = theme.colorScheme;
-
-    // Different filters based on user role
-    List<String> filters;
-
-    if (_currentUserRole == 'company') {
-      filters = ['All', 'Unread', 'Students', 'Companies'];
-    } else {
-      filters = ['All', 'Unread', 'Accepted', 'Archived'];
-    }
-
-    return Padding(
-      padding: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: filters.asMap().entries.map((entry) {
-            final index = entry.key;
-            final filter = entry.value;
-            final isSelected = _selectedFilter == index;
-
-            return Padding(
-              padding: EdgeInsets.only(
-                right: index < filters.length - 1 ? 12 : 0,
-              ),
-              child: GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _selectedFilter = index;
-                    _filteredChats = _applyFilter(_allChats, index);
-                  });
-                },
-                child: Container(
-                  height: 32,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    color: isSelected
-                        ? colorScheme.primary
-                        : isDark
-                        ? Colors.white.withOpacity(0.1)
-                        : colorScheme.surfaceContainer,
-                  ),
-                  child: Center(
-                    child: Text(
-                      filter,
-                      style: theme.textTheme.labelLarge?.copyWith(
-                        color: isSelected
-                            ? colorScheme.onPrimary
-                            : colorScheme.onSurface,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLoadingIndicator(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          CircularProgressIndicator(),
-          SizedBox(height: 16),
-          Text(
-            _currentUserRole == 'company'
-                ? 'Loading students...'
-                : 'Loading chats...',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyState(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.chat_bubble_outline,
-            size: 64,
-            color: colorScheme.onSurfaceVariant,
-          ),
-          SizedBox(height: 16),
-          Text(
-            _selectedFilter == 3
-                ? 'No archived chats'
-                : _searchController.text.isNotEmpty
-                ? 'No matching chats found'
-                : _currentUserRole == 'company'
-                ? 'No students have applied yet'
-                : 'No messages yet',
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-            ),
-          ),
-          SizedBox(height: 8),
-          if (_currentUserRole == 'company')
-            Text(
-              'Students who apply will appear here',
-              style: theme.textTheme.bodySmall,
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildChatList(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Container(
-      color: colorScheme.surfaceContainerLowest,
-      child: ListView.separated(
-        separatorBuilder: (context, index) =>
-            Divider(height: 1, color: colorScheme.outline.withOpacity(0.1)),
-        itemCount: _filteredChats.length,
-        itemBuilder: (context, index) {
-          final chat = _filteredChats[index];
-          return _buildChatItem(context, chat);
-        },
-      ),
-    );
-  }
-
-  Widget _buildChatItem(BuildContext context, UserChat chat) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    debugPrint("chat is ${chat.lastMessageReceiverId}");
-    debugPrint("chat content is ${chat.lastMessage}");
-
-
-    return Material(
-      color: chat.isUnread
-          ? colorScheme.primary.withOpacity(0.05)
-          : colorScheme.surface,
-      child: InkWell(
-        onTap: () {
-          // Check if there's an existing conversation
-          if (_currentUserRole == 'company' &&
-              chat.lastMessageTimestamp == null) {
-            // Start a new conversation with this student
-            _startNewConversation(context, chat);
-          } else {
-            // Open existing chat
-            GeneralMethods.navigateTo(
-              context,
-              ChatDetailsPage(
-                receiverId: chat.id,
-                receiverName: chat.name,
-                receiverAvatarUrl: chat.avatarUrl,
-                receiverRole: chat.userRole,
-                receiverData: chat.userData,
-              ),
-            );
-          }
-        },
-        onLongPress: () {
-          _showChatOptions(context, chat);
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          height: 72,
-          child: Row(
-            children: [
-              // Avatar with unread indicator
-              Stack(
-                children: [
-                  CircleAvatar(
-                    radius: 28,
-                    backgroundImage: chat.avatarUrl.isNotEmpty
-                        ? NetworkImage(chat.avatarUrl)
-                        : null,
-                    backgroundColor: chat.avatarUrl.isEmpty
-                        ? colorScheme.primary.withOpacity(0.2)
-                        : colorScheme.surfaceContainer,
-                    child: chat.avatarUrl.isEmpty
-                        ? Text(
-                            chat.name.substring(0, 1).toUpperCase(),
-                            style: theme.textTheme.titleLarge?.copyWith(
-                              color: colorScheme.primary,
-                            ),
-                          )
-                        : null,
-                  ),
-                  if (chat.unreadCount > 0)
-                    Positioned(
-                      right: 0,
-                      top: 0,
-                      child: Container(
-                        padding: EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: colorScheme.error,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: colorScheme.surface,
-                            width: 2,
-                          ),
-                        ),
-                        constraints: BoxConstraints(
-                          minWidth: 24,
-                          minHeight: 24,
-                        ),
-                        child: Text(
-                          chat.unreadCount > 9 ? '9+' : '${chat.unreadCount}',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: colorScheme.onError,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ),
-                  if (_currentUserRole == 'company' &&
-                      chat.userRole == 'student')
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: Container(
-                        padding: EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          color: Colors.green,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: colorScheme.surface,
-                            width: 2,
-                          ),
-                        ),
-                        child: Icon(
-                          Icons.school,
-                          size: 12,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(width: 16),
-
-              // Chat Info
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            chat.name,
-                            style: theme.textTheme.bodyLarge?.copyWith(
-                              fontWeight: chat.isUnread
-                                  ? FontWeight.bold
-                                  : FontWeight.w600,
-                              color: colorScheme.onSurface,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        Text(
-                          chat.timestamp,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                            fontWeight: chat.isUnread
-                                ? FontWeight.w500
-                                : FontWeight.normal,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      chat.lastMessage.isNotEmpty
-                          ? (chat.lastMessageSenderId == FirebaseAuth.instance.currentUser?.uid? 'You: ${chat.lastMessage}':chat.lastMessage)
-                          : 'Tap to start conversation',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: chat.isUnread
-                            ? colorScheme.onSurface
-                            : colorScheme.onSurfaceVariant,
-                        fontWeight: chat.isUnread
-                            ? FontWeight.w500
-                            : FontWeight.normal,
-                        fontStyle: chat.lastMessage.isEmpty
-                            ? FontStyle.italic
-                            : FontStyle.normal,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showStudentSelectionDialog(BuildContext context) async {
-    try {
-      final companyCloud = Company_Cloud();
-      final students = await companyCloud.getStudentsThatAppliedForCompany(
-        _currentUserId!,
-      );
-
-      if (students.isEmpty) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('No students have applied yet')));
-        return;
-      }
-
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text('Select Student to Chat With'),
-          content: Container(
-            width: double.maxFinite,
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: students.length,
-              itemBuilder: (context, index) {
-                final student = students[index];
-                return ListTile(
-                  leading: CircleAvatar(
-                    backgroundImage: student.imageUrl.isNotEmpty
-                        ? NetworkImage(student.imageUrl)
-                        : null,
-                    child: student.imageUrl.isEmpty
-                        ? Text(student.fullName.substring(0, 1))
-                        : null,
-                  ),
-                  title: Text(student.fullName),
-                  subtitle: Text(student.courseOfStudy ?? 'Student'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _startNewConversation(
-                      context,
-                      UserChat(
-                        id: student.uid,
-                        name: student.fullName,
-                        lastMessage: '',
-                        timestamp: '',
-                        isUnread: false,
-                        avatarUrl: student.imageUrl,
-                        unreadCount: 0,
-                        lastMessageTimestamp: Timestamp.now(),
-                        userRole: 'student',
-                        userData: student,
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        ),
-      );
-    } catch (e) {
-      print('Error showing student selection: $e');
-    }
-  }
-
-  void _startNewConversation(BuildContext context, UserChat chat) {
-    GeneralMethods.navigateTo(
-      context,
-      ChatDetailsPage(
-        receiverId: chat.id,
-        receiverName: chat.name,
-        receiverAvatarUrl: chat.avatarUrl,
-        receiverRole: chat.userRole,
-        receiverData: chat.userData,
-      ),
-    );
-  }
-
-  String _getEmptyStateTitle() {
-    if (_searchController.text.isNotEmpty) {
-      return _currentUserRole == 'company'
-          ? 'No students found'
-          : 'No chats found';
-    }
-
-    if (_selectedFilter == 3 && _currentUserRole != 'company') {
-      return 'No archived chats';
-    }
-
-    return _currentUserRole == 'company'
-        ? 'No students have applied yet'
-        : 'No messages yet';
-  }
-
-  String _getEmptyStateSubtitle() {
-    if (_searchController.text.isNotEmpty) {
-      return _currentUserRole == 'company'
-          ? 'Try searching with different keywords'
-          : 'Try a different search term';
-    }
-
-    return _currentUserRole == 'company'
-        ? 'Students who apply to your company will appear here'
-        : 'Start a conversation with your connections';
-  }
-
-  bool _shouldShowActionButton() {
-    return _searchController.text.isEmpty &&
-        _selectedFilter == 0 &&
-        _currentUserRole != 'company';
-  }
-
-  void _getEmptyStateAction() {
-    // Navigate to start new chat
-    // GeneralMethods.navigateTo(context, NewChatPage());
-  }
-
-  String _getEmptyStateActionText() {
-    return 'Start a conversation';
-  }
-
-  Widget _buildSearchBar(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final colorScheme = theme.colorScheme;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      child: Container(
-        height: 48,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          color: isDark
-              ? Colors.black.withOpacity(0.3)
-              : colorScheme.surfaceContainer,
-        ),
-        child: Row(
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(left: 16),
-              child: Icon(
-                Icons.search,
-                color: colorScheme.onSurfaceVariant,
-                size: 24,
-              ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.only(left: 8),
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: _onSearchChanged,
-                  decoration: InputDecoration(
-                    hintText: _getSearchHintText(),
-                    hintStyle: TextStyle(color: colorScheme.onSurfaceVariant),
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                  style: TextStyle(color: colorScheme.onSurface),
-                ),
-              ),
-            ),
-            if (_searchController.text.isNotEmpty)
-              IconButton(
-                icon: Icon(
-                  Icons.clear,
-                  color: colorScheme.onSurfaceVariant,
-                  size: 20,
-                ),
-                onPressed: () {
-                  _searchController.clear();
-                  _onSearchChanged('');
-                },
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _getSearchHintText() {
-    if (_currentUserRole == 'company') {
-      return 'Search students by name...';
-    } else {
-      return 'Search by name or message...';
-    }
-  }
-
-  void _showChatOptions(BuildContext context, UserChat chat) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) {
-        return SafeArea(
+    return AlertDialog(
+      title: Text('Create Group'),
+      content: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (_currentUserRole == 'company' && chat.userRole == 'student')
-                ListTile(
-                  leading: Icon(Icons.person),
-                  title: Text('View Student Profile'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    GeneralMethods.navigateTo(
-                      context,
-                      StudentProfilePage(student: chat.userData as Student),
-                    );
-                  },
+              GestureDetector(
+                onTap: _pickAvatar,
+                child: CircleAvatar(
+                  radius: 32,
+                  backgroundColor: Colors.blue[200],
+                  backgroundImage:
+                  _avatarFile != null ? FileImage(_avatarFile!) : null,
+                  child: _avatarFile == null
+                      ? Icon(Icons.camera_alt, size: 32)
+                      : null,
                 ),
-              // ListTile(
-              //   leading: Icon(Icons.archive),
-              //   title: Text('Archive chat'),
-              //   onTap: () {
-              //     Navigator.pop(context);
-              //     _archiveChat(chat);
-              //   },
-              // ),
-              // ListTile(
-              //   leading: Icon(Icons.delete),
-              //   title: Text('Delete chat'),
-              //   onTap: () {
-              //     Navigator.pop(context);
-              //     _deleteChat(chat);
-              //   },
-              // ),
-              ListTile(
-                leading: Icon(Icons.cancel),
-                title: Text('Cancel'),
-                onTap: () => Navigator.pop(context),
               ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _nameController,
+                decoration: InputDecoration(labelText: 'Group Name'),
+                validator: (v) =>
+                v == null || v.trim().isEmpty ? 'Enter group name' : null,
+              ),
+              TextFormField(
+                controller: _descController,
+                decoration:
+                InputDecoration(labelText: 'Description (optional)'),
+              ),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Add Members',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+              Wrap(
+                spacing: 6,
+                children: _allStudents
+                    .map((s) => FilterChip(
+                  label: Text(s.fullName),
+                  selected: _selectedMembers.contains(s),
+                  onSelected: (selected) {
+                    setState(() {
+                      if (selected) {
+                        _selectedMembers.add(s);
+                      } else {
+                        _selectedMembers.remove(s);
+                        _selectedAdmins.remove(s);
+                      }
+                    });
+                  },
+                ))
+                    .toList(),
+              ),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Add Admins',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+              Wrap(
+                spacing: 6,
+                children: _selectedMembers
+                    .map((s) => FilterChip(
+                  label: Text(s.fullName),
+                  selected: _selectedAdmins.contains(s),
+                  onSelected: (selected) {
+                    setState(() {
+                      if (selected) {
+                        _selectedAdmins.add(s);
+                      } else {
+                        _selectedAdmins.remove(s);
+                      }
+                    });
+                  },
+                ))
+                    .toList(),
+              ),
+              if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(_error!, style: TextStyle(color: Colors.red)),
+                ),
+              if (_isLoading)
+                const Padding(
+                  padding: EdgeInsets.only(top: 16),
+                  child: CircularProgressIndicator(),
+                ),
             ],
           ),
-        );
-      },
-    );
-  }
-
-  void _viewStudentProfile(BuildContext context, Student student) {
-    // Navigate to student profile page
-    // GeneralMethods.navigateTo(context, StudentProfilePage(student: student));
-    print('View profile for student: ${student.fullName}');
-  }
-
-  void _archiveChat(UserChat chat) {
-    print('Archive chat with ${chat.name}');
-  }
-
-  void _deleteChat(UserChat chat) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Delete chat?'),
-        content: Text(
-          'Are you sure you want to delete chat with ${chat.name}?',
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              print('Delete chat with ${chat.name}');
-            },
-            child: Text('Delete', style: TextStyle(color: Colors.red)),
-          ),
-        ],
       ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context), child: Text('Cancel')),
+        ElevatedButton(
+          onPressed: _isLoading ? null : _createGroup,
+          child: Text('Create'),
+        ),
+      ],
     );
-  }
-
-  @override
-  // TODO: implement wantKeepAlive
-  bool get wantKeepAlive => true;
-}
-
-class UserChat {
-  final String id;
-  final String name;
-  String lastMessage;
-  final String timestamp;
-  final bool isUnread;
-  final String avatarUrl;
-  final int unreadCount;
-  final Timestamp lastMessageTimestamp;
-  final String userRole;
-  final dynamic userData;
-  final String? chatId;
-  final String? lastMessageReceiverId; // Add this
-  final String? lastMessageSenderId; // Add this
-
-  UserChat({
-    required this.id,
-    required this.name,
-    required this.lastMessage,
-    required this.timestamp,
-    required this.isUnread,
-    required this.avatarUrl,
-    required this.unreadCount,
-    required this.lastMessageTimestamp,
-    this.userRole = 'student',
-    this.userData,
-    this.chatId,
-    this.lastMessageReceiverId, // Add this
-    this.lastMessageSenderId
-  });
-
-  // Factory method to create from Firebase data
-  factory UserChat.fromFirebaseData({
-    required String contactId,
-    required String contactName,
-    required String avatarUrl,
-    required String userRole,
-    required dynamic userData,
-    required String currentUserId,
-    Map<String, dynamic>? latestMessageData,
-  }) {
-    final chatId = _getChatId(currentUserId, contactId);
-     debugPrint("latest message data is ${latestMessageData.toString()}");
-    String lastMessage = 'Tap to start conversation';
-    Timestamp lastMessageTimestamp = Timestamp.now();
-    bool isUnread = false;
-    String? receiverId;
-
-    if (latestMessageData != null) {
-      lastMessage = latestMessageData['content'] as String? ?? lastMessage;
-
-      // Check if the current user was the receiver and message is unread
-      final bool isRead = latestMessageData['is_read'] as bool? ?? true;
-      final String? senderId = latestMessageData['sender_id'] as String?;
-
-      isUnread = !isRead && senderId != currentUserId;
-      receiverId = latestMessageData['receiver_id'] as String?;
-      debugPrint("receiver id ${receiverId}");
-      debugPrint("sender id now ${senderId}");
-
-      // Get timestamp
-      final timestamp = latestMessageData['timestamp'];
-      if (timestamp is Timestamp) {
-        lastMessageTimestamp = timestamp;
-      }
-    }
-
-    return UserChat(
-      id: contactId,
-      name: contactName,
-      lastMessage: lastMessage,
-      timestamp: '',
-      isUnread: isUnread,
-      avatarUrl: avatarUrl,
-      unreadCount: isUnread ? 1 : 0,
-      lastMessageTimestamp: lastMessageTimestamp,
-      userRole: userRole,
-      userData: userData,
-      chatId: chatId,
-      lastMessageReceiverId: receiverId,
-        lastMessageSenderId: latestMessageData!["sender_id"]
-
-    );
-  }
-
-  static String _getChatId(String userId, String contactId) {
-    final sorted = [userId, contactId]..sort();
-    return '${sorted[0]}_${sorted[1]}';
   }
 }

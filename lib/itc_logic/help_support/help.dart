@@ -1,8 +1,11 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
 import 'package:itc_institute_admin/view/home/aboutITConnect.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:itc_institute_admin/itc_logic/service/userService.dart'; // For chat functionality
+import 'package:itc_institute_admin/itc_logic/service/userService.dart';
+
+import '../firebase/report/report_cloud.dart'; // For chat functionality
 
 class CompanyHelpPage extends StatefulWidget {
   const CompanyHelpPage({super.key});
@@ -19,35 +22,43 @@ class _CompanyHelpPageState extends State<CompanyHelpPage> {
   final List<FAQItem> _companyFaqs = [
     FAQItem(
       question: 'How do I post internship/training opportunities?',
-      answer: 'Navigate to "Post Opportunities" from your dashboard, fill in the details including position, requirements, duration, and submit for approval.',
+      answer:
+          'Navigate to "Post Opportunities" from your dashboard, fill in the details including position, requirements, duration, and submit for approval.',
     ),
     FAQItem(
       question: 'How do I manage student applications?',
-      answer: 'Go to "Applications" tab to view all received applications. You can shortlist, schedule interviews, or reject applications from there.',
+      answer:
+          'Go to "Applications" tab to view all received applications. You can shortlist, schedule interviews, or reject applications from there.',
     ),
     FAQItem(
       question: 'What information should I include in opportunity posts?',
-      answer: 'Include position title, required skills, duration, stipend (if any), location (remote/onsite), and specific requirements. Clear descriptions attract better candidates.',
+      answer:
+          'Include position title, required skills, duration, stipend (if any), location (remote/onsite), and specific requirements. Clear descriptions attract better candidates.',
     ),
     FAQItem(
       question: 'How do I verify student credentials?',
-      answer: 'Student profiles show verified academic records. You can also request additional documents through the chat feature before final selection.',
+      answer:
+          'Student profiles show verified academic records. You can also request additional documents through the chat feature before final selection.',
     ),
     FAQItem(
       question: 'Can I edit or remove posted opportunities?',
-      answer: 'Yes, navigate to "My Posts" to edit active listings or archive completed ones. Archived posts remain in your history.',
+      answer:
+          'Yes, navigate to "My Posts" to edit active listings or archive completed ones. Archived posts remain in your history.',
     ),
     FAQItem(
       question: 'How are students matched with my company?',
-      answer: 'Our AI matches students based on skills, academic background, and your requirements. You\'ll see suggested matches in your dashboard.',
+      answer:
+          'Our AI matches students based on skills, academic background, and your requirements. You\'ll see suggested matches in your dashboard.',
     ),
     FAQItem(
       question: 'What support does IT Connect provide during training?',
-      answer: 'We provide progress tracking, regular check-ins, and mediation if needed. You can report any issues through the support chat.',
+      answer:
+          'We provide progress tracking, regular check-ins, and mediation if needed. You can report any issues through the support chat.',
     ),
     FAQItem(
       question: 'How do I get verified as a company?',
-      answer: 'Complete your company profile with registration documents. Our team will verify within 24-48 hours. Verified companies get priority in student matching.',
+      answer:
+          'Complete your company profile with registration documents. Our team will verify within 24-48 hours. Verified companies get priority in student matching.',
     ),
   ];
 
@@ -76,10 +87,7 @@ class _CompanyHelpPageState extends State<CompanyHelpPage> {
       icon: Icons.phone_outlined,
       color: Colors.green,
       action: () async {
-        final Uri phoneLaunchUri = Uri(
-          scheme: 'tel',
-          path: '+2348039382198',
-        );
+        final Uri phoneLaunchUri = Uri(scheme: 'tel', path: '+2348039382198');
 
         if (await canLaunchUrl(phoneLaunchUri)) {
           await launchUrl(phoneLaunchUri);
@@ -99,10 +107,7 @@ class _CompanyHelpPageState extends State<CompanyHelpPage> {
       icon: Icons.warning_outlined,
       color: Colors.red,
       action: () async {
-        final Uri phoneLaunchUri = Uri(
-          scheme: 'tel',
-          path: '+2348039382198',
-        );
+        final Uri phoneLaunchUri = Uri(scheme: 'tel', path: '+2348039382198');
 
         if (await canLaunchUrl(phoneLaunchUri)) {
           await launchUrl(phoneLaunchUri);
@@ -117,30 +122,11 @@ class _CompanyHelpPageState extends State<CompanyHelpPage> {
 
     try {
       // Get ITC support team user ID (you might have a dedicated support account)
-      final supportUserId = 'itc_support_team'; // Replace with actual support user ID
+      final supportUserId =
+          'itc_support_team'; // Replace with actual support user ID
 
-      // Navigate to chat with support team
-      // You'll need to implement this based on your chat system
-      // Example: Navigator.push(context, MaterialPageRoute(builder: (_) => ChatPage(receiverId: supportUserId)));
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Connecting you with ITC support team...'),
-        ),
-      );
-
+      _showFeedbackDialog(context);
       // Simulate loading
-      await Future.delayed(const Duration(seconds: 1));
-
-      // TODO: Implement actual chat navigation
-      // Navigator.push(context, MaterialPageRoute(
-      //   builder: (_) => ChatDetailsPage(
-      //     receiverId: supportUserId,
-      //     receiverName: 'ITC Support Team',
-      //     receiverAvatarUrl: '',
-      //   ),
-      // ));
-
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -150,6 +136,165 @@ class _CompanyHelpPageState extends State<CompanyHelpPage> {
       );
     } finally {
       setState(() => _isLoading = false);
+    }
+  }
+
+  bool isSendingSupport = false;
+  void _showFeedbackDialog(outerContext) {
+    final TextEditingController feedbackController = TextEditingController();
+    String? selectedType; // Will hold 'support', 'feedback', or 'suggestion'
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('Contact Us'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Please select a category and share your message. We\'ll get back to you through your DM.',
+                  style: TextStyle(fontSize: 14),
+                ),
+                const SizedBox(height: 16),
+
+                // Dropdown for selecting type
+                DropdownButtonFormField<String>(
+                  value: selectedType,
+                  decoration: const InputDecoration(
+                    labelText: 'Category',
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'support', child: Text('Support')),
+                    DropdownMenuItem(
+                      value: 'feedback',
+                      child: Text('Feedback'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'suggestion',
+                      child: Text('Suggestion'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      selectedType = value;
+                    });
+                  },
+                  validator: (value) {
+                    if (value == null) {
+                      return 'Please select a category';
+                    }
+                    return null;
+                  },
+                ),
+
+                const SizedBox(height: 10),
+
+                // Text field for message
+                SizedBox(
+                  height: 100,
+                  child: TextField(
+                    controller: feedbackController,
+                    maxLines: 4,
+                    decoration: InputDecoration(
+                      hintText: _getHintText(selectedType),
+                      border: const OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              isSendingSupport
+                  ? CircularProgressIndicator()
+                  : ElevatedButton(
+                      onPressed: () async {
+                        if (selectedType == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Text('Please select a category'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                          return;
+                        }
+
+                        if (feedbackController.text.trim().isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Text('Please enter a message'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                          return;
+                        }
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text("Sending $selectedType...."),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+
+                        // Send the report with selected type
+                        await ReportService().sendReport(
+                          type: selectedType!, // Use the selected type
+                          message: feedbackController.text.trim(),
+                          reportedUserId:
+                              FirebaseAuth.instance.currentUser!.uid,
+                        );
+
+                        ScaffoldMessenger.of(outerContext).showSnackBar(
+                          SnackBar(
+                            content: Text(_getSuccessMessage(selectedType!)),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      },
+                      child: const Text('Send'),
+                    ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  // Helper function to get hint text based on selected type
+  String _getHintText(String? type) {
+    switch (type) {
+      case 'support':
+        return 'Describe the issue you need help with...';
+      case 'feedback':
+        return 'Share your feedback about the app...';
+      case 'suggestion':
+        return 'Share your suggestions for improvement...';
+      default:
+        return 'Enter your message here...';
+    }
+  }
+
+  // Helper function to get success message based on type
+  String _getSuccessMessage(String type) {
+    switch (type) {
+      case 'support':
+        return 'Support request sent! We\'ll respond to you through your DM.';
+      case 'feedback':
+        return 'Thank you for your feedback! We\'ll respond to you through your DM.';
+      case 'suggestion':
+        return 'Thank you for your suggestion! We\'ll respond to you through your DM.';
+      default:
+        return 'Message sent! We\'ll respond to you through your DM.';
     }
   }
 
@@ -168,9 +313,9 @@ class _CompanyHelpPageState extends State<CompanyHelpPage> {
               padding: const EdgeInsets.all(16),
               child: Text(
                 'Quick Help Options',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
             ),
             ListTile(
@@ -217,7 +362,9 @@ class _CompanyHelpPageState extends State<CompanyHelpPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Schedule Video Call'),
-        content: const Text('This feature will be available soon. For now, please use the chat or email support.'),
+        content: const Text(
+          'This feature will be available soon. For now, please use the chat or email support.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -230,9 +377,10 @@ class _CompanyHelpPageState extends State<CompanyHelpPage> {
 
   void _downloadCompanyGuide() {
     // Implement PDF download
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Downloading company guide...'),
+        content: Text('Feature not available yet'),
         duration: Duration(seconds: 2),
       ),
     );
@@ -345,11 +493,7 @@ class _CompanyHelpPageState extends State<CompanyHelpPage> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(
-                              method.icon,
-                              color: method.color,
-                              size: 32,
-                            ),
+                            Icon(method.icon, color: method.color, size: 32),
                             const SizedBox(height: 12),
                             Text(
                               method.title,
@@ -428,7 +572,6 @@ class _CompanyHelpPageState extends State<CompanyHelpPage> {
                   leading: const Icon(Icons.info_outline),
                   title: const Text('About IT Connect for Companies'),
                   onTap: () {
-
                     GeneralMethods.navigateTo(context, AboutITConnectPage());
                   },
                 ),
@@ -454,13 +597,13 @@ class _CompanyHelpPageState extends State<CompanyHelpPage> {
                     foregroundColor: theme.colorScheme.onPrimary,
                     icon: _isLoading
                         ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
                         : const Icon(Icons.chat),
                     label: const Text('Support Chat'),
                     heroTag: 'support_chat_fab',

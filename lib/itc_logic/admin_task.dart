@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:itc_institute_admin/itc_logic/firebase/general_cloud.dart';
 
 import '../model/admin.dart';
 import '../model/application.dart';
@@ -16,7 +18,8 @@ class AdminCloud {
   // ─── USERS ────────────────────────────────────────────────────────────────
 
   /// Fetch **all** students under users/students/students
-  Future<List<Student>> getAllStudents() async {
+  Future<List<Student>> getAllStudents({Company? company}) async {
+    debugPrint("potential trainee ${company?.potentialtrainee.toString()}");
     final snap = await _firestore
         .collection('users')
         .doc('students')
@@ -26,6 +29,21 @@ class AdminCloud {
     return snap.docs
         .map((d) => Student.fromFirestore(d.data()!, d.id))
         .toList();
+  }
+
+  ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic();
+
+  Future<List<Student>> getPotentialStudents({ Company? company}) async {
+    if(company == null) return [];
+    debugPrint("potential trainee ${company?.potentialtrainee.toString()}");
+      List<Student> students = [];
+       for(String studentId in company.potentialtrainee)
+         {
+            Student? student =  await itcFirebaseLogic.getStudent(studentId);
+            if(student == null)continue;
+            students.add(student);
+         }
+       return students;
   }
 
   /// Fetch **all** companies under users/companies/companies

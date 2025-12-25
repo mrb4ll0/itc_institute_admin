@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:rxdart/rxdart.dart';
 
 import '../../model/admin.dart';
@@ -41,27 +42,27 @@ class UserService {
 
       if (studentDoc.exists) {
         final studentData = studentDoc.data()!;
-        final student = Student.fromFirestore(
-          studentData,
-          studentDoc.id, // Ensure uid is included
-        );
+        final student = Student.fromFirestore(studentData, studentDoc.id);
         return UserConverter(student);
       }
 
       // If not found in either collection, check admin collection
+      userId = userId.replaceAll("admin_", '');
       final adminDoc = await _firestore.collection('admins').doc(userId).get();
 
       if (adminDoc.exists) {
         final adminData = adminDoc.data()!;
         final admin = Admin.fromMap(adminData, adminDoc.id);
+        admin.uid = 'admin_${userId}';
         return UserConverter(admin);
       }
 
       // User not found
-      print('User with ID $userId not found in any collection');
+
       return null;
-    } catch (e) {
-      print('Error fetching user: $e');
+    } catch (e,s) {
+      debugPrint('Error fetching user: $e');
+      debugPrintStack(stackTrace: s);
       return null;
     }
   }

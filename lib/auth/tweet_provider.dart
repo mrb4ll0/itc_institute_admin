@@ -505,14 +505,15 @@ class TweetProvider extends ChangeNotifier {
     }
   }
 
-  Future<Map<String, dynamic>> fetchAllStudents(List<TweetModel> tweets) async {
+  Future<Map<String, UserConverter>> fetchAllStudents(List<TweetModel> tweets) async {
     try {
+      //final users = await UserService().getAllUsers();
       final studentIds = tweets
           .map((t) => t.userId)
           .where((id) => id.isNotEmpty)
           .toSet();
       final studentFutures = studentIds.map(
-        (id) => StudentCache.getStudent(id),
+            (id) => UserService().getUser(id),
       );
       final studentResults = await Future.wait(
         studentFutures,
@@ -531,9 +532,8 @@ class TweetProvider extends ChangeNotifier {
       }
 
       return studentMap;
-    } catch (e, s) {
+    } catch (e) {
       debugPrint('Error fetching students: $e');
-      debugPrintStack(stackTrace: s);
       return {};
     }
   }

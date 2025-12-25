@@ -42,7 +42,7 @@ class _CompanyDashboardControllerState
       const StudentApplicationsPage(),
       const IndustrialTrainingPostsPage(),
       TweetView(company: widget.tweetCompany),
-      const ChatListPage(),
+       MessagesView(),
     ];
     _loadCompany();
   }

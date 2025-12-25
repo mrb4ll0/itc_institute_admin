@@ -11,10 +11,12 @@ import 'package:provider/provider.dart';
 import '../../../../itc_logic/firebase/tweet/tweet_cloud.dart';
 import '../../auth/tweet_provider.dart';
 import '../../generalmethods/GeneralMethods.dart';
+import '../../model/admin.dart';
 import '../../model/comments_model.dart';
 import '../../model/company.dart';
 import '../../model/student.dart';
 import '../../model/tweetModel.dart';
+import '../adminProfilePage.dart';
 
 class TweetView extends StatefulWidget {
   final Company company;
@@ -1063,7 +1065,7 @@ class _ProfessionalTweetCardState extends State<ProfessionalTweetCard> {
                 GestureDetector(
                   onTap: _navigateToProfile,
                   child: Text(
-                    widget.tweetPoster.displayName,
+                    widget.tweetPoster.uid.startsWith('admin_')?'${widget.tweetPoster.displayName.split(' ').first} ITC Rep' : widget.tweetPoster.displayName,
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 15,
@@ -1394,22 +1396,34 @@ class _ProfessionalTweetCardState extends State<ProfessionalTweetCard> {
   void _navigateToProfile() {
     bool isCompany = widget.tweetPoster.getAs<Company>() != null;
     bool isStudent = widget.tweetPoster.getAs<Student>() != null;
+    bool isAdmin = widget.tweetPoster.getAs<Admin>() !=null;
     if (isCompany && !isStudent) {
       GeneralMethods.navigateTo(
         context,
-        CompanyDetailPage(company: widget.tweetPoster.getAs<Company>()!),
+        CompanyDetailPage(
+            company: widget.tweetPoster.getAs<Company>()!),
       );
     } else if (isStudent && !isCompany) {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) =>
-              StudentProfilePage(student: widget.tweetPoster.getAs<Student>()!),
+          builder: (context) => StudentProfilePage(
+            student: widget.tweetPoster.getAs<Student>()!,
+          ),
+        ),
+      );
+    }else if (!isStudent && !isCompany && isAdmin) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AdminProfilePage(
+            admin: widget.tweetPoster.getAs<Admin>()!,
+            currentStudent: UserConverter(widget.currentStudent),
+          ),
         ),
       );
     }
   }
-
   void _handleMenuSelection(String value) {
     switch (value) {
       case 'delete':

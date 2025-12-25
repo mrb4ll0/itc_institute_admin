@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Admin {
-  final String uid;
+   String uid;
   final String fullName;
   final String email;
    String? photoUrl;

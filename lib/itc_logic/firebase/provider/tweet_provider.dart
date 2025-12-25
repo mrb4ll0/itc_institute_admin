@@ -9,6 +9,7 @@ import '../../../model/comments_model.dart';
 import '../../../model/reply_model.dart';
 import '../../../model/student.dart';
 import '../../../model/tweetModel.dart';
+import '../../service/ConverterUserService.dart';
 import '../general_cloud.dart';
 import '../tweet/tweet_cloud.dart';
 
@@ -506,21 +507,22 @@ class TweetProvider extends ChangeNotifier {
     }
   }
 
-  Future<Map<String, Student>> fetchAllStudents(List<TweetModel> tweets) async {
+  Future<Map<String, UserConverter>> fetchAllStudents(List<TweetModel> tweets) async {
     try {
+      //final users = await UserService().getAllUsers();
       final studentIds = tweets
           .map((t) => t.userId)
           .where((id) => id.isNotEmpty)
           .toSet();
       final studentFutures = studentIds.map(
-        (id) => StudentCache.getStudent(id),
+            (id) => UserService().getUser(id),
       );
       final studentResults = await Future.wait(
         studentFutures,
         eagerError: false,
       );
 
-      final studentMap = <String, Student>{};
+      final studentMap = <String, UserConverter>{};
       for (var i = 0; i < studentIds.length; i++) {
         final student = studentResults[i];
         final studentId = studentIds.elementAt(i);

@@ -637,7 +637,7 @@ class _TweetDetailBody extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    replyStudent.displayName,
+                              replyStudent.uid.startsWith('admin_')?'${replyStudent.displayName.split(' ').first} ITC Rep' : replyStudent.displayName,
                                     style: textTheme.bodyLarge?.copyWith(
                                       fontWeight: FontWeight.w600,
                                     ),
@@ -1009,7 +1009,7 @@ class _TweetDetailBody extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              student.displayName,
+                              student.uid.startsWith('admin_')?'${student.displayName.split(' ').first} ITC Rep' : student.displayName,
                               style: textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.w600,
                               ),
@@ -1250,7 +1250,7 @@ class _TweetDetailBody extends StatelessWidget {
                                 children: [
                                   Expanded(
                                     child: Text(
-                                      commentStudent.displayName,
+                                      commentStudent.uid.startsWith('admin_')?'${commentStudent.displayName.split(' ').first} ITC Rep' : commentStudent.displayName,
                                       style: textTheme.bodyLarge?.copyWith(
                                         fontWeight: FontWeight.w600,
                                       ),
