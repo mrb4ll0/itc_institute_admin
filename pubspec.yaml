@@ -66,6 +66,8 @@ dependencies:
   flutter_keyboard_visibility: ^6.0.0
   provider: ^6.1.5+1
   package_info_plus: ^9.0.0
+  flutter_launcher_icons: ^0.14.3
+  flutter_native_splash: ^2.4.4
 
 dev_dependencies:
   flutter_test:
@@ -77,6 +79,37 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/playstore.png"
+  remove_alpha_ios: true
+  # The "flutter_lints" package below contains a set of recommended lints to
+  # encourage good coding practices. The lint set provided by the package is
+  # activated in the `analysis_options.yaml` file located at the root of your
+  # package. See that file for information about deactivating specific lint
+  # rules and activating additional ones.
+
+
+flutter_native_splash:
+  color: "#FFFFFF"
+  image: "assets/images/playstore.png"
+  branding: "assets/images/playstore_resized_1024_name.png"
+  branding_mode: bottom
+  android: true
+  ios: true
+  web: true
+  android_12:
+    color: "#FFFFFF"
+    image: "assets/images/playstore.png"
+    branding: "assets/images/playstore_resized_1024_name.png"
+    branding_mode: bottom
+# TIP: For best results, add transparent padding around your logo in the PNG file so the logo itself is about 60% of the image size, centered.
+# For information on the generic Dart part of this file, see the
+# following page: https://dart.dev/tools/pub/pubspec
+
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -91,6 +124,7 @@ flutter:
   assets:
       - assets/logo.png
       - assets/google.png
+      - assets/images/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

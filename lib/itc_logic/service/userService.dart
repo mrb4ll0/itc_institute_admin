@@ -1,8 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/cupertino.dart';
 
+import '../../model/admin.dart';
 import '../../model/company.dart';
 import '../../model/student.dart';
+import '../../model/userProfile.dart';
 
 class UserService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -334,4 +337,59 @@ class UserService {
       };
     });
   }
+
+  Future<UserConverter?> getUser(String userId) async {
+    try {
+      // First, check in companies collection
+      final companyDoc = await _firestore
+          .collection('users')
+          .doc('companies')
+          .collection('companies')
+          .doc(userId)
+          .get();
+
+      if (companyDoc.exists) {
+        final companyData = companyDoc.data()!;
+        final company = Company.fromMap({
+          ...companyData,
+          'id': companyDoc.id, // Ensure ID is included
+        });
+        return UserConverter(company);
+      }
+
+      // If not found in companies, check in students collection
+      final studentDoc = await _firestore
+          .collection('users')
+          .doc('students')
+          .collection('students')
+          .doc(userId)
+          .get();
+
+      if (studentDoc.exists) {
+        final studentData = studentDoc.data()!;
+        final student = Student.fromFirestore(studentData, studentDoc.id);
+        return UserConverter(student);
+      }
+
+      // If not found in either collection, check admin collection
+      userId = userId.replaceAll("admin_", '');
+      final adminDoc = await _firestore.collection('admins').doc(userId).get();
+
+      if (adminDoc.exists) {
+        final adminData = adminDoc.data()!;
+        final admin = Admin.fromMap(adminData, adminDoc.id);
+        admin.uid = 'admin_${userId}';
+        return UserConverter(admin);
+      }
+
+      // User not found
+
+      return null;
+    } catch (e,s) {
+      debugPrint('Error fetching user: $e');
+      debugPrintStack(stackTrace: s);
+      return null;
+    }
+  }
+
 }

@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:itc_institute_admin/model/admin.dart';
 import 'package:itc_institute_admin/model/userProfile.dart';
 import 'package:itc_institute_admin/view/home/chat/chartPage.dart';
 import 'package:provider/provider.dart';
@@ -15,6 +16,7 @@ import '../../firebase_cloud_storage/firebase_cloud.dart';
 import '../../itc_logic/firebase/general_cloud.dart';
 import '../../itc_logic/firebase/message/message_service.dart';
 import '../../itc_logic/firebase/provider/groupChatProvider.dart';
+import '../../itc_logic/service/ConverterUserService.dart';
 import '../../model/company.dart';
 import '../../model/message.dart';
 import '../../model/student.dart';
@@ -540,36 +542,18 @@ Company? company;
                         debugPrint(
                             'Fetching message: currentUser=${_firebaseAuth.currentUser!.uid}, otherUserId=$otherUserId, messageId=${message.id}');
 
-                        return FutureBuilder<dynamic>(
-                          future: otherUserId.startsWith('admin_')
-                              ? Future.value({
-                            'isAdmin': true,
-                            'id': otherUserId,
-                            'name': 'Admin'
-                          })
-                              : _itcFirebaseLogic.getUserById(otherUserId),
+                        return FutureBuilder<UserConverter?>(
+                          future: UserService().getUser(otherUserId),
                           builder: (context, snapshot) {
                             if (!snapshot.hasData) {
                               return const SizedBox();
                             }
-                            final user = snapshot.data;
-                            String name = "Unknown";
-                            String image = "";
-                            String id = otherUserId;
+                            final user = snapshot.data!;
+                            debugPrint("user is ${user.toString()}");
+
                             bool isAdmin = false;
-                            if (user is Company) {
-                              name = user.name;
-                              image = user.logoURL;
-                            } else if (user is Student) {
-                              name = user.fullName;
-                              image = user.imageUrl;
-                            } else if (user is Map && user['isAdmin'] == true) {
-                              isAdmin = true;
-                              name = user['name'] ?? 'Admin';
-                              id = user['id'] ?? otherUserId;
-                            }
                             if (_searchQuery.isNotEmpty &&
-                                !name.toLowerCase().contains(_searchQuery)) {
+                                !user.displayName.toLowerCase().contains(_searchQuery)) {
                               return const SizedBox.shrink();
                             }
                             return Card(
@@ -588,9 +572,9 @@ Company? company;
                                       child: const Icon(Icons.person,
                                           color: Colors.white, size: 24),
                                     )
-                                        : (image.isNotEmpty
+                                        : (user.imageUrl.isNotEmpty
                                         ? Image.network(
-                                      image,
+                                      user.imageUrl,
                                       fit: BoxFit.cover,
                                       errorBuilder: (context, error,
                                           stackTrace) =>
@@ -611,7 +595,7 @@ Company? company;
                                     )),
                                   ),
                                 ),
-                                title: Text(name,
+                                title: Text(user.uid.startsWith("admin_")?"${user.displayName.split(" ").first} ITC Rep":user.displayName,
                                     style: theme.textTheme.titleMedium),
                                 subtitle: Text(
                                   message.senderId == FirebaseAuth.instance.currentUser!.uid?
@@ -646,14 +630,14 @@ Company? company;
                                   ],
                                 ),
                                 onTap: () {
-                                  final isAdminChat = id.startsWith('admin_');
+                                  final isAdminChat = user.uid.startsWith('admin_');
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (_) => ChatDetailsPage(
-                                        receiverName: name,
-                                        receiverAvatarUrl:image,
-                                        receiverId: id,
+                                        receiverName: user.displayName,
+                                        receiverAvatarUrl:user.imageUrl,
+                                        receiverId: user.uid,
                                       ),
                                     ),
                                   );
@@ -690,7 +674,7 @@ Company? company;
                                         child: CircularProgressIndicator(),
                                       ),
                                     );
-                                    await _deleteChatWithUser(id);
+                                    await _deleteChatWithUser(user.uid);
                                     Navigator.of(context, rootNavigator: true)
                                         .pop(); // Dismiss progress dialog
                                     setState(() {}); // Refresh the list

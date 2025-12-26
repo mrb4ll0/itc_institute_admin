@@ -1,8 +1,12 @@
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:itc_institute_admin/itc_logic/admin_task.dart';
+import 'package:itc_institute_admin/itc_logic/firebase/company_cloud.dart';
 import 'package:itc_institute_admin/model/userProfile.dart';
 import 'package:provider/provider.dart';
 
@@ -11,6 +15,7 @@ import '../../../../itc_logic/firebase/general_cloud.dart';
 import '../../../../itc_logic/firebase/message/message_service.dart';
 import '../../../../model/student.dart';
 import '../../../itc_logic/firebase/provider/groupChatProvider.dart';
+import '../../../model/company.dart';
 
 
 class GroupInfoPage extends StatefulWidget {
@@ -23,6 +28,7 @@ class GroupInfoPage extends StatefulWidget {
 class _GroupInfoPageState extends State<GroupInfoPage> {
   final ChatService _chatService = ChatService();
   final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic();
+  final AdminCloud adminCloud = AdminCloud();
   bool _isLoading = false;
   String? _error;
   Map<String, dynamic>? group;
@@ -65,7 +71,14 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
 
   Future<void> _addMember() async {
     // Show dialog to select students to add
-    final allStudents = await getAllStudents();
+    Company? company = widget.currentUser.getAs<Company>();
+    if(company == null )
+      {
+        Fluttertoast.showToast(msg: "company is null");
+        return;
+      }
+
+    final allStudents = await adminCloud.getPotentialStudents(company: company);
     final currentIds = List<String>.from(group?['members'] ?? []);
     final candidates =
     allStudents.where((s) => !currentIds.contains(s.uid)).toList();
@@ -705,15 +718,5 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
     );
   }
 
-  Future<List<Student>> getAllStudents() async {
-    final snap = await FirebaseFirestore.instance
-        .collection('users')
-        .doc('students')
-        .collection('students')
-        .get();
 
-    return snap.docs
-        .map((d) => Student.fromFirestore(d.data()!, d.id))
-        .toList();
-  }
 }

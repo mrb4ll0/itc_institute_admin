@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 
+import '../../model/admin.dart';
 import '../../model/company.dart';
 import '../../model/institution_model.dart';
 import '../../model/internship_model.dart';
@@ -125,6 +126,18 @@ class ITCFirebaseLogic {
 
     if (companyDoc.exists) {
       return Company.fromMap(companyDoc.data()!);
+    }
+    debugPrint("before replace ${uid}");
+     uid = uid.replaceAll("admin_", "");
+    debugPrint("uid is ${uid}");
+final adminDoc = await _firebaseFirestore
+        .collection("admins")
+        .doc(uid)
+        .get();
+
+    if (adminDoc.exists) {
+      debugPrint("admin exist");
+      return Admin.fromMap(companyDoc.data()!,companyDoc.id);
     }
 
     return null;

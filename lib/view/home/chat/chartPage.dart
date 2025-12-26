@@ -14,9 +14,12 @@ import 'package:itc_institute_admin/view/home/student/studentDetails.dart';
 
 import '../../../itc_logic/firebase/message/message_service.dart';
 import '../../../itc_logic/service/userService.dart';
+import '../../../model/admin.dart';
 import '../../../model/company.dart';
 import '../../../model/message.dart';
 import '../../../model/student.dart';
+import '../../adminProfilePage.dart';
+import '../../company/companyDetailPage.dart';
 
 class ChatDetailsPage extends StatefulWidget {
   final String receiverId;
@@ -1136,11 +1139,42 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
             const SizedBox(width: 12),
             Expanded(
               child: GestureDetector(
-                onTap: () {
-                  GeneralMethods.navigateTo(
-                    context,
-                    StudentProfilePage(student: widget.receiverData as Student),
-                  );
+                onTap: () async {
+                  final user =
+                      await UserService().getUser(widget.receiverId);
+                  if(user == null)
+                  {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('User not found.')),
+                    );
+                  }
+                  Student? student = user!.getAs<Student>();
+                  Company? company = user!.getAs<Company>();
+                  Admin? admin = user.getAs<Admin>();
+                  if (student != null) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => StudentProfilePage(
+                          student: student,
+                        ),
+                      ),
+                    );
+                  }
+                  else if(company != null)
+                  {
+                    GeneralMethods.navigateTo(context, CompanyDetailPage(company: company));
+                  }
+                  else if(admin != null)
+                  {
+                   // GeneralMethods.navigateTo(context, AdminProfilePage(admin: admin,currentStudent: widget.,));
+                  }
+                  else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                          content: Text('Profile not found or not a student.')),
+                    );
+                  }
                 },
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1149,7 +1183,7 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
                       children: [
                         Expanded(
                           child: Text(
-                            widget.receiverName,
+                            widget.receiverId.startsWith("admin_")?"${widget.receiverName.split(" ").first} ITC Rep":widget.receiverName,
                             style: theme.textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.bold,
                             ),
