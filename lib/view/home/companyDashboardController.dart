@@ -5,6 +5,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:itc_institute_admin/auth/login_view.dart';
 import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
 import 'package:itc_institute_admin/itc_logic/help_support/help.dart';
+import 'package:itc_institute_admin/notification/view/NotificationPage.dart';
 import 'package:itc_institute_admin/view/company/companyDetailPage.dart';
 import 'package:itc_institute_admin/view/company/myProfile.dart';
 import 'package:itc_institute_admin/view/home/chatListPage.dart';
@@ -12,6 +13,7 @@ import 'package:itc_institute_admin/view/home/companyDashBoard.dart';
 import 'package:itc_institute_admin/view/home/studentApplicationPage.dart';
 import 'package:itc_institute_admin/view/home/themePage.dart';
 import 'package:itc_institute_admin/view/home/tweet_view.dart';
+import 'package:itc_institute_admin/view/studentList.dart';
 
 import '../../itc_logic/firebase/general_cloud.dart';
 import '../../model/company.dart';
@@ -84,7 +86,10 @@ class _CompanyDashboardControllerState
     // Show loading while company data is being fetched
     if (_isLoading) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Company Portal'), elevation: 0),
+        appBar: AppBar(title: const Text('Company Portal'), elevation: 0,actions: [IconButton(onPressed: ()
+            {
+              GeneralMethods.navigateTo(context, CompanyNotificationsPage(companyId: FirebaseAuth.instance.currentUser!.uid));
+            }, icon: Icon(Icons.notifications_active_rounded))],),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
@@ -92,6 +97,10 @@ class _CompanyDashboardControllerState
     return Scaffold(
       appBar: AppBar(
         title: const Text('Company Portal'),
+        actions: [IconButton(onPressed: ()
+        {
+          GeneralMethods.navigateTo(context, CompanyNotificationsPage(companyId: FirebaseAuth.instance.currentUser!.uid));
+        }, icon: Icon(Icons.notifications_active_rounded))],
         elevation: 0,
         backgroundColor: theme.appBarTheme.backgroundColor,
         foregroundColor: theme.appBarTheme.foregroundColor,
@@ -143,6 +152,17 @@ class _CompanyDashboardControllerState
                    return;
                  }
               navigateToEditCompany(_company!);
+            },
+          ),_buildDrawerItem(
+            icon: Icons.people,
+            text: 'Student List',
+            onTap: () {
+               if(_company == null)
+                 {
+                   Fluttertoast.showToast(msg: "Company not found , kindly logout and login ");
+                   return;
+                 }
+              GeneralMethods.navigateTo(context, StudentListPage(company: _company!));
             },
           ),
           _buildDrawerItem(

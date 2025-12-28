@@ -1,5 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:intl/intl.dart';
 import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/ActionLogger.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/activeStudentCloud.dart';
@@ -9,6 +12,7 @@ import 'package:itc_institute_admin/view/home/industrailTraining/newIndustrialTr
 
 import '../../model/RecentActions.dart';
 import '../../model/company.dart';
+import '../../model/student.dart';
 
 class Companydashboard extends StatefulWidget {
   const Companydashboard({super.key});
@@ -23,7 +27,7 @@ class _CompanydashboardState extends State<Companydashboard>
   bool _isLoading = true;
   String _error = '';
   int _selectedTab =
-      0; // 0: Applications, 1: Trainings, 2: Supervisors, 3: Accepted
+  0; // 0: Applications, 1: Trainings, 2: Supervisors, 3: Accepted
   late List<Application> studentApplications;
   int newApplicationCounts = 0;
   late int activeApplicationsCounts = 0;
@@ -237,6 +241,9 @@ class _CompanydashboardState extends State<Companydashboard>
                   // Top App Bar
                   _buildTopAppBar(context),
 
+                  // Announcement Banner
+                  _buildAnnouncementBanner(),
+
                   // Stats Cards
                   _buildStatsCards(),
 
@@ -277,7 +284,6 @@ class _CompanydashboardState extends State<Companydashboard>
         backgroundColor: const Color(0xFF135bec),
         child: const Icon(Icons.add, color: Colors.white),
       ),
-      drawer: _buildDrawer(context),
     );
   }
 
@@ -292,7 +298,7 @@ class _CompanydashboardState extends State<Companydashboard>
         children: [
           Expanded(
             child: Text(
-              'Dashboard',
+              'Company Dashboard',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -303,6 +309,11 @@ class _CompanydashboardState extends State<Companydashboard>
         ],
       ),
     );
+  }
+
+  Widget _buildAnnouncementBanner() {
+    if (_company == null) return SizedBox.shrink();
+    return _CompanyAnnouncementBanner(company: _company!);
   }
 
   Widget _buildStatsCards() {
@@ -369,65 +380,6 @@ class _CompanydashboardState extends State<Companydashboard>
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildTabBar() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    const tabs = ['Applications', 'Trainings', 'Supervisors', 'Accepted'];
-
-    return Container(
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
-          ),
-        ),
-      ),
-      child: Row(
-        children: tabs.asMap().entries.map((entry) {
-          final index = entry.key;
-          final tab = entry.value;
-          final isSelected = _selectedTab == index;
-
-          return Expanded(
-            child: InkWell(
-              onTap: () {
-                setState(() {
-                  _selectedTab = index;
-                });
-              },
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(0, 16, 0, 13),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: isSelected
-                          ? const Color(0xFF135bec)
-                          : Colors.transparent,
-                      width: 3,
-                    ),
-                  ),
-                ),
-                child: Center(
-                  child: Text(
-                    tab,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: isSelected
-                          ? const Color(0xFF135bec)
-                          : isDark
-                          ? Colors.grey.shade400
-                          : Colors.grey.shade500,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        }).toList(),
       ),
     );
   }
@@ -551,13 +503,13 @@ class _CompanydashboardState extends State<Companydashboard>
   }
 
   Widget _buildActionCard(
-    RecentAction action,
-    bool isDark,
-    Color textColor,
-    Color subTextColor,
-    Color cardColor,
-    Color borderColor,
-  ) {
+      RecentAction action,
+      bool isDark,
+      Color textColor,
+      Color subTextColor,
+      Color cardColor,
+      Color borderColor,
+      ) {
     return Material(
       color: cardColor,
       borderRadius: BorderRadius.circular(12),
@@ -911,9 +863,9 @@ class _CompanydashboardState extends State<Companydashboard>
   }
 
   List<Widget> _buildChangesList(
-    Map<String, dynamic> changes,
-    Color textColor,
-  ) {
+      Map<String, dynamic> changes,
+      Color textColor,
+      ) {
     return changes.entries.map((entry) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 4),
@@ -1170,150 +1122,6 @@ class _CompanydashboardState extends State<Companydashboard>
     }
   }
 
-  Widget _buildDrawer(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final company = _company;
-
-    return Drawer(
-      backgroundColor: isDark ? const Color(0xFF101622) : Colors.white,
-      child: Column(
-        children: [
-          // Drawer Header
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: isDark
-                  ? Colors.white.withOpacity(0.05)
-                  : Colors.grey.shade50,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (company != null)
-                  CircleAvatar(
-                    radius: 40,
-                    backgroundImage: company.logoURL.isNotEmpty
-                        ? NetworkImage(company.logoURL)
-                        : null,
-                    backgroundColor: const Color(0xFF135bec).withOpacity(0.1),
-                    child: company.logoURL.isEmpty
-                        ? Icon(
-                            Icons.business,
-                            size: 36,
-                            color: const Color(0xFF135bec),
-                          )
-                        : null,
-                  ),
-                const SizedBox(height: 16),
-                if (company != null)
-                  Text(
-                    company.name,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? Colors.white : Colors.black,
-                    ),
-                  ),
-                if (company != null)
-                  Text(
-                    company.email,
-                    style: TextStyle(
-                      color: isDark
-                          ? Colors.grey.shade400
-                          : Colors.grey.shade600,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-
-          // Drawer Items
-          Expanded(
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
-                _buildDrawerItem(
-                  icon: Icons.person_outline,
-                  title: 'My Profile',
-                  onTap: () {
-                    Navigator.pop(context);
-                    _showProfileDialog();
-                  },
-                ),
-                _buildDrawerItem(
-                  icon: Icons.edit,
-                  title: 'Edit Profile',
-                  onTap: () {
-                    Navigator.pop(context);
-                    // Navigate to edit profile
-                  },
-                ),
-                _buildDrawerItem(
-                  icon: Icons.work_outline,
-                  title: 'Post Training',
-                  onTap: () {
-                    Navigator.pop(context);
-                    // Navigate to post training
-                  },
-                ),
-                _buildDrawerItem(
-                  icon: Icons.people_outline,
-                  title: 'Manage Team',
-                  onTap: () {
-                    Navigator.pop(context);
-                    // Navigate to team management
-                  },
-                ),
-                _buildDrawerItem(
-                  icon: Icons.analytics_outlined,
-                  title: 'Analytics',
-                  onTap: () {
-                    Navigator.pop(context);
-                    // Navigate to analytics
-                  },
-                ),
-                const Divider(),
-                _buildDrawerItem(
-                  icon: Icons.logout,
-                  title: 'Logout',
-                  onTap: () {
-                    Navigator.pop(context);
-                    _logout();
-                  },
-                  color: const Color(0xFFFF3B30),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDrawerItem({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-    Color? color,
-  }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return ListTile(
-      leading: Icon(
-        icon,
-        color: color ?? (isDark ? Colors.grey.shade400 : Colors.grey.shade700),
-      ),
-      title: Text(
-        title,
-        style: TextStyle(
-          color: color ?? (isDark ? Colors.white : Colors.black),
-        ),
-      ),
-      onTap: onTap,
-    );
-  }
-
   Widget _buildLoading() {
     return Scaffold(
       backgroundColor: Theme.of(context).brightness == Brightness.dark
@@ -1326,7 +1134,7 @@ class _CompanydashboardState extends State<Companydashboard>
             const CircularProgressIndicator(),
             const SizedBox(height: 16),
             Text(
-              'Loading Dashboard...',
+              'Loading Company Dashboard...',
               style: TextStyle(
                 fontSize: 16,
                 color: Theme.of(context).brightness == Brightness.dark
@@ -1485,10 +1293,10 @@ class _CompanydashboardState extends State<Companydashboard>
                       backgroundColor: const Color(0xFF135bec).withOpacity(0.1),
                       child: company.logoURL.isEmpty
                           ? Icon(
-                              Icons.business,
-                              size: 40,
-                              color: const Color(0xFF135bec),
-                            )
+                        Icons.business,
+                        size: 40,
+                        color: const Color(0xFF135bec),
+                      )
                           : null,
                     ),
                   ),
@@ -1578,74 +1386,6 @@ class _CompanydashboardState extends State<Companydashboard>
       );
     }
   }
-
-  // Loading widget method
-  Widget _buildLoadingWidget(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(
-              Theme.of(context).colorScheme.primary,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Loading recent actions...',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Empty widget method
-  Widget _buildEmptyWidget({
-    required BuildContext context,
-    VoidCallback? onRefresh,
-  }) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.history,
-              size: 64,
-              color: Theme.of(context).colorScheme.outline,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No Recent Actions',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'There are no recent actions to display.',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.outline,
-              ),
-            ),
-            if (onRefresh != null) ...[
-              const SizedBox(height: 20),
-              OutlinedButton.icon(
-                onPressed: onRefresh,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Refresh'),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 // Helper classes
@@ -1663,4 +1403,301 @@ class Application {
     required this.status,
     required this.avatarUrl,
   });
+}
+
+class _CompanyAnnouncementBanner extends StatefulWidget {
+  final Company company;
+  const _CompanyAnnouncementBanner({required this.company});
+
+  @override
+  State<_CompanyAnnouncementBanner> createState() =>
+      _CompanyAnnouncementBannerState();
+}
+
+class _CompanyAnnouncementBannerState
+    extends State<_CompanyAnnouncementBanner> {
+  bool _dismissed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    if (_dismissed) return SizedBox.shrink();
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('announcements')
+          .orderBy('createdAt', descending: true)
+          .limit(1)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return _announcementBanner(
+            title: 'Loading...',
+            body: 'Checking for admin announcements.',
+            createdAt: null,
+            isDark: isDark,
+            onClose: () async {
+              setState(() => _dismissed = true);
+            },
+          );
+        }
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return _announcementBanner(
+            title: 'No admin announcement yet',
+            body: 'Stay tuned for updates from your admin.',
+            createdAt: null,
+            isDark: isDark,
+            onClose: () async {
+              setState(() => _dismissed = true);
+            },
+          );
+        }
+        final doc = snapshot.data!.docs.first;
+        final announcementId = doc.id;
+        final data = doc.data();
+        final title = data['title'] ?? '';
+        final body = data['body'] ?? '';
+        final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
+        if (title.isEmpty && body.isEmpty) {
+          return _announcementBanner(
+            title: 'No admin announcement yet',
+            body: 'Stay tuned for updates from your admin.',
+            createdAt: null,
+            isDark: isDark,
+            onClose: () async {
+              setState(() => _dismissed = true);
+            },
+          );
+        }
+        return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          future: FirebaseFirestore.instance
+              .collection('companies')
+              .doc(widget.company.id)
+              .collection('seen_announcements')
+              .doc(announcementId)
+              .get(),
+          builder: (context, seenSnapshot) {
+            return _announcementBanner(
+              title: title,
+              body: body,
+              createdAt: createdAt,
+              isDark: isDark,
+              onClose: () async {
+                setState(() => _dismissed = true);
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+Widget _announcementBanner({
+  required String title,
+  required String body,
+  DateTime? createdAt,
+  required bool isDark,
+  required Future<void> Function() onClose,
+}) {
+  return Builder(
+    builder: (context) => GestureDetector(
+      onTap: () {
+        showDialog(
+          context: context,
+          builder: (context) {
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20)),
+              child: Container(
+                constraints: BoxConstraints(maxHeight: 400, minWidth: 300),
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.campaign,
+                            color: Color(0xFF2196F3), size: 28),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                              color: Color(0xFF1565C0),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: Text(
+                          body,
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: Color(0xFF1976D2),
+                            height: 1.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (createdAt != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16.0),
+                        child: Row(
+                          children: [
+                            Icon(Icons.access_time,
+                                size: 14, color: Color(0xFF64B5F6)),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Posted: ' +
+                                  DateFormat('yMMMd H:mm').format(createdAt),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF64B5F6),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    Align(
+                      alignment: Alignment.bottomRight,
+                      child: TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: Text('Close',
+                            style: TextStyle(
+                                color: Color(0xFF2196F3),
+                                fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFFE3F2FD), Color(0xFFBBDEFB)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFF2196F3), width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF2196F3).withOpacity(0.15),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF2196F3), Color(0xFF1976D2)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.campaign, color: Colors.white, size: 24),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (title.isNotEmpty)
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: Color(0xFF1565C0),
+                      ),
+                    ),
+                  if (body.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4.0),
+                      child: Text(
+                        body,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF1976D2),
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  if (createdAt != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Row(
+                        children: [
+                          Icon(Icons.access_time,
+                              size: 12, color: const Color(0xFF64B5F6)),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Posted: ' +
+                                DateFormat('yMMMd H:mm').format(createdAt),
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF64B5F6),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF2196F3).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: IconButton(
+                icon:
+                Icon(Icons.close, color: const Color(0xFF2196F3), size: 18),
+                onPressed: () async {
+                  await onClose();
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+Future<void> signOut() async {
+  final GoogleSignIn googleSignIn = GoogleSignIn();
+
+  // Sign out from Google
+  try {
+    await googleSignIn.signOut();
+  } catch (e) {
+    print("Google sign out error: $e");
+  }
+
+  // Sign out from Firebase
+  await FirebaseAuth.instance.signOut();
 }

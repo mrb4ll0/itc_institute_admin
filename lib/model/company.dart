@@ -32,6 +32,13 @@ class Company {
   final List<String>? formUrl;
   final DateTime? updatedAt;
   final List<dynamic> potentialtrainee;
+  // Add these new fields
+  List<String> pendingApplications = [];
+  List<String> acceptedTrainees = []; // Accepted but not started
+  List<String> currentTrainees = [];  // Currently active
+  List<String> completedTrainees = []; // Completed training
+  List<String> rejectedApplications = [];
+  List<String> supervisors = []; // Supervisor IDs
 
   Company({
     required this.id,
@@ -65,6 +72,13 @@ class Company {
     this.formUrl,
     this.updatedAt,
     this.potentialtrainee = const [],
+    this.acceptedTrainees = const [],
+    this.rejectedApplications = const [],
+    this.completedTrainees = const [],
+    this.currentTrainees = const [],
+    this.pendingApplications = const [],
+    this.supervisors = const [],
+
   });
 
   Company copyWith({
@@ -99,6 +113,12 @@ class Company {
     List<String>? formUrl,
     DateTime? updatedAt,
     List<dynamic>? potentialtrainee,
+    List<String>? acceptedTrainees,
+    List<String>? rejectedApplications,
+    List<String>? completedTrainees,
+    List<String>? currentTrainees,
+    List<String>? pendingApplications,
+    List<String>? supervisors,
   }) {
     return Company(
       id: id ?? this.id,
@@ -132,6 +152,12 @@ class Company {
       formUrl: formUrl ?? this.formUrl,
       updatedAt: updatedAt ?? this.updatedAt,
       potentialtrainee: potentialtrainee ?? this.potentialtrainee,
+      acceptedTrainees: acceptedTrainees ?? this.acceptedTrainees,
+      rejectedApplications: rejectedApplications ?? this.rejectedApplications,
+      completedTrainees: completedTrainees ?? this.completedTrainees,
+      currentTrainees: currentTrainees ?? this.currentTrainees,
+      pendingApplications: pendingApplications ?? this.pendingApplications,
+      supervisors: supervisors ?? this.supervisors,
     );
   }
 
@@ -168,6 +194,12 @@ class Company {
       'formUrl': formUrl,
       'updatedAt': updatedAt,
       'potentialtrainee': potentialtrainee,
+      'acceptedTrainees': acceptedTrainees,
+      'rejectedApplications': rejectedApplications,
+      'completedTrainees': completedTrainees,
+      'currentTrainees': currentTrainees,
+      'pendingApplications': pendingApplications,
+      'supervisors': supervisors,
     };
   }
 
@@ -218,6 +250,12 @@ class Company {
               ?.map((e) => e.toString())
               .toList() ??
           [],
+      pendingApplications: List<String>.from(map['pendingApplications'] ?? []),
+      acceptedTrainees: List<String>.from(map['acceptedTrainees'] ?? []),
+      currentTrainees: List<String>.from(map['currentTrainees'] ?? []),
+      completedTrainees: List<String>.from(map['completedTrainees'] ?? []),
+      rejectedApplications: List<String>.from(map['rejectedApplications'] ?? []),
+      supervisors: List<String>.from(map['supervisors'] ?? []),
     );
   }
 
@@ -266,7 +304,14 @@ class Company {
         other.isMutedOn == isMutedOn &&
         other.formUrl == formUrl &&
         other.updatedAt == updatedAt &&
+        other.acceptedTrainees == acceptedTrainees &&
+        other.rejectedApplications == rejectedApplications &&
+        other.completedTrainees == completedTrainees &&
+        other.currentTrainees == currentTrainees &&
+        other.pendingApplications == pendingApplications &&
+        other.supervisors == supervisors &&
         other.potentialtrainee == potentialtrainee;
+
   }
 
   @override
@@ -303,6 +348,12 @@ class Company {
       formUrl,
       updatedAt,
       potentialtrainee,
+      acceptedTrainees,
+      rejectedApplications,
+      completedTrainees,
+      currentTrainees,
+      pendingApplications,
+      supervisors,
     ]);
   }
 }

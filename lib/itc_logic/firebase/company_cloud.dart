@@ -5,11 +5,13 @@ import 'package:intl/intl.dart';
 import 'package:itc_institute_admin/firebase_cloud_storage/firebase_cloud.dart';
 import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/ActionLogger.dart';
-import 'package:itc_institute_admin/itc_logic/notification/fireStoreNotification.dart';
+import 'package:itc_institute_admin/itc_logic/notification/fireStoreNotification.dart' hide NotificationType;
+import 'package:itc_institute_admin/itc_logic/service/tranineeService.dart';
 
 import '../../model/RecentActions.dart';
 import '../../model/company.dart';
 import '../../model/internship_model.dart';
+import '../../model/localNotification.dart';
 import '../../model/review.dart';
 import '../../model/student.dart';
 import '../../model/studentApplication.dart';
@@ -747,11 +749,99 @@ class Company_Cloud {
       timestamp: DateTime.now(),
     );
     // Log audit trail
-    if (status.toLowerCase() == 'accepted') {
+    if (status.toLowerCase() == 'accepted' || status.toLowerCase()=='accept') {
       await incrementInternshipApplicationCount(companyId, internshipId);
+    }
+    if(status.toLowerCase() == 'accepted' || status.toLowerCase() == 'rejected') {
+      await TraineeService().createTraineeFromApplication(
+          application: application,
+          companyId: companyId,
+          companyName: company?.name ?? "",
+          fromUpdateStatus: true,
+          status: status);
     }
     await actionLogger.logAction(action, companyId: companyId);
   }
+
+  // In Company_Cloud class - Add this method
+  Future<void> updateApplicationStatusByIds({
+    required String companyId,
+    required String internshipId,
+    required String studentId,
+    required String applicationId,
+    required String status, // 'accepted' or 'rejected'
+  }) async {
+    try {
+      status = GeneralMethods.normalizeApplicationStatus(status);
+
+      // Get the application reference
+      final appRef = _firebaseFirestore
+          .collection(usersCollection)
+          .doc('companies')
+          .collection('companies')
+          .doc(companyId)
+          .collection('IT')
+          .doc(internshipId)
+          .collection('applications')
+          .doc(applicationId);
+
+      // First, get the application document to get the data
+      final appDoc = await appRef.get();
+      if (!appDoc.exists) {
+        throw Exception('Application not found: $applicationId');
+      }
+
+      // Update the application status
+      await appRef.update({'applicationStatus': status});
+
+      // Get company info for audit log
+      Company? company = await _itcFirebaseLogic.getCompany(
+        FirebaseAuth.instance.currentUser!.uid,
+      );
+
+      // Get internship title for audit log
+      final internshipDoc = await _firebaseFirestore
+          .collection(usersCollection)
+          .doc('companies')
+          .collection('companies')
+          .doc(companyId)
+          .collection('IT')
+          .doc(internshipId)
+          .get();
+
+      final internshipTitle = internshipDoc.exists
+          ? (internshipDoc.data()?['title'] ?? 'Unknown Internship')
+          : 'Unknown Internship';
+
+      // Create audit trail
+      RecentAction action = RecentAction(
+        id: "",
+        userId: FirebaseAuth.instance.currentUser!.uid,
+        userName: company?.name ?? "",
+        userEmail: company?.email ?? "",
+        userRole: company?.role ?? "",
+        actionType: "$status Application",
+        entityType: "Application",
+        entityId: applicationId,
+        entityName: internshipTitle,
+        description: status,
+        timestamp: DateTime.now(),
+      );
+
+      // Log audit trail
+      if (status.toLowerCase() == 'accepted') {
+        await incrementInternshipApplicationCount(companyId, internshipId);
+      }
+
+      await actionLogger.logAction(action, companyId: companyId);
+
+    } catch (e, stackTrace) {
+      debugPrint('Error updating application status by IDs: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
 
   Future<List<StudentApplication>> studentInternshipApplicationsForCompany(
     String companyId,
@@ -806,8 +896,10 @@ class Company_Cloud {
     return applications;
   }
 
-  Stream<List<StudentApplication>>
-  studentInternshipApplicationsForCompanyStream(String companyId) {
+  Stream<List<StudentApplication>> studentInternshipApplicationsForCompanyStream(
+      String companyId, {
+        bool sortAscending = false, // true for oldest first, false for newest first
+      }) {
     return _firebaseFirestore
         .collection(usersCollection)
         .doc('companies')
@@ -816,52 +908,66 @@ class Company_Cloud {
         .collection('IT')
         .snapshots()
         .asyncMap((internshipsSnapshot) async {
-          if (internshipsSnapshot.docs.isEmpty) {
-            return [];
-          }
+      if (internshipsSnapshot.docs.isEmpty) {
+        return [];
+      }
 
-          // Get all internships first
-          final internships = <String, IndustrialTraining>{};
-          final List<Future<void>> internshipFutures = [];
+      // Get all internships first
+      final internships = <String, IndustrialTraining>{};
+      final List<Future<void>> internshipFutures = [];
 
-          for (var internshipDoc in internshipsSnapshot.docs) {
-            internshipFutures.add(
-              _processInternship(internshipDoc).then((internship) {
-                if (internship != null) {
-                  internships[internshipDoc.id] = internship;
-                }
-              }),
-            );
-          }
-
-          await Future.wait(internshipFutures);
-
-          // Now get applications for all internships
-          final List<Future<List<StudentApplication>>> applicationFutures = [];
-
-          for (var internshipDoc in internshipsSnapshot.docs) {
-            final internship = internships[internshipDoc.id];
+      for (var internshipDoc in internshipsSnapshot.docs) {
+        internshipFutures.add(
+          _processInternship(internshipDoc).then((internship) {
             if (internship != null) {
-              applicationFutures.add(
-                _getApplicationsForInternship(
-                  internshipDoc.reference,
-                  internship,
-                ),
-              );
+              internships[internshipDoc.id] = internship;
             }
-          }
+          }),
+        );
+      }
 
-          final allApplications = await Future.wait(applicationFutures);
-          // for (List<StudentApplication> appList in allApplications) {
-          //   for (StudentApplication app in appList) {
-          //     // Process each application here
-          //
-          //   }
-          // }
-          return allApplications.expand((apps) => apps).toList();
-        });
+      await Future.wait(internshipFutures);
+
+      // Now get applications for all internships
+      final List<Future<List<StudentApplication>>> applicationFutures = [];
+
+      for (var internshipDoc in internshipsSnapshot.docs) {
+        final internship = internships[internshipDoc.id];
+        if (internship != null) {
+          applicationFutures.add(
+            _getApplicationsForInternship(
+              internshipDoc.reference,
+              internship,
+            ),
+          );
+        }
+      }
+
+      final allApplications = await Future.wait(applicationFutures);
+      final combinedApplications = allApplications.expand((apps) => apps).toList();
+
+      // Sort applications
+      return _sortApplications(combinedApplications, ascending: sortAscending);
+    });
   }
 
+  List<StudentApplication> _sortApplications(
+      List<StudentApplication> applications, {
+        bool ascending = true,
+      }) {
+    return applications..sort((a, b) {
+      // Handle null dates - put them at the end for ascending, beginning for descending
+      if (a.applicationDate == null && b.applicationDate == null) return 0;
+      if (a.applicationDate == null) return ascending ? 1 : -1;
+      if (b.applicationDate == null) return ascending ? -1 : 1;
+
+      // Compare dates
+      final dateComparison = a.applicationDate!.compareTo(b.applicationDate!);
+
+      // Return based on sort order
+      return ascending ? dateComparison : -dateComparison;
+    });
+  }
   Stream<List<StudentApplication>> getBasicApplicationsForInternshipStream(
     String companyId,
     String internshipId,
@@ -1685,6 +1791,1097 @@ class Company_Cloud {
           .update(company.toMap());
     } catch (e) {
       throw Exception('Failed to update company: $e');
+    }
+  }
+
+
+  Future<void> sendNotificationToCompany(CompanyNotification notification) async {
+    try {
+      // Generate a unique ID for the notification
+      final notificationId = _firebaseFirestore.collection('notifications').doc().id;
+
+      await _firebaseFirestore
+          .collection('users')
+          .doc('companies')
+          .collection('companies')
+          .doc(notification.companyId)
+          .collection('notifications')
+          .doc(notificationId)
+          .set(notification.copyWith(id: notificationId).toFirestore());
+
+      debugPrint('✅ Notification sent to company ${notification.companyId}: ${notification.title}');
+
+      // Update company's unread count
+      await _incrementUnreadCount(notification.companyId);
+
+    } catch (e) {
+      debugPrint('❌ Error sending notification: $e');
+      rethrow;
+    }
+  }
+
+  // 2. GET COMPANY NOTIFICATIONS STREAM
+  Stream<List<CompanyNotification>> getCompanyNotificationsStream(String companyId) {
+    try {
+      return _firebaseFirestore
+          .collection('users')
+          .doc('companies')
+          .collection('companies')
+          .doc(companyId)
+          .collection('notifications')
+          .orderBy('createdAt', descending: true)
+          .snapshots()
+          .map((snapshot) {
+        return snapshot.docs.map((doc) {
+          return CompanyNotification.fromFirestore(doc, null);
+        }).toList();
+      });
+    } catch (e) {
+      debugPrint('❌ Error getting notifications stream: $e');
+      return Stream.value([]);
+    }
+  }
+
+  // 3. GET UNREAD NOTIFICATIONS COUNT STREAM
+  Stream<int> getUnreadNotificationsCountStream(String companyId) {
+    try {
+      return _firebaseFirestore
+          .collection('users')
+          .doc('companies')
+          .collection('companies')
+          .doc(companyId)
+          .snapshots()
+          .map((snapshot) {
+        final data = snapshot.data();
+        return data?['unreadNotifications'] ?? 0;
+      });
+    } catch (e) {
+      debugPrint('❌ Error getting unread count stream: $e');
+      return Stream.value(0);
+    }
+  }
+
+  // 4. MARK NOTIFICATION AS READ
+  Future<void> markNotificationAsRead(String companyId, String notificationId) async {
+    try {
+      await _firebaseFirestore
+          .collection('users')
+          .doc('companies')
+          .collection('companies')
+          .doc(companyId)
+          .collection('notifications')
+          .doc(notificationId)
+          .update({
+        'isRead': true,
+        'readAt': FieldValue.serverTimestamp(),
+      });
+
+      // Decrement unread count
+      await _decrementUnreadCount(companyId);
+
+      debugPrint('✅ Notification $notificationId marked as read');
+    } catch (e) {
+      debugPrint('❌ Error marking notification as read: $e');
+      rethrow;
+    }
+  }
+
+  // 5. MARK ALL NOTIFICATIONS AS READ
+  Future<void> markAllNotificationsAsRead(String companyId) async {
+    try {
+      final notifications = await _firebaseFirestore
+          .collection('users')
+          .doc('companies')
+          .collection('companies')
+          .doc(companyId)
+          .collection('notifications')
+          .where('isRead', isEqualTo: false)
+          .get();
+
+      if (notifications.docs.isEmpty) return;
+
+      final batch = _firebaseFirestore.batch();
+
+      for (final doc in notifications.docs) {
+        batch.update(doc.reference, {
+          'isRead': true,
+          'readAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      await batch.commit();
+
+      // Reset unread count to 0
+      await _firebaseFirestore
+          .collection('users')
+          .doc('companies')
+          .collection('companies')
+          .doc(companyId)
+          .update({
+        'unreadNotifications': 0,
+      });
+
+      debugPrint('✅ All notifications marked as read');
+    } catch (e) {
+      debugPrint('❌ Error marking all notifications as read: $e');
+      rethrow;
+    }
+  }
+
+  // 6. MARK NOTIFICATION AS UNREAD
+  Future<void> markNotificationAsUnread(String companyId, String notificationId) async {
+    try {
+      await _firebaseFirestore
+          .collection('users')
+          .doc('companies')
+          .collection('companies')
+          .doc(companyId)
+          .collection('notifications')
+          .doc(notificationId)
+          .update({
+        'isRead': false,
+        'readAt': FieldValue.delete(),
+      });
+
+      // Increment unread count
+      await _incrementUnreadCount(companyId);
+
+      debugPrint('✅ Notification $notificationId marked as unread');
+    } catch (e) {
+      debugPrint('❌ Error marking notification as unread: $e');
+      rethrow;
+    }
+  }
+
+  // 7. DELETE NOTIFICATION
+  Future<void> deleteNotification(String companyId, String notificationId) async {
+    try {
+      // Check if notification was unread to adjust count
+      final doc = await _firebaseFirestore
+          .collection('users')
+          .doc('companies')
+          .collection('companies')
+          .doc(companyId)
+          .collection('notifications')
+          .doc(notificationId)
+          .get();
+
+      final wasUnread = doc.data()?['isRead'] == false;
+
+      // Delete the notification
+      await doc.reference.delete();
+
+      // Decrement count if it was unread
+      if (wasUnread) {
+        await _decrementUnreadCount(companyId);
+      }
+
+      debugPrint('✅ Notification $notificationId deleted');
+    } catch (e) {
+      debugPrint('❌ Error deleting notification: $e');
+      rethrow;
+    }
+  }
+
+  // 8. DELETE ALL READ NOTIFICATIONS
+  Future<void> deleteAllReadNotifications(String companyId) async {
+    try {
+      final readNotifications = await _firebaseFirestore
+          .collection('users')
+          .doc('companies')
+          .collection('companies')
+          .doc(companyId)
+          .collection('notifications')
+          .where('isRead', isEqualTo: true)
+          .get();
+
+      if (readNotifications.docs.isEmpty) return;
+
+      final batch = _firebaseFirestore.batch();
+
+      for (final doc in readNotifications.docs) {
+        batch.delete(doc.reference);
+      }
+
+      await batch.commit();
+
+      debugPrint('✅ All read notifications deleted');
+    } catch (e) {
+      debugPrint('❌ Error deleting read notifications: $e');
+      rethrow;
+    }
+  }
+
+  // 9. TOGGLE NOTIFICATION IMPORTANCE
+  Future<void> toggleNotificationImportant(
+      String companyId,
+      String notificationId,
+      bool isImportant,
+      ) async {
+    try {
+      await _firebaseFirestore
+          .collection('users')
+          .doc('companies')
+          .collection('companies')
+          .doc(companyId)
+          .collection('notifications')
+          .doc(notificationId)
+          .update({
+        'isImportant': isImportant,
+      });
+
+      debugPrint('✅ Notification $notificationId importance toggled to $isImportant');
+    } catch (e) {
+      debugPrint('❌ Error toggling notification importance: $e');
+      rethrow;
+    }
+  }
+
+  // 10. GET NOTIFICATION BY ID
+  Future<CompanyNotification?> getNotificationById(
+      String companyId,
+      String notificationId,
+      ) async {
+    try {
+      final doc = await _firebaseFirestore
+          .collection('users')
+          .doc('companies')
+          .collection('companies')
+          .doc(companyId)
+          .collection('notifications')
+          .doc(notificationId)
+          .get();
+
+      if (!doc.exists) return null;
+
+      return CompanyNotification.fromFirestore(doc, null);
+    } catch (e) {
+      debugPrint('❌ Error getting notification by ID: $e');
+      return null;
+    }
+  }
+
+  // 11. GET NOTIFICATIONS BY TYPE
+  Stream<List<CompanyNotification>> getNotificationsByType(
+      String companyId,
+      NotificationType type,
+      ) {
+    try {
+      final typeString = _notificationTypeToString(type);
+
+      return _firebaseFirestore
+          .collection('users')
+          .doc('companies')
+          .collection('companies')
+          .doc(companyId)
+          .collection('notifications')
+          .where('type', isEqualTo: typeString)
+          .orderBy('createdAt', descending: true)
+          .snapshots()
+          .map((snapshot) {
+        return snapshot.docs.map((doc) {
+          return CompanyNotification.fromFirestore(doc, null);
+        }).toList();
+      });
+    } catch (e) {
+      debugPrint('❌ Error getting notifications by type: $e');
+      return Stream.value([]);
+    }
+  }
+
+  // 12. GET UNREAD NOTIFICATIONS
+  Stream<List<CompanyNotification>> getUnreadNotifications(String companyId) {
+    try {
+      return _firebaseFirestore
+          .collection('users')
+          .doc('companies')
+          .collection('companies')
+          .doc(companyId)
+          .collection('notifications')
+          .where('isRead', isEqualTo: false)
+          .orderBy('createdAt', descending: true)
+          .snapshots()
+          .map((snapshot) {
+        return snapshot.docs.map((doc) {
+          return CompanyNotification.fromFirestore(doc, null);
+        }).toList();
+      });
+    } catch (e) {
+      debugPrint('❌ Error getting unread notifications: $e');
+      return Stream.value([]);
+    }
+  }
+
+  // 13. GET IMPORTANT NOTIFICATIONS
+  Stream<List<CompanyNotification>> getImportantNotifications(String companyId) {
+    try {
+      return _firebaseFirestore
+          .collection('users')
+          .doc('companies')
+          .collection('companies')
+          .doc(companyId)
+          .collection('notifications')
+          .where('isImportant', isEqualTo: true)
+          .orderBy('createdAt', descending: true)
+          .snapshots()
+          .map((snapshot) {
+        return snapshot.docs.map((doc) {
+          return CompanyNotification.fromFirestore(doc, null);
+        }).toList();
+      });
+    } catch (e) {
+      debugPrint('❌ Error getting important notifications: $e');
+      return Stream.value([]);
+    }
+  }
+
+  // 14. GET NOTIFICATIONS WITH PAGINATION
+  Future<List<CompanyNotification>> getNotificationsWithPagination(
+      String companyId, {
+        int limit = 20,
+        DocumentSnapshot<Map<String, dynamic>>? lastDocument,
+      }) async {
+    try {
+      Query<Map<String, dynamic>> query = _firebaseFirestore
+          .collection('users')
+          .doc('companies')
+          .collection('companies')
+          .doc(companyId)
+          .collection('notifications')
+          .orderBy('createdAt', descending: true)
+          .limit(limit);
+
+      if (lastDocument != null) {
+        query = query.startAfterDocument(lastDocument);
+      }
+
+      final QuerySnapshot<Map<String, dynamic>> snapshot = await query.get();
+
+      return snapshot.docs.map((doc) {
+        return CompanyNotification.fromFirestore(doc, null);
+      }).toList();
+    } catch (e) {
+      debugPrint('❌ Error getting paginated notifications: $e');
+      return [];
+    }
+  }
+
+  // 15. GET NOTIFICATION STATISTICS
+  Future<Map<String, dynamic>> getNotificationStats(String companyId) async {
+    try {
+      final totalQuery = await _firebaseFirestore
+          .collection('users')
+          .doc('companies')
+          .collection('companies')
+          .doc(companyId)
+          .collection('notifications')
+          .count()
+          .get();
+
+      final unreadQuery = await _firebaseFirestore
+          .collection('users')
+          .doc('companies')
+          .collection('companies')
+          .doc(companyId)
+          .collection('notifications')
+          .where('isRead', isEqualTo: false)
+          .count()
+          .get();
+
+      final importantQuery = await _firebaseFirestore
+          .collection('users')
+          .doc('companies')
+          .collection('companies')
+          .doc(companyId)
+          .collection('notifications')
+          .where('isImportant', isEqualTo: true)
+          .count()
+          .get();
+
+      final today = DateTime.now();
+      final startOfDay = DateTime(today.year, today.month, today.day);
+
+      final todayQuery = await _firebaseFirestore
+          .collection('users')
+          .doc('companies')
+          .collection('companies')
+          .doc(companyId)
+          .collection('notifications')
+          .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+          .count()
+          .get();
+
+      return {
+        'total': totalQuery.count,
+        'unread': unreadQuery.count,
+        'important': importantQuery.count,
+        'today': todayQuery.count,
+      };
+    } catch (e) {
+      debugPrint('❌ Error getting notification stats: $e');
+      return {
+        'total': 0,
+        'unread': 0,
+        'important': 0,
+        'today': 0,
+      };
+    }
+  }
+
+  // 16. UPDATE NOTIFICATION SETTINGS
+  Future<void> updateNotificationSettings(
+      String companyId,
+      Map<String, dynamic> settings,
+      ) async {
+    try {
+      await _firebaseFirestore
+          .collection('users')
+          .doc('companies')
+          .collection('companies')
+          .doc(companyId)
+          .update({
+        'notificationSettings': settings,
+        'settingsUpdatedAt': FieldValue.serverTimestamp(),
+      });
+
+      debugPrint('✅ Notification settings updated for company $companyId');
+    } catch (e) {
+      debugPrint('❌ Error updating notification settings: $e');
+      rethrow;
+    }
+  }
+
+  // 17. GET NOTIFICATION SETTINGS
+  Future<Map<String, dynamic>> getNotificationSettings(String companyId) async {
+    try {
+      final doc = await _firebaseFirestore
+          .collection('users')
+          .doc('companies')
+          .collection('companies')
+          .doc(companyId)
+          .get();
+
+      final data = doc.data();
+      final settings = data?['notificationSettings'] as Map<String, dynamic>?;
+
+      // Default settings if none exist
+      return settings ?? {
+        'pushEnabled': true,
+        'emailEnabled': false,
+        'soundEnabled': true,
+        'vibrateEnabled': true,
+        'newApplications': true,
+        'applicationUpdates': true,
+        'studentMessages': true,
+        'systemAlerts': true,
+        'paymentNotifications': true,
+        'reminders': false,
+        'lowSlotsAlert': true,
+        'dailySummary': false,
+      };
+    } catch (e) {
+      debugPrint('❌ Error getting notification settings: $e');
+      return {};
+    }
+  }
+
+  // 18. SEND BULK NOTIFICATIONS (For announcements)
+  Future<void> sendBulkNotifications(
+      List<String> companyIds,
+      CompanyNotification notification,
+      ) async {
+    try {
+      final batch = _firebaseFirestore.batch();
+
+      for (final companyId in companyIds) {
+        final notificationId = _firebaseFirestore.collection('notifications').doc().id;
+        final notificationRef = _firebaseFirestore
+            .collection('users')
+            .doc('companies')
+            .collection('companies')
+            .doc(companyId)
+            .collection('notifications')
+            .doc(notificationId);
+
+        final companyNotification = notification.copyWith(
+          id: notificationId,
+          companyId: companyId,
+        );
+
+        batch.set(notificationRef, companyNotification.toFirestore());
+
+        // Update unread count for each company
+        final companyRef = _firebaseFirestore
+            .collection('users')
+            .doc('companies')
+            .collection('companies')
+            .doc(companyId);
+
+        batch.update(companyRef, {
+          'unreadNotifications': FieldValue.increment(1),
+        });
+      }
+
+      await batch.commit();
+      debugPrint('✅ Bulk notifications sent to ${companyIds.length} companies');
+    } catch (e) {
+      debugPrint('❌ Error sending bulk notifications: $e');
+      rethrow;
+    }
+  }
+
+  // 19. CHECK FOR UNREAD NOTIFICATIONS
+  Future<bool> hasUnreadNotifications(String companyId) async {
+    try {
+      final snapshot = await _firebaseFirestore
+          .collection('users')
+          .doc('companies')
+          .collection('companies')
+          .doc(companyId)
+          .collection('notifications')
+          .where('isRead', isEqualTo: false)
+          .limit(1)
+          .get();
+
+      return snapshot.docs.isNotEmpty;
+    } catch (e) {
+      debugPrint('❌ Error checking for unread notifications: $e');
+      return false;
+    }
+  }
+
+  // 20. GET RECENT NOTIFICATIONS (Last 7 days)
+  Stream<List<CompanyNotification>> getRecentNotifications(String companyId) {
+    try {
+      final weekAgo = DateTime.now().subtract(const Duration(days: 7));
+
+      return _firebaseFirestore
+          .collection('users')
+          .doc('companies')
+          .collection('companies')
+          .doc(companyId)
+          .collection('notifications')
+          .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(weekAgo))
+          .orderBy('createdAt', descending: true)
+          .snapshots()
+          .map((snapshot) {
+        return snapshot.docs.map((doc) {
+          return CompanyNotification.fromFirestore(doc, null);
+        }).toList();
+      });
+    } catch (e) {
+      debugPrint('❌ Error getting recent notifications: $e');
+      return Stream.value([]);
+    }
+  }
+
+  // =============== HELPER METHODS ===============
+
+  // Increment unread count
+  Future<void> _incrementUnreadCount(String companyId) async {
+    try {
+      await _firebaseFirestore
+          .collection('users')
+          .doc('companies')
+          .collection('companies')
+          .doc(companyId)
+          .update({
+        'unreadNotifications': FieldValue.increment(1),
+        'lastNotificationAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('❌ Error incrementing unread count: $e');
+    }
+  }
+
+  // Decrement unread count
+  Future<void> _decrementUnreadCount(String companyId) async {
+    try {
+      await _firebaseFirestore
+          .collection('users')
+          .doc('companies')
+          .collection('companies')
+          .doc(companyId)
+          .update({
+        'unreadNotifications': FieldValue.increment(-1),
+      });
+    } catch (e) {
+      debugPrint('❌ Error decrementing unread count: $e');
+    }
+  }
+
+  // Convert NotificationType to string
+  String _notificationTypeToString(NotificationType type) {
+    switch (type) {
+      case NotificationType.newApplication:
+        return 'new_application';
+      case NotificationType.applicationUpdate:
+        return 'application_update';
+      case NotificationType.studentMessage:
+        return 'student_message';
+      case NotificationType.studentDocument:
+        return 'student_document';
+      case NotificationType.systemAlert:
+        return 'system_alert';
+      case NotificationType.payment:
+        return 'payment';
+      case NotificationType.reminder:
+        return 'reminder';
+      case NotificationType.report:
+        return 'report';
+      case NotificationType.announcement:
+        return 'announcement';
+      case NotificationType.internshipClosed:
+        return 'internship_closed';
+      case NotificationType.internshipCreated:
+        return 'internship_created';
+      case NotificationType.lowSlots:
+        return 'low_slots';
+      case NotificationType.verification:
+        return 'verification';
+    }
+  }
+
+  // =============== SPECIFIC NOTIFICATION CREATORS ===============
+
+  // Send new application notification
+  Future<void> sendNewApplicationNotification({
+    required String companyId,
+    required String internshipId,
+    required String internshipTitle,
+    required String studentId,
+    required String studentName,
+    required String applicationId,
+  }) async {
+    final notification = CompanyNotification.newApplication(
+      companyId: companyId,
+      internshipId: internshipId,
+      internshipTitle: internshipTitle,
+      studentId: studentId,
+      studentName: studentName,
+      applicationId: applicationId,
+    );
+
+    await sendNotificationToCompany(notification);
+  }
+
+  // Send application status update notification
+  Future<void> sendApplicationUpdateNotification({
+    required String companyId,
+    required String applicationId,
+    required String studentName,
+    required String internshipTitle,
+    required String oldStatus,
+    required String newStatus,
+  }) async {
+    final notification = CompanyNotification.applicationUpdate(
+      companyId: companyId,
+      applicationId: applicationId,
+      studentName: studentName,
+      internshipTitle: internshipTitle,
+      oldStatus: oldStatus,
+      newStatus: newStatus,
+    );
+
+    await sendNotificationToCompany(notification);
+  }
+
+  // Send student message notification
+  Future<void> sendStudentMessageNotification({
+    required String companyId,
+    required String studentId,
+    required String studentName,
+    required String messagePreview,
+    required String chatId,
+  }) async {
+    final notification = CompanyNotification.studentMessage(
+      companyId: companyId,
+      studentId: studentId,
+      studentName: studentName,
+      messagePreview: messagePreview,
+      chatId: chatId,
+    );
+
+    await sendNotificationToCompany(notification);
+  }
+
+  // Send low slots alert
+  Future<void> sendLowSlotsNotification({
+    required String companyId,
+    required int remainingSlots,
+    required int threshold,
+  }) async {
+    final notification = CompanyNotification.lowSlots(
+      companyId: companyId,
+      remainingSlots: remainingSlots,
+      threshold: threshold,
+    );
+
+    await sendNotificationToCompany(notification);
+  }
+
+  // Send payment notification
+  Future<void> sendPaymentNotification({
+    required String companyId,
+    required String paymentId,
+    required String amount,
+    required String status,
+    required String description,
+  }) async {
+    final notification = CompanyNotification.payment(
+      companyId: companyId,
+      paymentId: paymentId,
+      amount: amount,
+      status: status,
+      description: description,
+    );
+
+    await sendNotificationToCompany(notification);
+  }
+
+  // Send reminder notification
+  Future<void> sendReminderNotification({
+    required String companyId,
+    required String reminderType,
+    required String message,
+    required DateTime dueDate,
+    required List<String> relatedIds,
+  }) async {
+    final notification = CompanyNotification.reminder(
+      companyId: companyId,
+      reminderType: reminderType,
+      message: message,
+      dueDate: dueDate,
+      relatedIds: relatedIds,
+    );
+
+    await sendNotificationToCompany(notification);
+  }
+
+  // Send internship closed notification
+  Future<void> sendInternshipClosedNotification({
+    required String companyId,
+    required String internshipId,
+    required String internshipTitle,
+    required int totalApplications,
+  }) async {
+    final notification = CompanyNotification.internshipClosed(
+      companyId: companyId,
+      internshipId: internshipId,
+      internshipTitle: internshipTitle,
+      totalApplications: totalApplications,
+    );
+
+    await sendNotificationToCompany(notification);
+  }
+
+// Add this method to your TraineeService class
+  Future<StudentApplication?> getApplicationById(
+      String companyId,
+      String internshipId,
+      String applicationId
+      ) async {
+    try {
+      debugPrint('Fetching application by ID: $applicationId');
+
+      // Get the application document from Firestore
+      final doc = await _firebaseFirestore
+          .collection('users')
+          .doc('companies')
+          .collection('companies')
+          .doc(companyId)
+          .collection('IT')
+          .doc(internshipId)
+          .collection('applications')
+          .doc(applicationId)
+          .get();
+
+      if (!doc.exists) {
+        debugPrint('Application not found: $applicationId');
+        return null;
+      }
+
+      final data = doc.data() as Map<String, dynamic>;
+      debugPrint("Application data: ${data.toString()}");
+
+      // Use your existing StudentApplication.fromMap method
+      final application = StudentApplication.fromMap(
+        data,
+        doc.id,
+        internshipId,
+      );
+
+      debugPrint('Successfully loaded application: ${application.id}');
+      return application;
+
+    } catch (e, stackTrace) {
+      debugPrint('Error getting application by ID: $e');
+      debugPrint('Stack trace: $stackTrace');
+      return null;
+    }
+  }
+
+// Alternative version that searches across all internships
+  Future<StudentApplication?> getApplicationByIdAcrossInternships(
+      String companyId,
+      String applicationId,
+      ) async {
+    try {
+      debugPrint('Searching for application: $applicationId across all internships');
+
+      // First, get all internships for the company
+      final internshipsSnapshot = await _firebaseFirestore
+          .collection('users')
+          .doc('companies')
+          .collection('companies')
+          .doc(companyId)
+          .collection('IT')
+          .get();
+
+      if (internshipsSnapshot.docs.isEmpty) {
+        debugPrint('No internships found for company: $companyId');
+        return null;
+      }
+
+      // Search each internship's applications collection
+      for (final internshipDoc in internshipsSnapshot.docs) {
+        final internshipId = internshipDoc.id;
+
+        try {
+          final appDoc = await _firebaseFirestore
+              .collection('users')
+              .doc('companies')
+              .collection('companies')
+              .doc(companyId)
+              .collection('IT')
+              .doc(internshipId)
+              .collection('applications')
+              .doc(applicationId)
+              .get();
+
+          if (appDoc.exists) {
+            debugPrint('Found application in internship: $internshipId');
+            final data = appDoc.data() as Map<String, dynamic>;
+
+            return StudentApplication.fromMap(
+              data,
+              appDoc.id,
+              internshipId,
+            );
+          }
+        } catch (e) {
+          debugPrint('Error checking internship $internshipId: $e');
+          continue;
+        }
+      }
+
+      debugPrint('Application $applicationId not found in any internship');
+      return null;
+
+    } catch (e, stackTrace) {
+      debugPrint('Error getting application across internships: $e');
+      debugPrint('Stack trace: $stackTrace');
+      return null;
+    }
+  }
+
+// Method to get application by student and company (useful for trainee records)
+  Future<StudentApplication?> getApplicationByStudentAndCompany(
+      String studentId,
+      String companyId,
+      ) async {
+    try {
+      debugPrint('Getting application for student: $studentId at company: $companyId');
+
+      // Get all internships for the company
+      final internshipsSnapshot = await _firebaseFirestore
+          .collection('users')
+          .doc('companies')
+          .collection('companies')
+          .doc(companyId)
+          .collection('IT')
+          .get();
+
+      if (internshipsSnapshot.docs.isEmpty) return null;
+
+      // Search each internship for the student's application
+      for (final internshipDoc in internshipsSnapshot.docs) {
+        final internshipId = internshipDoc.id;
+
+        final applicationsSnapshot = await _firebaseFirestore
+            .collection('users')
+            .doc('companies')
+            .collection('companies')
+            .doc(companyId)
+            .collection('IT')
+            .doc(internshipId)
+            .collection('applications')
+            .where('studentId', isEqualTo: studentId)
+            .limit(1)
+            .get();
+
+        if (applicationsSnapshot.docs.isNotEmpty) {
+          final appDoc = applicationsSnapshot.docs.first;
+          final data = appDoc.data() as Map<String, dynamic>;
+
+          debugPrint('Found application for student in internship: $internshipId');
+          return StudentApplication.fromMap(
+            data,
+            appDoc.id,
+            internshipId,
+          );
+        }
+      }
+
+      debugPrint('No application found for student: $studentId');
+      return null;
+
+    } catch (e, stackTrace) {
+      debugPrint('Error getting application by student and company: $e');
+      debugPrint('Stack trace: $stackTrace');
+      return null;
+    }
+  }
+
+// Method to get the most recent application for a student at a company
+  Future<StudentApplication?> getLatestApplicationByStudentAndCompany(
+      String studentId,
+      String companyId,
+      ) async {
+    try {
+      debugPrint('Getting latest application for student: $studentId');
+
+      final allApplications = <StudentApplication>[];
+
+      // Get all internships for the company
+      final internshipsSnapshot = await _firebaseFirestore
+          .collection('users')
+          .doc('companies')
+          .collection('companies')
+          .doc(companyId)
+          .collection('IT')
+          .get();
+
+      // Collect all applications from all internships
+      for (final internshipDoc in internshipsSnapshot.docs) {
+        final internshipId = internshipDoc.id;
+
+        final applicationsSnapshot = await _firebaseFirestore
+            .collection('users')
+            .doc('companies')
+            .collection('companies')
+            .doc(companyId)
+            .collection('IT')
+            .doc(internshipId)
+            .collection('applications')
+            .where('studentId', isEqualTo: studentId)
+            .get();
+
+        for (final appDoc in applicationsSnapshot.docs) {
+          try {
+            final data = appDoc.data() as Map<String, dynamic>;
+            final application = StudentApplication.fromMap(
+              data,
+              appDoc.id,
+              internshipId,
+            );
+            allApplications.add(application);
+          } catch (e) {
+            debugPrint('Error parsing application ${appDoc.id}: $e');
+            continue;
+          }
+        }
+      }
+
+      if (allApplications.isEmpty) {
+        debugPrint('No applications found for student: $studentId');
+        return null;
+      }
+
+      // Sort by application date (most recent first)
+      allApplications.sort((a, b) => b.applicationDate.compareTo(a.applicationDate));
+
+      debugPrint('Found ${allApplications.length} applications, returning most recent');
+      return allApplications.first;
+
+    } catch (e, stackTrace) {
+      debugPrint('Error getting latest application: $e');
+      debugPrint('Stack trace: $stackTrace');
+      return null;
+    }
+  }
+
+// Batch version to get multiple applications by IDs
+  Future<Map<String, StudentApplication?>> getApplicationsByIds({
+    required String companyId,
+    required List<String> applicationIds,
+  }) async {
+    try {
+      debugPrint('Getting ${applicationIds.length} applications by IDs');
+
+      final results = <String, StudentApplication?>{};
+
+      // Get all internships for the company
+      final internshipsSnapshot = await _firebaseFirestore
+          .collection('users')
+          .doc('companies')
+          .collection('companies')
+          .doc(companyId)
+          .collection('IT')
+          .get();
+
+      // Create a map to track which applications we've found
+      final remainingIds = Set<String>.from(applicationIds);
+
+      // Search each internship
+      for (final internshipDoc in internshipsSnapshot.docs) {
+        if (remainingIds.isEmpty) break;
+
+        final internshipId = internshipDoc.id;
+
+        // Batch get applications for this internship
+        final applicationsSnapshot = await _firebaseFirestore
+            .collection('users')
+            .doc('companies')
+            .collection('companies')
+            .doc(companyId)
+            .collection('IT')
+            .doc(internshipId)
+            .collection('applications')
+            .where(FieldPath.documentId, whereIn: remainingIds.toList())
+            .get();
+
+        for (final appDoc in applicationsSnapshot.docs) {
+          try {
+            final data = appDoc.data() as Map<String, dynamic>;
+            final application = StudentApplication.fromMap(
+              data,
+              appDoc.id,
+              internshipId,
+            );
+            results[appDoc.id] = application;
+            remainingIds.remove(appDoc.id);
+          } catch (e) {
+            debugPrint('Error parsing application ${appDoc.id}: $e');
+            results[appDoc.id] = null;
+            remainingIds.remove(appDoc.id);
+          }
+        }
+      }
+
+      // Mark any not found applications as null
+      for (final id in remainingIds) {
+        results[id] = null;
+      }
+
+      debugPrint('Found ${results.length - remainingIds.length} out of ${applicationIds.length} applications');
+      return results;
+
+    } catch (e, stackTrace) {
+      debugPrint('Error getting applications by IDs: $e');
+      debugPrint('Stack trace: $stackTrace');
+      // Return null for all IDs on error
+      return {for (var id in applicationIds) id: null};
     }
   }
 }
