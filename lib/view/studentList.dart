@@ -10,6 +10,7 @@ import 'package:itc_institute_admin/model/traineeRecord.dart';
 import '../itc_logic/firebase/general_cloud.dart';
 import '../itc_logic/service/tranineeService.dart';
 import '../model/studentApplication.dart';
+import 'home/industrailTraining/applications/studentApplicationsPage.dart';
 
 
 class StudentListPage extends StatefulWidget {
@@ -101,36 +102,6 @@ class _StudentListPageState extends State<StudentListPage>
       final companyId = widget.company.id;
 
       // Load all trainee categories
-      _pendingTrainees = await _traineeService.getTraineesByStatus(
-          companyId,
-          TraineeStatus.pending
-      );
-
-      // Get pending applications from Company_Cloud and sync
-      var studentMap = [];
-      final pendingApplications = await _traineeService.getPendingApplications(companyId);
-
-      for (final app in pendingApplications) {
-        final existingTrainee = await _traineeService.getTraineeByStudentAndCompany(
-            app.student.uid,
-            companyId
-        );
-        if(studentMap.contains(app.student))
-          {
-            continue;
-          }
-        studentMap.add(app.student);
-
-        if (existingTrainee == null) {
-          await _traineeService.createPendingTraineeFromApplication(
-            application: app,
-            companyId: companyId,
-            companyName: widget.company.name,
-          );
-        }
-      }
-
-      // Reload after syncing
       _pendingTrainees = await _traineeService.getTraineesByStatus(
           companyId,
           TraineeStatus.pending
@@ -294,6 +265,7 @@ class _StudentListPageState extends State<StudentListPage>
 
       final status = accept ? 'accepted' : 'rejected';
       final finalReason = reason ?? (accept ? 'Application accepted' : 'Application rejected');
+      debugPrint("application title ${application.internship.title}");
 
       final success = await _traineeService.updateApplicationStatusWithTraineeSync(
         companyId: trainee.companyId,
@@ -436,6 +408,10 @@ class _StudentListPageState extends State<StudentListPage>
       itemBuilder: (context, index) {
         final trainee = trainees[index];
         return TraineeCard(
+          onDoubleTab: ()
+          {
+            GeneralMethods.navigateTo(context, StudentApplicationsPage(companyId: trainee.companyId,studentUid: trainee.studentId,));
+          },
           trainee: trainee,
           isDark: isDark,
           tabIndex: tabIndex,
@@ -522,6 +498,8 @@ class _StudentListPageState extends State<StudentListPage>
                 _showStatistics();
               } else if (value == 'export') {
                 _exportData();
+              } else if (value == 'sync') {
+                _syncWithApplication();
               }
             },
             itemBuilder: (context) => [
@@ -542,6 +520,16 @@ class _StudentListPageState extends State<StudentListPage>
                     Icon(Icons.download, size: 20),
                     SizedBox(width: 8),
                     Text('Export Data'),
+                  ],
+                ),
+              ),
+const PopupMenuItem(
+                value: 'sync',
+                child: Row(
+                  children: [
+                    Icon(Icons.download, size: 20),
+                    SizedBox(width: 8),
+                    Text('Sync with application'),
                   ],
                 ),
               ),
@@ -628,6 +616,25 @@ class _StudentListPageState extends State<StudentListPage>
         ),
       );
     }
+  }
+
+  Future<void> _syncWithApplication() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _error = '';
+      });
+      await _traineeService.syncTraineesFromApplications(widget.company.id);
+    setState(() {
+      _loadTrainees();
+    });
+  }
+    catch(error,stack)
+    {
+      debugPrint("error $error");
+      debugPrintStack(stackTrace: stack);
+    }
+
   }
 
   Future<void> _exportData() async {
@@ -832,6 +839,7 @@ class TraineeCard extends StatelessWidget {
   final VoidCallback? onReject;
   final VoidCallback? onStartTraining;
   final VoidCallback? onCompleteTraining;
+  final VoidCallback? onDoubleTab;
 
   const TraineeCard({
     Key? key,
@@ -843,6 +851,7 @@ class TraineeCard extends StatelessWidget {
     this.onReject,
     this.onStartTraining,
     this.onCompleteTraining,
+    this.onDoubleTab
   }) : super(key: key);
 
   @override
@@ -858,6 +867,7 @@ class TraineeCard extends StatelessWidget {
       ),
       child: InkWell(
         onTap: onTap,
+        onDoubleTap: onDoubleTab,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -1023,7 +1033,7 @@ class TraineeCard extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(top: 12),
                   child: Row(
-                    children: _getActionButtons(),
+                    children: [],
                   ),
                 ),
             ],
@@ -1224,18 +1234,7 @@ class _TraineeDetailDialogState extends State<TraineeDetailDialog> {
                       shape: BoxShape.circle,
                       color: Colors.white,
                     ),
-                    child: Center(
-                      child: Text(
-                        trainee.studentName.isNotEmpty
-                            ? trainee.studentName[0].toUpperCase()
-                            : '?',
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue,
-                        ),
-                      ),
-                    ),
+                    child: GeneralMethods.generateUserAvatar(username: trainee.studentName,imageUrl:trainee.imageUrl),
                   ),
 
                   const SizedBox(width: 16),

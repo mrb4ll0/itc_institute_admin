@@ -163,7 +163,9 @@ class TraineeRecord {
       createdAt: _parseDateTime(data['createdAt']) ?? DateTime.now(),
       updatedAt: _parseDateTime(data['updatedAt']) ?? DateTime.now(),
       imageUrl: data["imageUrl"]??"",
-      notes: data["notes"]??{}
+      notes: data["notes"] is Map<String, dynamic>
+          ? Map<String, dynamic>.from(data["notes"])
+          : {},
     );
   }
 

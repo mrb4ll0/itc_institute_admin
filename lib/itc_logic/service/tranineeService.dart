@@ -209,6 +209,77 @@ class TraineeService {
     return '${companyId}_$applicationId';
   }
 
+  // Get trainee record by student ID using document ID prefix
+  // Get trainee record by student ID and optionally check status
+  Future<TraineeRecord?> getTraineeByStudentId(
+      String companyId,
+      String studentId, {
+        TraineeStatus? requiredStatus,
+        String? requiredStatusString,
+      }) async {
+    try {
+      final docIdPrefix = '${companyId}_${studentId}_';
+      debugPrint("Searching for trainees with prefix: $docIdPrefix, status filter: $requiredStatus");
+
+      // Get ALL documents with the matching prefix (remove limit)
+      final query = await _traineesRef
+          .where(FieldPath.documentId, isGreaterThanOrEqualTo: docIdPrefix)
+          .where(FieldPath.documentId, isLessThan: docIdPrefix + '\uf8ff')
+          .get();
+
+      if (query.docs.isEmpty) {
+        debugPrint("No records found with prefix: $docIdPrefix");
+        return null;
+      }
+
+      debugPrint("Found ${query.docs.length} records with prefix: $docIdPrefix");
+
+      // Iterate through all found records
+      for (final doc in query.docs) {
+        final trainee = TraineeRecord.fromFirestore(
+            doc.data() as Map<String, dynamic>,
+            doc.id
+        );
+
+        debugPrint("Checking trainee ID: ${doc.id}, Status: ${trainee.status}");
+
+        // Check if status matches
+        bool statusMatches = false;
+
+        if (requiredStatus != null) {
+          // Compare with enum
+          statusMatches = trainee.status == requiredStatus;
+        } else if (requiredStatusString != null) {
+          // Compare with string (case-insensitive)
+          final traineeStatusString = trainee.status?.toString().toLowerCase();
+          final requiredStatusLower = requiredStatusString.toLowerCase();
+          statusMatches = traineeStatusString == requiredStatusLower;
+        } else {
+          // No status filter specified - return first record found
+          debugPrint("No status filter, returning first trainee: ${doc.id}");
+          return trainee;
+        }
+
+        // If status matches, return this trainee
+        if (statusMatches) {
+          debugPrint("Found matching trainee! ID: ${doc.id}, Status: ${trainee.status}");
+          return trainee;
+        }
+
+        debugPrint("Status doesn't match, checking next record...");
+      }
+
+      // If we get here, no matching status was found
+      debugPrint("No trainee found with matching status");
+      return null;
+
+    } catch (e, s) {
+      debugPrintStack(stackTrace: s);
+      debugPrint('Error getting trainee by student ID: $e');
+      return null;
+    }
+  }
+
   // Create trainee record when application is accepted
   Future<TraineeRecord?> createTraineeFromApplication({
     required StudentApplication application,
@@ -225,8 +296,14 @@ class TraineeService {
     try {
       debugPrint('Creating trainee record for student: ${application.student.uid}');
 
-      // Generate a unique ID for the trainee record
-      final traineeId = '${application.student.uid}_${companyId}_${DateTime.now().millisecondsSinceEpoch}';
+      TraineeRecord? record = await getTraineeByStudentId(application.student.uid,companyId,requiredStatus: switchStatus(status));
+       if(record != null)
+         {
+           debugPrint("record exists");
+           return null;
+         }
+
+      final traineeId = '${application.student.uid}_${companyId}_';
 
       // Parse dates from application
       final parsedStartDate = startDate ?? _parseStartDate(application);
@@ -253,7 +330,7 @@ class TraineeService {
       );
 
       // Save to Firestore
-      await _traineesRef.doc(traineeId).set(traineeRecord.toMap());
+      await _traineesRef.doc(traineeId).set(traineeRecord.toMap(),SetOptions(merge: true),);
 
       // Update company's trainee lists using your existing Company_Cloud
       await _updateCompanyTraineeLists(companyId, application.student.uid, status);
@@ -278,21 +355,119 @@ class TraineeService {
     }
   }
 
-  TraineeStatus switchStatus(String status)
-  {
-    TraineeStatus statuss = TraineeStatus.pending;
-    switch(status)
-        {
-      case 'accepted':
-           statuss = TraineeStatus.accepted;
-          break;
-      case 'rejected':
-          statuss = TraineeStatus.rejected;
-          break;
+  Future<void> syncTraineesFromApplications(String companyId) async {
+    try {
+      final applications =
+      await _companyCloud.studentInternshipApplicationsForCompany(companyId);
+
+      //  Group by studentId
+      final Map<String, List<StudentApplication>> grouped = {};
+
+      for (final app in applications) {
+        grouped.putIfAbsent(app.student.uid, () => []).add(app);
+      }
+
+      // Resolve each student
+      for (final entry in grouped.entries) {
+        final studentId = entry.key;
+        final apps = entry.value;
+
+        // Sort newest → oldest
+        apps.sort((a, b) => b.applicationDate.compareTo(a.applicationDate));
+        final latestApp = apps.first;
+
+        final resolvedStatus = _resolveTraineeStatus(latestApp);
+
+        // Check existing trainee
+        final existing =
+        await getTraineeByStudentAndCompany(studentId, companyId);
+
+        if (existing == null) {
+          // Create trainee
+          await createTraineeFromApplication(
+            application: latestApp,
+            companyId: companyId,
+            companyName: latestApp.internship.company.name,
+            status: resolvedStatus.name,
+          );
+        } else {
+          // Update trainee
+          await updateTraineeStatus(
+            traineeId: existing.id,
+            newStatus: resolvedStatus,
+            reason: 'Synced from latest application',
+          );
+        }
+      }
+    } catch (e, s) {
+      debugPrintStack(stackTrace: s);
+      debugPrint('Error syncing trainees from applications: $e');
     }
-    return statuss;
   }
 
+
+  TraineeStatus _resolveTraineeStatus(StudentApplication app) {
+    final now = DateTime.now();
+    final appStatus = app.applicationStatus.toLowerCase();
+
+    final startDate = _parseStartDate(app);
+    final endDate = _parseEndDate(app);
+
+    switch (appStatus) {
+      case 'pending':
+        return TraineeStatus.pending;
+
+      case 'rejected':
+        return TraineeStatus.rejected;
+
+      case 'withdrawn':
+        return TraineeStatus.withdrawn;
+
+      case 'accepted':
+        if (startDate != null && now.isBefore(startDate)) {
+          return TraineeStatus.accepted;
+        }
+
+        if (startDate != null &&
+            endDate != null &&
+            now.isAfter(startDate) &&
+            now.isBefore(endDate)) {
+          return TraineeStatus.active;
+        }
+
+        if (endDate != null && now.isAfter(endDate)) {
+          return TraineeStatus.completed;
+        }
+
+        return TraineeStatus.accepted;
+
+      default:
+        return TraineeStatus.pending;
+    }
+  }
+
+
+  TraineeStatus switchStatus(String status) {
+    TraineeStatus statuss = TraineeStatus.pending;
+
+    debugPrint("status is ${status}");
+      switch(status.toLowerCase()) { // Convert to lowercase for case-insensitive comparison
+        case "accepted":
+          statuss = TraineeStatus.accepted;
+          break;
+        case "rejected":
+          statuss = TraineeStatus.rejected;
+          break;
+        case "pending":
+          statuss = TraineeStatus.pending;
+          break;
+        default:
+          statuss = TraineeStatus.pending;
+          break;
+      }
+
+    return statuss;
+  }
   // Get pending applications using your existing Company_Cloud
   Future<List<StudentApplication>> getPendingApplications(String companyId) async {
     try {

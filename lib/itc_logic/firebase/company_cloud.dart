@@ -758,7 +758,7 @@ class Company_Cloud {
           companyId: companyId,
           companyName: company?.name ?? "",
           fromUpdateStatus: true,
-          status: status);
+          status: status.toLowerCase());
     }
     await actionLogger.logAction(action, companyId: companyId);
   }
@@ -784,7 +784,7 @@ class Company_Cloud {
           .doc(internshipId)
           .collection('applications')
           .doc(applicationId);
-
+       debugPrint("companyid $companyId internshipid $internshipId applcationId $applicationId");
       // First, get the application document to get the data
       final appDoc = await appRef.get();
       if (!appDoc.exists) {
@@ -2595,7 +2595,7 @@ class Company_Cloud {
           .collection('applications')
           .doc(applicationId)
           .get();
-
+    debugPrint("companyId $companyId internshipId $internshipId applicationId $applicationId");
       if (!doc.exists) {
         debugPrint('Application not found: $applicationId');
         return null;
@@ -2682,6 +2682,104 @@ class Company_Cloud {
       debugPrint('Error getting application across internships: $e');
       debugPrint('Stack trace: $stackTrace');
       return null;
+    }
+  }
+
+  Future<List<StudentApplication>> getAllApplicationsForStudent(
+      String companyId,
+      String studentUid,
+      ) async {
+    try {
+      debugPrint('🔍 Searching for all applications by student: $studentUid in company: $companyId');
+      final List<StudentApplication> studentApplications = [];
+
+      // First, get all internships for the company
+      final internshipsSnapshot = await _firebaseFirestore
+          .collection('users')
+          .doc('companies')
+          .collection('companies')
+          .doc(companyId)
+          .collection('IT')
+          .get();
+
+      if (internshipsSnapshot.docs.isEmpty) {
+        debugPrint('📭 No internships found for company: $companyId');
+        return studentApplications; // Return empty list
+      }
+
+      debugPrint('📂 Found ${internshipsSnapshot.docs.length} internship(s)');
+
+      // Iterate through each internship
+      for (final internshipDoc in internshipsSnapshot.docs) {
+        final internshipId = internshipDoc.id;
+        debugPrint('  Checking internship: $internshipId');
+
+        try {
+          // Query applications where document ID starts with studentUid
+          final applicationsQuery = await _firebaseFirestore
+              .collection('users')
+              .doc('companies')
+              .collection('companies')
+              .doc(companyId)
+              .collection('IT')
+              .doc(internshipId)
+              .collection('applications')
+              .where(FieldPath.documentId, isGreaterThanOrEqualTo: studentUid)
+              .where(FieldPath.documentId, isLessThan: studentUid + '\uf8ff')
+              .get();
+
+          if (applicationsQuery.docs.isNotEmpty) {
+            debugPrint('    📄 Found ${applicationsQuery.docs.length} application(s) in this internship');
+
+            for (final appDoc in applicationsQuery.docs) {
+              // Double-check that the document ID starts with studentUid
+              if (appDoc.id.startsWith(studentUid)) {
+                try {
+                  final data = appDoc.data() as Map<String, dynamic>;
+                  final application = StudentApplication.fromMap(
+                    data,
+                    appDoc.id,
+                    internshipId,
+                  );
+
+                  // Add internship data to the application if needed
+                  final internshipData = internshipDoc.data() as Map<String, dynamic>;
+                  application.internship = IndustrialTraining.fromMap(internshipData,internshipDoc.id); // Optional: add this property to your StudentApplication class
+                  Student? student = await _itcFirebaseLogic.getStudent(application.student.uid);
+                   if(student != null)
+                     {
+                       application.student = student;
+                     }
+
+                  studentApplications.add(application);
+                  debugPrint('Added application: ${appDoc.id}');
+                } catch (e) {
+                  debugPrint('Error parsing application ${appDoc.id}: $e');
+                }
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint('    ⚠️ Error querying applications for internship $internshipId: $e');
+          continue;
+        }
+      }
+
+      debugPrint('🎯 Total applications found for student $studentUid: ${studentApplications.length}');
+
+      // Optional: Sort by application date or other criteria
+      studentApplications.sort((a, b) {
+        final dateA = a.applicationDate ?? DateTime(0);
+        final dateB = b.applicationDate ?? DateTime(0);
+        return dateB.compareTo(dateA); // Newest first
+      });
+
+      return studentApplications;
+
+    } catch (e, stackTrace) {
+      debugPrint('💥 Error getting all applications for student: $e');
+      debugPrint('Stack trace: $stackTrace');
+      return [];
     }
   }
 
