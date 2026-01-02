@@ -83,7 +83,7 @@ class _SpecificITStudentApplicationsPageState
 
       // Get initial data without showing loading indicator
       final applicationsStream = company_cloud
-          .getBasicApplicationsForInternshipStream(companyId, widget.itId);
+          .studentInternshipApplicationsForSpecificITStream(companyId, widget.itId);
 
       final applications = await applicationsStream.first;
 
@@ -141,7 +141,7 @@ class _SpecificITStudentApplicationsPageState
 
       // Get the stream first
       final applicationsStream = company_cloud
-          .studentInternshipApplicationsForCompanyStream(companyId);
+          .studentInternshipApplicationsForSpecificITStream(companyId,widget.itId);
 
       // Extract the data from the stream ONCE to populate _allApplications
       final applications = await applicationsStream.first;
@@ -1063,8 +1063,8 @@ class _SpecificITStudentApplicationsPageState
     }
 
     return StreamBuilder<List<StudentApplication>?>(
-      stream: company_cloud.studentInternshipApplicationsForCompanyStream(
-        currentUser.uid,
+      stream: company_cloud.studentInternshipApplicationsForSpecificITStream(
+        currentUser.uid, widget.itId
       ),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {

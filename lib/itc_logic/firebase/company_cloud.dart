@@ -951,6 +951,45 @@ class Company_Cloud {
     });
   }
 
+  Stream<List<StudentApplication>> studentInternshipApplicationsForSpecificITStream(
+      String companyId,
+      String itId,  // Add this parameter for specific IT
+          {
+        bool sortAscending = false,
+      }) {
+    debugPrint("specific method is being called");
+    return _firebaseFirestore
+        .collection(usersCollection)
+        .doc('companies')
+        .collection('companies')
+        .doc(companyId)
+        .collection('IT')
+        .doc(itId)  // Get specific IT document
+        .snapshots()
+        .asyncMap((internshipSnapshot) async {
+      // Check if the specific IT exists
+      if (!internshipSnapshot.exists) {
+        debugPrint('IT with ID $itId not found for company $companyId');
+        return [];
+      }
+
+      // Process the single internship
+      final internship = await _processInternship(internshipSnapshot);
+      if (internship == null) {
+        debugPrint('Failed to process internship $itId');
+        return [];
+      }
+
+      // Get applications for this specific internship
+      final applications = await _getApplicationsForInternship(
+        internshipSnapshot.reference,
+        internship,
+      );
+
+      // Sort applications
+      return _sortApplications(applications, ascending: sortAscending);
+    });
+  }
   List<StudentApplication> _sortApplications(
       List<StudentApplication> applications, {
         bool ascending = true,
@@ -980,6 +1019,7 @@ class Company_Cloud {
         .collection('IT')
         .doc(internshipId)
         .collection('applications')
+
         .snapshots()
         .map((snapshot) {
           return snapshot.docs

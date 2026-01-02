@@ -1337,6 +1337,7 @@ class _InternshipDetailsPageState extends State<InternshipDetailsPage> {
           if (_internship.isOpen)
             FloatingActionButton.extended(
               onPressed: () {
+                debugPrint("internship details page post id ${widget.internship.id}");
                 GeneralMethods.navigateTo(
                   context,
                   SpecificITStudentApplicationsPage(

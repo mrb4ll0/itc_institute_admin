@@ -268,6 +268,7 @@ class _IndustrialTrainingPostsPageState
         itemCount: internships.length,
         itemBuilder: (context, index) {
           final post = internships[index];
+           debugPrint("post id ${post.id} and post title ${post.title}");
           return _buildPostCard(context, post);
         },
       ),
