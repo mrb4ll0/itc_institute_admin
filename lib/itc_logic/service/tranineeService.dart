@@ -364,8 +364,11 @@ class TraineeService {
       final Map<String, List<StudentApplication>> grouped = {};
 
       for (final app in applications) {
+        debugPrint("app students uid ${app.student.uid}");
         grouped.putIfAbsent(app.student.uid, () => []).add(app);
+        debugPrint("student is present ${grouped.containsKey(app.student.uid)}");
       }
+      debugPrint("grouped key length ${grouped.keys.length}");
 
       // Resolve each student
       for (final entry in grouped.entries) {
