@@ -441,6 +441,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.10.17"
+  firestore_lazy_loading_totalxsoftware:
+    dependency: "direct main"
+    description:
+      name: firestore_lazy_loading_totalxsoftware
+      sha256: c1b276751c46d3baf533ff8786b4b8f9a8be47e17530113ccc1f35577fb82229
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.3"
   fixnum:
     dependency: transitive
     description:

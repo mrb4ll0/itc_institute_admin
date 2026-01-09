@@ -15,6 +15,7 @@ import '../../model/localNotification.dart';
 import '../../model/review.dart';
 import '../../model/student.dart';
 import '../../model/studentApplication.dart';
+import '../../view/home/industrailTraining/applications/studentWithLatestApplication.dart';
 import 'general_cloud.dart';
 
 class Company_Cloud {
@@ -720,6 +721,7 @@ class Company_Cloud {
     required StudentApplication application,
   }) async {
     status = GeneralMethods.normalizeApplicationStatus(status);
+    debugPrint("application id is ${application.id}");
     final appRef = _firebaseFirestore
         .collection(usersCollection)
         .doc('companies')
@@ -951,6 +953,213 @@ class Company_Cloud {
     });
   }
 
+  // New method: Get students with their latest applications
+  Stream<List<StudentWithLatestApplication>> streamStudentsWithLatestApplications(
+      String companyId, {
+        int limit = 100, // Limit total applications fetched
+        bool sortByRecent = true,
+      }) {
+    return _firebaseFirestore
+        .collection('users')
+        .doc('companies')
+        .collection('companies')
+        .doc(companyId)
+        .collection('IT')
+        .snapshots()
+        .asyncMap((internshipsSnapshot) async {
+      if (internshipsSnapshot.docs.isEmpty) {
+        return [];
+      }
+
+      // Step 1: Get all internships for this company
+      final internships = <String, IndustrialTraining>{};
+      final List<Future<void>> internshipFutures = [];
+
+      for (var internshipDoc in internshipsSnapshot.docs) {
+        internshipFutures.add(
+          _processInternship(internshipDoc).then((internship) {
+            if (internship != null) {
+              internships[internshipDoc.id] = internship;
+            }
+          }),
+        );
+      }
+
+      await Future.wait(internshipFutures);
+
+      // Step 2: Get all applications across all internships
+      final List<Future<List<StudentApplication>>> allApplicationFutures = [];
+
+      for (var internshipDoc in internshipsSnapshot.docs) {
+        final internship = internships[internshipDoc.id];
+        if (internship != null) {
+          allApplicationFutures.add(
+            _getApplicationsForInternship(
+              internshipDoc.reference,
+              internship,
+            ),
+          );
+        }
+      }
+
+      final allApplicationsNested = await Future.wait(allApplicationFutures);
+      final allApplications = allApplicationsNested.expand((apps) => apps).toList();
+
+      // Step 3: Group applications by student ID
+      final Map<String, List<StudentApplication>> applicationsByStudent = {};
+
+      for (var application in allApplications) {
+        final studentId = application.student.uid;
+        if (!applicationsByStudent.containsKey(studentId)) {
+          applicationsByStudent[studentId] = [];
+        }
+        applicationsByStudent[studentId]!.add(application);
+      }
+
+      // Step 4: Create StudentWithLatestApplication objects
+      final List<StudentWithLatestApplication> result = [];
+
+      for (var entry in applicationsByStudent.entries) {
+        final studentApplications = entry.value;
+
+        if (studentApplications.isNotEmpty) {
+          // Sort applications by date to get the latest one
+          studentApplications.sort((a, b) =>
+              b.applicationDate.compareTo(a.applicationDate));
+
+          final latestApplication = studentApplications.first;
+          final totalApplications = studentApplications.length;
+          final lastApplicationDate = latestApplication.applicationDate;
+
+          result.add(StudentWithLatestApplication(
+            student: latestApplication.student,
+            latestApplication: latestApplication,
+            totalApplications: totalApplications,
+            lastApplicationDate: lastApplicationDate,
+          ));
+        }
+      }
+
+      // Step 5: Sort the result
+      result.sort((a, b) {
+        if (sortByRecent) {
+          final dateA = a.lastApplicationDate ?? DateTime(1900);
+          final dateB = b.lastApplicationDate ?? DateTime(1900);
+          return dateB.compareTo(dateA); // Newest first
+        } else {
+          return a.studentName.compareTo(b.studentName); // Alphabetical
+        }
+      });
+
+      return result;
+    });
+  }
+
+  // Helper method to process internship document
+  Future<IndustrialTraining?> _processInternship(DocumentSnapshot internshipDoc) async {
+    try {
+      final data = internshipDoc.data() as Map<String, dynamic>?;
+      if (data == null) return null;
+
+      // You might need to adjust this based on your actual IndustrialTraining model
+      return IndustrialTraining.fromMap(data, internshipDoc.id);
+    } catch (e) {
+      debugPrint('Error processing internship: $e');
+      return null;
+    }
+  }
+
+  // Helper method to get applications for a specific internship
+  Future<List<StudentApplication>> _getApplicationsForInternship(
+      DocumentReference internshipRef,
+      IndustrialTraining internship,
+      ) async {
+    try {
+      final applicationsSnapshot = await internshipRef
+          .collection('applications')
+          .orderBy('applicationDate', descending: true)
+          .get();
+
+      final List<StudentApplication> applications = [];
+
+      for (var appDoc in applicationsSnapshot.docs) {
+        try {
+          final appData = appDoc.data() as Map<String, dynamic>;
+
+          // Get student data from the application
+          final studentMap = appData['student'] as Map<String, dynamic>?;
+          if (studentMap == null) continue;
+
+          final student = Student.fromMap(studentMap);
+
+          final application = StudentApplication(
+            id: appDoc.id,
+            student: student,
+            internship: internship,
+            applicationStatus: appData['applicationStatus'] as String? ?? 'pending',
+            applicationDate: _parseDynamicToDateTime(appData['applicationDate']),
+            durationDetails: appData['durationDetails'] as Map<String, dynamic>? ?? {},
+            idCardUrl: appData['idCardUrl'] as String? ?? '',
+            itLetterUrl: appData['itLetterUrl'] as String? ?? '',
+            attachedFormUrls: List<String>.from(
+              appData['attachedFormUrls'] as List<dynamic>? ?? [],
+            ),
+          );
+
+          applications.add(application);
+        } catch (e) {
+          debugPrint('Error parsing application ${appDoc.id}: $e');
+        }
+      }
+
+      return applications;
+    } catch (e) {
+      debugPrint('Error getting applications for internship: $e');
+      return [];
+    }
+  }
+
+  DateTime _parseDynamicToDateTime(dynamic value) {
+    if (value == null) return DateTime.now();
+
+    if (value is Timestamp) {
+      return value.toDate();
+    } else if (value is String) {
+      return DateTime.tryParse(value) ?? DateTime.now();
+    } else if (value is DateTime) {
+      return value;
+    } else if (value is int) {
+      return DateTime.fromMillisecondsSinceEpoch(value);
+    }
+
+    return DateTime.now();
+  }
+
+  // Optional: Get only students with pending applications
+  Stream<List<StudentWithLatestApplication>> streamStudentsWithPendingApplications(
+      String companyId,
+      ) {
+    return streamStudentsWithLatestApplications(companyId).map((students) {
+      return students.where((student) {
+        final status = student.latestApplication?.applicationStatus;
+        return status == 'pending' || status == null;
+      }).toList();
+    });
+  }
+
+  // Optional: Get only students with accepted applications
+  Stream<List<StudentWithLatestApplication>> streamStudentsWithAcceptedApplications(
+      String companyId,
+      ) {
+    return streamStudentsWithLatestApplications(companyId).map((students) {
+      return students.where((student) {
+        return student.latestApplication?.isAccepted == true;
+      }).toList();
+    });
+  }
+
+
+
   Stream<List<StudentApplication>> studentInternshipApplicationsForSpecificITStream(
       String companyId,
       String itId,  // Add this parameter for specific IT
@@ -1052,63 +1261,7 @@ class Company_Cloud {
         });
   }
 
-  Future<IndustrialTraining?> _processInternship(
-    DocumentSnapshot internshipDoc,
-  ) async {
-    try {
-      final internshipData = internshipDoc.data() as Map<String, dynamic>?;
-      if (internshipData == null) return null;
 
-      final company = await _itcFirebaseLogic.getCompany(
-        internshipData['company']['id'] as String? ?? '',
-      );
-
-      if (company == null) return null;
-
-      final internship = IndustrialTraining.fromMap(
-        internshipData,
-        internshipDoc.id,
-      );
-      internship.company = company;
-      return internship;
-    } catch (e) {
-      debugPrint('Error processing internship: $e');
-      return null;
-    }
-  }
-
-  Future<List<StudentApplication>> _getApplicationsForInternship(
-    DocumentReference internshipRef,
-    IndustrialTraining internship,
-  ) async {
-    try {
-      final applicationsSnapshot = await internshipRef
-          .collection('applications')
-          .get();
-
-      final List<Future<StudentApplication?>> applicationFutures = [];
-
-      for (var applicationDoc in applicationsSnapshot.docs) {
-        StudentApplication? app = await _processApplication(
-          applicationDoc,
-          internshipRef.id,
-          internship,
-        );
-
-        applicationFutures.add(
-          _processApplication(applicationDoc, internshipRef.id, internship),
-        );
-      }
-
-      final applications = await Future.wait(applicationFutures);
-      return applications.whereType<StudentApplication>().toList();
-    } catch (e) {
-      debugPrint(
-        'Error getting applications for internship ${internship.id}: $e',
-      );
-      return [];
-    }
-  }
 
   Future<StudentApplication?> _processApplication(
     QueryDocumentSnapshot applicationDoc,
@@ -2776,11 +2929,13 @@ class Company_Cloud {
               if (appDoc.id.startsWith(studentUid)) {
                 try {
                   final data = appDoc.data() as Map<String, dynamic>;
+
                   final application = StudentApplication.fromMap(
                     data,
-                    appDoc.id,
                     internshipId,
+                    appDoc.id,
                   );
+
 
                   // Add internship data to the application if needed
                   final internshipData = internshipDoc.data() as Map<String, dynamic>;
@@ -2800,12 +2955,12 @@ class Company_Cloud {
             }
           }
         } catch (e) {
-          debugPrint('    ⚠️ Error querying applications for internship $internshipId: $e');
+          debugPrint('Error querying applications for internship $internshipId: $e');
           continue;
         }
       }
 
-      debugPrint('🎯 Total applications found for student $studentUid: ${studentApplications.length}');
+      debugPrint('Total applications found for student $studentUid: ${studentApplications.length}');
 
       // Optional: Sort by application date or other criteria
       studentApplications.sort((a, b) {
@@ -2817,7 +2972,7 @@ class Company_Cloud {
       return studentApplications;
 
     } catch (e, stackTrace) {
-      debugPrint('💥 Error getting all applications for student: $e');
+      debugPrint('Error getting all applications for student: $e');
       debugPrint('Stack trace: $stackTrace');
       return [];
     }

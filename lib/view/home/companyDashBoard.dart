@@ -13,6 +13,7 @@ import 'package:itc_institute_admin/view/home/industrailTraining/newIndustrialTr
 import '../../model/RecentActions.dart';
 import '../../model/company.dart';
 import '../../model/student.dart';
+import '../recentActions/recentActionsList.dart';
 
 class Companydashboard extends StatefulWidget {
   const Companydashboard({super.key});
@@ -247,24 +248,31 @@ class _CompanydashboardState extends State<Companydashboard>
                   // Stats Cards
                   _buildStatsCards(),
 
-                  Align(
-                    alignment: Alignment.topLeft,
-                    child: Padding(
-                      padding: const EdgeInsets.only(
-                        left: 13.0,
-                        top: 8,
-                        bottom: 8,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Align(
+                        alignment: Alignment.topLeft,
+                        child: Padding(
+                          padding: const EdgeInsets.only(
+                            left: 13.0,
+                            top: 8,
+                            bottom: 8,
+                          ),
+                          child: Text(
+                            "Recent Actions ",
+                            style: TextStyle(fontSize: 20),
+                          ),
+                        ),
                       ),
-                      child: Text(
-                        "Recent Actions ",
-                        style: TextStyle(fontSize: 20),
-                      ),
-                    ),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(onPressed: (){
+                          GeneralMethods.navigateTo(context, RecentActionsFullPage(companyId: _company?.id??"",companyName: _company?.name??"",));
+                        }, child: Text("See All",style: TextStyle(color: Colors.blue),)),
+                      )
+                    ],
                   ),
-
-                  // Search Bar
-                  _buildSearchBar(),
-
                   // List Content
                   SizedBox(
                     height: MediaQuery.of(context).size.height * 0.6,

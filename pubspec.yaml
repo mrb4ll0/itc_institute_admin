@@ -68,6 +68,7 @@ dependencies:
   package_info_plus: ^9.0.0
   flutter_launcher_icons: ^0.14.3
   flutter_native_splash: ^2.4.4
+  firestore_lazy_loading_totalxsoftware: ^1.0.3
 
 dev_dependencies:
   flutter_test:

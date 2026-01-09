@@ -410,7 +410,7 @@ class _StudentListPageState extends State<StudentListPage>
         return TraineeCard(
           onDoubleTab: ()
           {
-            GeneralMethods.navigateTo(context, StudentApplicationsPage(companyId: trainee.companyId,studentUid: trainee.studentId,));
+            GeneralMethods.navigateTo(context, SpecificStudentApplicationsPage(companyId: trainee.companyId,studentUid: trainee.studentId,));
           },
           trainee: trainee,
           isDark: isDark,

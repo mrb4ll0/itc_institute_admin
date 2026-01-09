@@ -7,11 +7,11 @@ import 'package:itc_institute_admin/itc_logic/firebase/general_cloud.dart';
 import 'package:itc_institute_admin/itc_logic/notification/fireStoreNotification.dart';
 import 'package:itc_institute_admin/itc_logic/notification/notitification_service.dart';
 import 'package:itc_institute_admin/model/studentApplication.dart';
-import 'package:itc_institute_admin/view/home/studentApplications/studentApplicationDetail.dart';
-
-import '../../extensions/extensions.dart';
-import '../../model/student.dart';
+import 'package:itc_institute_admin/view/home/industrailTraining/applications/studentApplicationsPage.dart';
+import 'industrailTraining/applications/studentWithLatestApplication.dart';
 import 'industrailTraining/newIndustrialTraining.dart';
+
+// Import the new model and service
 
 class StudentApplicationsPage extends StatefulWidget {
   const StudentApplicationsPage({super.key});
@@ -33,20 +33,28 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
   bool _isRefreshing = false;
   bool _isDataLoaded = false;
   DateTime? _lastRefreshTime;
-  Stream<List<StudentApplication>?>? _cachedApplications;
-  List<StudentApplication> _allApplications = [];
-  List<StudentApplication> _filteredApplications = [];
+
+  // Updated: Use new model
+  final Company_Cloud _companyApplicationsService =
+  Company_Cloud();
+  List<StudentWithLatestApplication> _allStudents = [];
+  List<StudentWithLatestApplication> _filteredStudents = [];
   String _searchQuery = '';
   ApplicationStatus? _selectedStatus;
   String? _selectedPeriod;
   String? _selectedSupervisor;
+
+  // Pagination variables
+  int _currentPage = 1;
+  final int _pageSize = 15;
+  bool _isLoadingMore = false;
+  bool _hasMore = true;
 
   final GlobalKey _statusFilterKey = GlobalKey();
   final GlobalKey _periodFilterKey = GlobalKey();
   final GlobalKey _supervisorFilterKey = GlobalKey();
   final FireStoreNotification fireStoreNotification = FireStoreNotification();
 
-  // Add these after your existing state variables
   bool _showFilters = false;
   final List<String> _statusOptions = [
     'All',
@@ -70,7 +78,6 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
     super.initState();
     _loadSupervisors();
     _loadInitialData();
-    setState(() {});
   }
 
   Future<void> _loadInitialData() async {
@@ -80,18 +87,22 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
 
       String companyId = currentUser.uid;
 
-      // Get initial data without showing loading indicator
-      final applicationsStream = company_cloud
-          .studentInternshipApplicationsForCompanyStream(companyId);
+      // Get students with their latest applications
+      final studentsStream = _companyApplicationsService
+          .streamStudentsWithLatestApplications(companyId);
 
-      final applications = await applicationsStream.first;
+      final students = await studentsStream.first;
 
       if (mounted) {
         setState(() {
-          _allApplications = applications ?? [];
-          _cachedApplications = applicationsStream;
+          _allStudents = students;
           _isDataLoaded = true;
-          _applyFilters(); // Apply any existing filters
+          _applyFilters();
+          // Calculate total application count
+          applicationCount = _allStudents.fold(
+              0,
+                  (sum, student) => sum + student.totalApplications
+          );
         });
       }
     } catch (e) {
@@ -99,11 +110,33 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
     }
   }
 
+  Future<void> _loadMoreData() async {
+    if (_isLoadingMore || !_hasMore) return;
+
+    setState(() => _isLoadingMore = true);
+
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) return;
+
+      // Simulate loading more data (in real app, implement pagination in service)
+      await Future.delayed(Duration(seconds: 1));
+
+      // In a real app, you would load the next page here
+      // For now, we'll just show that we've loaded all data
+      setState(() {
+        _hasMore = false;
+        _isLoadingMore = false;
+      });
+    } catch (e) {
+      debugPrint("Error loading more data: $e");
+      setState(() => _isLoadingMore = false);
+    }
+  }
+
   Future<void> _loadSupervisors() async {
     try {
       // Load unique supervisors from applications
-      // You'll need to implement this based on your data structure
-      // For now, using a placeholder
       _supervisorOptions = [
         'All',
         'Supervisor A',
@@ -116,10 +149,8 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
   }
 
   Future<void> refreshData() async {
-    // Prevent multiple simultaneous refreshes
     if (_isRefreshing) return;
 
-    // Debounce: Don't refresh more than once every 3 seconds
     final now = DateTime.now();
     if (_lastRefreshTime != null &&
         now.difference(_lastRefreshTime!) < Duration(seconds: 3)) {
@@ -138,45 +169,48 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
 
       String companyId = currentUser.uid;
 
-      // Get the stream first
-      final applicationsStream = company_cloud
-          .studentInternshipApplicationsForCompanyStream(companyId);
+      // Get fresh data
+      final studentsStream = _companyApplicationsService
+          .streamStudentsWithLatestApplications(companyId);
 
-      // Extract the data from the stream ONCE to populate _allApplications
-      final applications = await applicationsStream.first;
+      final students = await studentsStream.first;
 
       setState(() {
-        _allApplications = applications ?? [];
-        _cachedApplications =
-            applicationsStream; // Keep the stream for real-time updates
-        _applyFilters(); // Apply filters to the newly loaded data
+        _allStudents = students;
+        _applyFilters();
         _isRefreshing = false;
         _isDataLoaded = true;
         _lastRefreshTime = DateTime.now();
+        // Reset pagination
+        _currentPage = 1;
+        _hasMore = students.length >= _pageSize;
+        // Calculate total application count
+        applicationCount = _allStudents.fold(
+            0,
+                (sum, student) => sum + student.totalApplications
+        );
       });
 
-      // Show success feedback
       _showRefreshSuccess();
     } catch (e) {
       setState(() {
         _isRefreshing = false;
       });
 
-      // Show error feedback
       _showRefreshError(e);
     }
   }
 
   void _applyFilters() {
-    List<StudentApplication> filtered = List.from(_allApplications);
+    List<StudentWithLatestApplication> filtered = List.from(_allStudents);
 
     // Apply search filter
     if (_searchQuery.isNotEmpty) {
-      filtered = filtered.where((app) {
-        final studentName = app.student.fullName.toLowerCase();
-        final institution = app.student.institution.toLowerCase();
-        final course = app.student.courseOfStudy.toLowerCase();
-        final internshipTitle = app.internship?.title.toLowerCase() ?? '';
+      filtered = filtered.where((student) {
+        final studentName = student.studentName.toLowerCase();
+        final institution = student.studentInstitution.toLowerCase();
+        final course = student.studentCourse.toLowerCase();
+        final internshipTitle = student.internshipTitle?.toLowerCase() ?? '';
         final query = _searchQuery.toLowerCase();
 
         return studentName.contains(query) ||
@@ -188,10 +222,12 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
 
     // Apply status filter
     if (_selectedStatus != null) {
-      filtered = filtered.where((app) {
+      filtered = filtered.where((student) {
+        final appStatus = student.latestApplication?.applicationStatus;
+        if (appStatus == null) return false;
         return GeneralMethods.normalizeApplicationStatus(
-              app.applicationStatus.toLowerCase(),
-            ) ==
+          appStatus.toLowerCase(),
+        ) ==
             _selectedStatus.toString().split('.').last.toLowerCase();
       }).toList();
     }
@@ -212,31 +248,28 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
           cutoffDate = now.subtract(Duration(days: 90));
           break;
         default:
-          cutoffDate = now.subtract(Duration(days: 365)); // Default to 1 year
+          cutoffDate = now.subtract(Duration(days: 365));
       }
 
-      filtered = filtered.where((app) {
-        return app.applicationDate.isAfter(cutoffDate);
+      filtered = filtered.where((student) {
+        return student.lastApplicationDate?.isAfter(cutoffDate) ?? false;
       }).toList();
     }
 
-    // Apply supervisor filter (you'll need to adjust this based on your data structure)
+    // Apply supervisor filter
     if (_selectedSupervisor != null && _selectedSupervisor != 'All') {
-      filtered = filtered.where((app) {
-        // Replace with actual supervisor field in your application model
-        // For now, using a placeholder
-        return true; // app.supervisor == _selectedSupervisor;
+      filtered = filtered.where((student) {
+        // Replace with actual supervisor field
+        return true;
       }).toList();
     }
 
     setState(() {
-      _filteredApplications = filtered;
-      applicationCount = filtered.length;
+      _filteredStudents = filtered;
     });
   }
 
   void _showRefreshSuccess() {
-    // Show a subtle success message
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
@@ -296,19 +329,33 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: refreshData,
-          child: Column(
-            children: [
+          child: CustomScrollView(
+            slivers: [
               // Top App Bar
-              _buildTopAppBar(context),
+              SliverAppBar(
+                floating: true,
+                snap: true,
+                expandedHeight: 60,
+                flexibleSpace: _buildTopAppBar(context),
+              ),
 
-              // Search Section
-              _buildSearchSection(context),
+              // Search and Filters Section
+              SliverToBoxAdapter(
+                child: Column(
+                  children: [
+                    _buildSearchSection(context),
+                    _buildFilterChips(context),
+                  ],
+                ),
+              ),
 
-              // Filter Chips
-              _buildFilterChips(context),
+              // Students List
+              _buildStudentsList(context),
 
-              // Applications List
-              Expanded(child: _buildApplicationsList(context)),
+              // Load More Indicator
+              SliverToBoxAdapter(
+                child: _buildLoadMoreIndicator(),
+              ),
             ],
           ),
         ),
@@ -316,7 +363,6 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
       floatingActionButton: FloatingActionButton(
         heroTag: GeneralMethods.getUniqueHeroTag(),
         onPressed: () {
-          // Add new application
           GeneralMethods.navigateTo(context, CreateIndustrialTrainingPage());
         },
         backgroundColor: colorScheme.primary,
@@ -332,7 +378,6 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
     final colorScheme = theme.colorScheme;
 
     return Container(
-      height: 56,
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(
@@ -346,108 +391,59 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
             : colorScheme.surfaceContainerLowest.withOpacity(0.8),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Row(
           children: [
-            const SizedBox(width: 10),
             Expanded(
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Row(
-                  children: [
-                    Text(
-                      'Student Applications',
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: colorScheme.onSurface,
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.people_outline,
+                    color: colorScheme.primary,
+                    size: 24,
+                  ),
+                  SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Student Applications',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: colorScheme.onSurface,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                      Text(
+                        '${_allStudents.length} students • $applicationCount total applications',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-            Row(
-              children: [
-                if (_hasActiveFilters())
-                  IconButton(
-                    icon: Icon(Icons.filter_alt, color: colorScheme.primary),
-                    onPressed: () {
-                      setState(() {
-                        _showFilters = !_showFilters;
-                      });
-                    },
-                    tooltip: 'Toggle filters',
-                  ),
-                Text(applicationCount.toString()),
-                IconButton(
-                  icon: Icon(Icons.more_horiz, color: colorScheme.primary),
-                  onPressed: () {
-                    _showMoreOptions(context);
-                  },
-                ),
-              ],
+            if (_hasActiveFilters())
+              IconButton(
+                icon: Icon(Icons.filter_alt, color: colorScheme.primary),
+                onPressed: () {
+                  setState(() {
+                    _showFilters = !_showFilters;
+                  });
+                },
+                tooltip: 'Toggle filters',
+              ),
+            IconButton(
+              icon: Icon(Icons.more_horiz, color: colorScheme.onSurfaceVariant),
+              onPressed: () {
+                _showMoreOptions(context);
+              },
             ),
           ],
         ),
       ),
-    );
-  }
-
-  void _showMoreOptions(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: Icon(Icons.refresh),
-                title: Text('Refresh'),
-                onTap: () {
-                  Navigator.pop(context);
-                  refreshData();
-                },
-              ),
-              ListTile(
-                leading: Icon(Icons.sort),
-                title: Text('Sort by'),
-                onTap: () {
-                  Navigator.pop(context);
-                  //_showSortOptions(context);
-                },
-              ),
-              if (_hasActiveFilters())
-                ListTile(
-                  leading: Icon(Icons.clear_all, color: Colors.red),
-                  title: Text(
-                    'Clear all filters',
-                    style: TextStyle(color: Colors.red),
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    setState(() {
-                      _searchQuery = '';
-                      _selectedStatus = null;
-                      _selectedPeriod = null;
-                      _selectedSupervisor = null;
-                      _searchController.clear();
-                      _applyFilters();
-                    });
-                  },
-                ),
-              ListTile(
-                leading: Icon(Icons.close),
-                title: Text('Cancel'),
-                onTap: () => Navigator.pop(context),
-              ),
-            ],
-          ),
-        );
-      },
     );
   }
 
@@ -465,6 +461,13 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
           color: isDark
               ? colorScheme.surfaceContainerHigh
               : colorScheme.surfaceContainer,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 4,
+              offset: Offset(0, 2),
+            ),
+          ],
         ),
         child: Row(
           children: [
@@ -482,7 +485,7 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
                 child: TextField(
                   controller: _searchController,
                   decoration: InputDecoration(
-                    hintText: 'Search by name, university, or course...',
+                    hintText: 'Search student, university, or position...',
                     hintStyle: TextStyle(color: colorScheme.onSurfaceVariant),
                     border: InputBorder.none,
                     contentPadding: EdgeInsets.zero,
@@ -515,33 +518,27 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
   }
 
   Widget _buildFilterChips(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final colorScheme = theme.colorScheme;
-
     return Padding(
       padding: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            // Main Filter Button (opens dialog)
+            // Main Filter Button
             GestureDetector(
-              onTap: () {
-                _showFilterDialog(context);
-              },
+              onTap: () => _showFilterDialog(context),
               child: Container(
                 height: 32,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
                   color: _hasActiveFilters()
-                      ? colorScheme.primary.withOpacity(0.1)
-                      : colorScheme.surfaceContainer,
+                      ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
+                      : Theme.of(context).colorScheme.surfaceContainer,
                   border: Border.all(
                     color: _hasActiveFilters()
-                        ? colorScheme.primary
-                        : colorScheme.outline.withOpacity(0.3),
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.outline.withOpacity(0.3),
                   ),
                 ),
                 child: Row(
@@ -551,16 +548,16 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
                       Icons.filter_list,
                       size: 18,
                       color: _hasActiveFilters()
-                          ? colorScheme.primary
-                          : colorScheme.onSurfaceVariant,
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                     const SizedBox(width: 4),
                     Text(
                       'Filters',
-                      style: theme.textTheme.labelMedium?.copyWith(
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
                         color: _hasActiveFilters()
-                            ? colorScheme.primary
-                            : colorScheme.onSurfaceVariant,
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                     if (_hasActiveFilters())
@@ -571,7 +568,7 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
                           height: 6,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: colorScheme.primary,
+                            color: Theme.of(context).colorScheme.primary,
                           ),
                         ),
                       ),
@@ -581,14 +578,14 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
             ),
             const SizedBox(width: 8),
 
-            // Status Filter Chip with GlobalKey
+            // Status Filter
             _buildFilterChipWithMenu(
               context,
               key: _statusFilterKey,
               icon: Icons.arrow_drop_down,
               label: 'Status',
               getCurrentValue: () =>
-                  _selectedStatus?.toString().split('.').last ?? 'All',
+              _selectedStatus?.toString().split('.').last ?? 'All',
               options: _statusOptions,
               onSelected: (value) {
                 setState(() {
@@ -601,7 +598,7 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
             ),
             const SizedBox(width: 8),
 
-            // Period Filter Chip with GlobalKey
+            // Period Filter
             _buildFilterChipWithMenu(
               context,
               key: _periodFilterKey,
@@ -616,23 +613,6 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
                 });
               },
             ),
-            const SizedBox(width: 8),
-
-            // Supervisor Filter Chip with GlobalKey
-            _buildFilterChipWithMenu(
-              context,
-              key: _supervisorFilterKey,
-              icon: Icons.arrow_drop_down,
-              label: 'Supervisor',
-              getCurrentValue: () => _selectedSupervisor ?? 'All',
-              options: _supervisorOptions,
-              onSelected: (value) {
-                setState(() {
-                  _selectedSupervisor = value == 'All' ? null : value;
-                  _applyFilters();
-                });
-              },
-            ),
           ],
         ),
       ),
@@ -640,14 +620,14 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
   }
 
   Widget _buildFilterChipWithMenu(
-    BuildContext context, {
-    required GlobalKey key,
-    required IconData icon,
-    required String label,
-    required String Function() getCurrentValue,
-    required List<String> options,
-    required Function(String) onSelected,
-  }) {
+      BuildContext context, {
+        required GlobalKey key,
+        required IconData icon,
+        required String label,
+        required String Function() getCurrentValue,
+        required List<String> options,
+        required Function(String) onSelected,
+      }) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final currentValue = getCurrentValue();
@@ -697,22 +677,716 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
     );
   }
 
+  Widget _buildStudentsList(BuildContext context) {
+    if (!_isDataLoaded) {
+      return SliverFillRemaining(
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_filteredStudents.isEmpty && _isDataLoaded) {
+      return SliverFillRemaining(
+        child: _buildEmptyState(context),
+      );
+    }
+
+    return SliverList(
+      delegate: SliverChildBuilderDelegate(
+            (context, index) {
+          if (index < _filteredStudents.length) {
+            final student = _filteredStudents[index];
+            return _buildStudentCard(context, student);
+          }
+          return null;
+        },
+        childCount: _filteredStudents.length,
+      ),
+    );
+  }
+
+  Widget _buildStudentCard(
+      BuildContext context,
+      StudentWithLatestApplication student,
+      ) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final colorScheme = theme.colorScheme;
+
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: isDark
+            ? colorScheme.surfaceContainerHighest
+            : colorScheme.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: isDark ? Colors.black.withOpacity(0.2) : Colors.grey.withOpacity(0.1),
+            blurRadius: 6,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () {
+            _navigateToStudentApplications(student);
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Student Header
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Student Avatar
+                    CircleAvatar(
+                      radius: 24,
+                      backgroundImage: student.studentImageUrl != null
+                          ? NetworkImage(student.studentImageUrl!)
+                          : null,
+                      backgroundColor: colorScheme.surfaceContainer,
+                      child: student.studentImageUrl == null
+                          ? Text(
+                        student.studentName[0].toUpperCase(),
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: colorScheme.onSurface,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      )
+                          : null,
+                    ),
+                    SizedBox(width: 12),
+
+                    // Student Info
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            student.studentName,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            student.studentInstitution,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          Text(
+                            '${student.studentCourse} • ${student.studentLevel}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Application Count Badge
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: colorScheme.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        student.applicationsInfo,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: colorScheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                SizedBox(height: 12),
+
+                // Latest Application Info
+                if (student.hasApplication)
+                  Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.black.withOpacity(0.2) : colorScheme.surfaceVariant.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Application Header
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                student.internshipTitle!,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: colorScheme.onSurface,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Container(
+                              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: student.statusColor.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: student.statusColor.withOpacity(0.3),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    student.statusIcon,
+                                    size: 12,
+                                    color: student.statusColor,
+                                  ),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    student.internshipStatus!,
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      color: student.statusColor,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        SizedBox(height: 8),
+
+                        // Application Details
+                        if (student.startDate != null || student.duration != null)
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.calendar_today_outlined,
+                                size: 14,
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                              SizedBox(width: 6),
+                              if (student.startDate != null && student.endDate != null)
+                                Expanded(
+                                  child: Text(
+                                    '${_formatDate(student.startDate!)} - ${_formatDate(student.endDate!)}',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ),
+                              if (student.duration != null)
+                                Text(
+                                  ' • ${student.duration}',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                            ],
+                          ),
+
+                        SizedBox(height: 4),
+
+                        // Last Applied
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.access_time_outlined,
+                              size: 14,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                            SizedBox(width: 6),
+                            Text(
+                              'Last applied ${student.formattedLastDate}',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.black.withOpacity(0.2) : colorScheme.surfaceVariant.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.info_outline,
+                          size: 16,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                        SizedBox(width: 8),
+                        Text(
+                          'No applications submitted',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                SizedBox(height: 12),
+
+                // Action Buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          _navigateToStudentApplications(student);
+                        },
+                        icon: Icon(Icons.list_alt_outlined, size: 16),
+                        label: Text('View All Applications'),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(
+                            color: colorScheme.outline.withOpacity(0.3),
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    if (student.hasApplication)
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          _showApplicationDetails(context, student);
+                        },
+                        icon: Icon(Icons.visibility_outlined, size: 16),
+                        label: Text('Details'),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(
+                            color: colorScheme.primary.withOpacity(0.3),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoadMoreIndicator() {
+    if (!_hasMore && _filteredStudents.isNotEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Center(
+          child: Text(
+            'All students loaded',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (_isLoadingMore) {
+      return Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    if (_hasMore && _filteredStudents.isNotEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Center(
+          child: ElevatedButton.icon(
+            onPressed: _loadMoreData,
+            icon: Icon(Icons.expand_more_rounded),
+            label: Text('Load More Students'),
+          ),
+        ),
+      );
+    }
+
+    return SizedBox();
+  }
+
+  Widget _buildEmptyState(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.people_outline,
+              size: 64,
+              color: colorScheme.outline,
+            ),
+            SizedBox(height: 16),
+            Text(
+              _hasActiveFilters()
+                  ? 'No students match your filters'
+                  : 'No student applications yet',
+              style: TextStyle(
+                color: colorScheme.onSurfaceVariant,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              _hasActiveFilters()
+                  ? 'Try adjusting your filters to see more results'
+                  : 'Student applications will appear here when submitted',
+              style: TextStyle(
+                color: colorScheme.outline,
+                fontSize: 14,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 16),
+            if (_hasActiveFilters())
+              ElevatedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _searchQuery = '';
+                    _selectedStatus = null;
+                    _selectedPeriod = null;
+                    _selectedSupervisor = null;
+                    _searchController.clear();
+                    _applyFilters();
+                  });
+                },
+                icon: Icon(Icons.clear_all, size: 18),
+                label: Text('Clear All Filters'),
+              ),
+            if (!_hasActiveFilters())
+              ElevatedButton.icon(
+                onPressed: refreshData,
+                icon: Icon(Icons.refresh, size: 18),
+                label: Text('Refresh'),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _navigateToStudentApplications(StudentWithLatestApplication student) {
+    // Navigate to page showing all applications for this student
+    GeneralMethods.navigateTo(context, SpecificStudentApplicationsPage(companyId:FirebaseAuth.instance.currentUser?.uid?? "", studentUid: student.student.uid));
+  }
+
+  void _showApplicationDetails(
+      BuildContext context,
+      StudentWithLatestApplication student,
+      ) {
+    if (student.latestApplication == null) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Application Details'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Student Info
+              ListTile(
+                leading: CircleAvatar(
+                  backgroundImage: student.studentImageUrl != null
+                      ? NetworkImage(student.studentImageUrl!)
+                      : null,
+                  child: student.studentImageUrl == null
+                      ? Text(student.studentName[0])
+                      : null,
+                ),
+                title: Text(student.studentName),
+                subtitle: Text('${student.totalApplications} applications'),
+              ),
+
+              Divider(),
+
+              // Latest Application
+              if (student.hasApplication) ...[
+                Text(
+                  'Latest Application',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                SizedBox(height: 8),
+                _buildDetailRow('Position', student.internshipTitle ?? 'N/A'),
+                _buildDetailRow('Status', student.internshipStatus ?? 'N/A'),
+                if (student.startDate != null)
+                  _buildDetailRow('Start Date', _formatDate(student.startDate!)),
+                if (student.endDate != null)
+                  _buildDetailRow('End Date', _formatDate(student.endDate!)),
+                _buildDetailRow('Applied', student.formattedLastDate),
+                SizedBox(height: 8),
+              ],
+
+              // Student Details
+              Text(
+                'Student Details',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              SizedBox(height: 8),
+              _buildDetailRow('Institution', student.studentInstitution),
+              _buildDetailRow('Course', student.studentCourse),
+              _buildDetailRow('Level', student.studentLevel),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Close'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _navigateToStudentApplications(student);
+            },
+            child: Text('View All Applications'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text(
+              '$label:',
+              style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  void _showMoreOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: Icon(Icons.refresh),
+                title: Text('Refresh'),
+                onTap: () {
+                  Navigator.pop(context);
+                  refreshData();
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.sort),
+                title: Text('Sort by'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showSortOptions(context);
+                },
+              ),
+              if (_hasActiveFilters())
+                ListTile(
+                  leading: Icon(Icons.clear_all, color: Colors.red),
+                  title: Text(
+                    'Clear all filters',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    setState(() {
+                      _searchQuery = '';
+                      _selectedStatus = null;
+                      _selectedPeriod = null;
+                      _selectedSupervisor = null;
+                      _searchController.clear();
+                      _applyFilters();
+                    });
+                  },
+                ),
+              ListTile(
+                leading: Icon(Icons.close),
+                title: Text('Cancel'),
+                onTap: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showSortOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  'Sort By',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              ListTile(
+                leading: Icon(Icons.sort_by_alpha),
+                title: Text('Name (A-Z)'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _sortStudentsByName(true);
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.sort_by_alpha),
+                title: Text('Name (Z-A)'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _sortStudentsByName(false);
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.date_range),
+                title: Text('Recently Applied'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _sortStudentsByDate(true);
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.date_range),
+                title: Text('Oldest Applied'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _sortStudentsByDate(false);
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.close),
+                title: Text('Cancel'),
+                onTap: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _sortStudentsByName(bool ascending) {
+    setState(() {
+      _filteredStudents.sort((a, b) {
+        return ascending
+            ? a.studentName.compareTo(b.studentName)
+            : b.studentName.compareTo(a.studentName);
+      });
+    });
+  }
+
+  void _sortStudentsByDate(bool recentFirst) {
+    setState(() {
+      _filteredStudents.sort((a, b) {
+        final dateA = a.lastApplicationDate ?? DateTime(1900);
+        final dateB = b.lastApplicationDate ?? DateTime(1900);
+        return recentFirst
+            ? dateB.compareTo(dateA)
+            : dateA.compareTo(dateB);
+      });
+    });
+  }
+
+  bool _hasActiveFilters() {
+    return _searchQuery.isNotEmpty ||
+        _selectedStatus != null ||
+        (_selectedPeriod != null && _selectedPeriod != 'All') ||
+        (_selectedSupervisor != null && _selectedSupervisor != 'All');
+  }
+
+  ApplicationStatus _stringToApplicationStatus(String status) {
+    switch (status.toLowerCase()) {
+      case 'pending':
+        return ApplicationStatus.pending;
+      case 'accepted':
+        return ApplicationStatus.accepted;
+      case 'rejected':
+        return ApplicationStatus.rejected;
+      default:
+        return ApplicationStatus.pending;
+    }
+  }
+
   void _showMenuForChip(
-    BuildContext context,
-    GlobalKey key,
-    List<String> options,
-    String currentValue,
-    Function(String) onSelected,
-  ) {
+      BuildContext context,
+      GlobalKey key,
+      List<String> options,
+      String currentValue,
+      Function(String) onSelected,
+      ) {
     final RenderBox renderBox =
-        key.currentContext?.findRenderObject() as RenderBox;
+    key.currentContext?.findRenderObject() as RenderBox;
     final offset = renderBox.localToGlobal(Offset.zero);
 
     showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(
         offset.dx,
-        offset.dy + renderBox.size.height + 4, // Add a small gap
+        offset.dy + renderBox.size.height + 4,
         offset.dx + renderBox.size.width,
         offset.dy + renderBox.size.height + 4,
       ),
@@ -742,94 +1416,11 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
     });
   }
 
-  bool _hasActiveFilters() {
-    return _searchQuery.isNotEmpty ||
-        _selectedStatus != null ||
-        (_selectedPeriod != null && _selectedPeriod != 'All') ||
-        (_selectedSupervisor != null && _selectedSupervisor != 'All');
-  }
-
-  Widget _buildStatusFilterChip(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return PopupMenuButton<String>(
-      onSelected: (value) {
-        setState(() {
-          if (value == 'All') {
-            _selectedStatus = null;
-          } else {
-            _selectedStatus = _stringToApplicationStatus(value);
-          }
-          _applyFilters();
-        });
-      },
-      itemBuilder: (context) {
-        return _statusOptions.map((status) {
-          return PopupMenuItem<String>(
-            value: status,
-            child: Row(
-              children: [
-                if (_selectedStatus != null &&
-                    status != 'All' &&
-                    _selectedStatus == _stringToApplicationStatus(status))
-                  Icon(Icons.check, size: 18, color: colorScheme.primary),
-                if ((_selectedStatus == null && status == 'All') ||
-                    (status == 'All' && _selectedStatus == null))
-                  Icon(Icons.check, size: 18, color: colorScheme.primary),
-                SizedBox(width: 8),
-                Text(status),
-              ],
-            ),
-          );
-        }).toList();
-      },
-      child: Container(
-        height: 32,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          color: _selectedStatus != null
-              ? _getStatusColor(_selectedStatus!).withOpacity(0.1)
-              : colorScheme.surfaceContainer,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.arrow_drop_down,
-              size: 18,
-              color: _selectedStatus != null
-                  ? _getStatusColor(_selectedStatus!)
-                  : colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              _selectedStatus != null
-                  ? _selectedStatus.toString().split('.').last
-                  : 'Status',
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: _selectedStatus != null
-                    ? _getStatusColor(_selectedStatus!)
-                    : colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   void _showFilterDialog(BuildContext context) {
-    // Store current values in case user cancels
-    final currentStatus = _selectedStatus;
-    final currentPeriod = _selectedPeriod;
-    final currentSupervisor = _selectedSupervisor;
-
+    // Keep existing _showFilterDialog implementation, but update to work with new model
     showDialog(
       context: context,
       builder: (context) {
-        // Local variables for the dialog
         ApplicationStatus? tempStatus = _selectedStatus;
         String? tempPeriod = _selectedPeriod;
         String? tempSupervisor = _selectedSupervisor;
@@ -847,7 +1438,6 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Header
                     Padding(
                       padding: const EdgeInsets.all(16),
                       child: Row(
@@ -867,24 +1457,19 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
                         ],
                       ),
                     ),
-
-                    // Divider
                     Divider(height: 1),
-
-                    // Filter Content
                     Padding(
                       padding: const EdgeInsets.all(16),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Status Filter
                           _buildFilterSection(
                             context,
                             title: 'Status',
                             options: _statusOptions,
                             selectedValue:
-                                tempStatus?.toString().split('.').last ?? 'All',
+                            tempStatus?.toString().split('.').last ?? 'All',
                             onChanged: (value) {
                               setState(() {
                                 tempStatus = value == 'All'
@@ -893,10 +1478,7 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
                               });
                             },
                           ),
-
-                          const SizedBox(height: 16),
-
-                          // Period Filter
+                          SizedBox(height: 16),
                           _buildFilterSection(
                             context,
                             title: 'Period',
@@ -908,35 +1490,9 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
                               });
                             },
                           ),
-
-                          const SizedBox(height: 24),
-
-                          // Clear All Button
-                          if ((tempStatus != null) ||
-                              (tempPeriod != null && tempPeriod != 'All') ||
-                              (tempSupervisor != null &&
-                                  tempSupervisor != 'All'))
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                TextButton.icon(
-                                  onPressed: () {
-                                    setState(() {
-                                      tempStatus = null;
-                                      tempPeriod = null;
-                                      tempSupervisor = null;
-                                    });
-                                  },
-                                  icon: Icon(Icons.clear_all, size: 16),
-                                  label: Text('Clear All'),
-                                ),
-                              ],
-                            ),
                         ],
                       ),
                     ),
-
-                    // Footer with Action Buttons
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -954,20 +1510,12 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           TextButton(
-                            onPressed: () {
-                              // Cancel - restore original values
-                              _selectedStatus = currentStatus;
-                              _selectedPeriod = currentPeriod;
-                              _selectedSupervisor = currentSupervisor;
-                              _applyFilters();
-                              Navigator.pop(context);
-                            },
+                            onPressed: () => Navigator.pop(context),
                             child: Text('Cancel'),
                           ),
-                          const SizedBox(width: 8),
+                          SizedBox(width: 8),
                           ElevatedButton(
                             onPressed: () {
-                              // Apply the filters
                               setState(() {
                                 _selectedStatus = tempStatus;
                                 _selectedPeriod = tempPeriod;
@@ -991,13 +1539,27 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
     );
   }
 
+  // Keep existing helper methods (they remain the same)
+  Color _getStatusColor(ApplicationStatus status) {
+    switch (status) {
+      case ApplicationStatus.accepted:
+        return Colors.green;
+      case ApplicationStatus.pending:
+        return Colors.orange;
+      case ApplicationStatus.rejected:
+        return Colors.red;
+    }
+  }
+
+// ... (keep all other existing methods that don't need changes)
+
   Widget _buildFilterSection(
-    BuildContext context, {
-    required String title,
-    required List<String> options,
-    required String selectedValue,
-    required Function(String) onChanged,
-  }) {
+      BuildContext context, {
+        required String title,
+        required List<String> options,
+        required String selectedValue,
+        required Function(String) onChanged,
+      }) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
@@ -1039,995 +1601,4 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
     );
   }
 
-  ApplicationStatus _stringToApplicationStatus(String status) {
-    switch (status.toLowerCase()) {
-      case 'pending':
-        return ApplicationStatus.pending;
-      case 'accepted':
-        return ApplicationStatus.accepted;
-      case 'rejected':
-        return ApplicationStatus.rejected;
-      default:
-        return ApplicationStatus.pending;
-    }
-  }
-
-  Widget _buildApplicationsList(BuildContext context) {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) {
-      return Center(child: Text('Please log in'));
-    }
-
-    return StreamBuilder<List<StudentApplication>?>(
-      stream: company_cloud.studentInternshipApplicationsForCompanyStream(
-        currentUser.uid,
-      ),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Center(child: CircularProgressIndicator());
-        }
-
-        if (snapshot.hasError) {
-          return _buildErrorState(context, snapshot.error!);
-        }
-
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return _buildEmptyState(context);
-        }
-
-        // Store the data locally for filtering
-        if (_allApplications.isEmpty || _isRefreshing) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              setState(() {
-                _allApplications = snapshot.data!;
-                _applyFilters();
-              });
-            }
-          });
-        }
-
-        // Use filtered applications for display
-        return _buildApplicationsListView(
-          Stream.value(_filteredApplications),
-          context,
-        );
-      },
-    );
-  }
-
-  Widget _buildApplicationsListView(
-    Stream<List<StudentApplication>?> applicationStream,
-    BuildContext context,
-  ) {
-    return StreamBuilder(
-      stream: applicationStream,
-      builder: (context, snapshot) {
-        final theme = Theme.of(context);
-        final isDark = theme.brightness == Brightness.dark;
-        final colorScheme = theme.colorScheme;
-
-        // Error state - must return a Widget
-        if (snapshot.hasError) {
-          return _buildErrorState(context, snapshot.error!);
-        }
-
-        // Loading state - check connection state
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        // Empty state - check if data exists and is empty
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return _buildEmptyState(context);
-        }
-
-        final dataLength = snapshot.data!.length;
-        if (applicationCount != dataLength) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              setState(() {
-                applicationCount = dataLength;
-              });
-            }
-          });
-        }
-        return Container(
-          color: isDark
-              ? colorScheme.surfaceContainerHigh
-              : colorScheme.surfaceContainerLow,
-          child: ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: snapshot.data!.length,
-            separatorBuilder: (context, index) => Divider(
-              height: 1,
-              color: isDark
-                  ? colorScheme.outline.withOpacity(0.1)
-                  : colorScheme.outline.withOpacity(0.08),
-              indent: 16,
-              endIndent: 16,
-            ),
-            itemBuilder: (context, index) {
-              final application = snapshot.data![index];
-              return _buildApplicationItem(context, application);
-            },
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildEmptyState(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.description_outlined,
-            size: 64,
-            color: colorScheme.outline,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No applications found',
-            style: TextStyle(
-              color: colorScheme.onSurfaceVariant,
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Student applications will appear here',
-            style: TextStyle(color: colorScheme.outline, fontSize: 14),
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            onPressed: refreshData, // Use refreshData
-            icon: Icon(Icons.refresh, size: 18),
-            label: Text('Refresh'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildApplicationItem(
-    BuildContext context,
-    StudentApplication application,
-  ) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final colorScheme = theme.colorScheme;
-
-    return Material(
-      color: isDark
-          ? colorScheme.surfaceContainerHighest
-          : colorScheme.surfaceContainerLowest,
-      child: InkWell(
-        onTap: () {
-          // Navigate to application details
-          GeneralMethods.navigateTo(
-            context,
-            StudentApplicationDetailsPage(application: application),
-          );
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Student Avatar
-              CircleAvatar(
-                radius: 24,
-                backgroundImage: application.student.imageUrl.isNotEmpty
-                    ? NetworkImage(application.student.imageUrl)
-                    : null,
-                backgroundColor: colorScheme.surfaceContainer,
-                child: application.student.imageUrl.isEmpty
-                    ? Text(
-                        application.student.fullName[0].toUpperCase(),
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: colorScheme.onSurface,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      )
-                    : null,
-              ),
-              const SizedBox(width: 16),
-
-              // Application Info
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Internship Title (Most Important)
-                    Text(
-                      application.internship?.title ?? 'Internship Application',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: colorScheme.onSurface,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-
-                    // Student Name and Institution
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.person_outline,
-                          size: 14,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            application.student.fullName,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-
-                    // Institution and Course
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.school_outlined,
-                          size: 14,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            '${application.student.institution} • ${application.student.courseOfStudy}',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-
-                    // Application Date
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.calendar_today_outlined,
-                          size: 14,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          _formatApplicationDate(application.applicationDate),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant.withOpacity(
-                              0.7,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-
-                    // Skills/Tags (if any)
-                    if (application.student.skills.isNotEmpty) ...[
-                      Wrap(
-                        spacing: 4,
-                        runSpacing: 4,
-                        children: application.student.skills
-                            .take(3)
-                            .map(
-                              (skill) => Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: colorScheme.surfaceVariant,
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  skill,
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    color: colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                              ),
-                            )
-                            .toList(),
-                      ),
-                      const SizedBox(height: 4),
-                    ],
-                  ],
-                ),
-              ),
-
-              // Status and Actions
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  // Status Badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _getStatusColor(
-                        application.applicationStatus.toApplicationStatus(),
-                      ).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: _getStatusColor(
-                          application.applicationStatus.toApplicationStatus(),
-                        ).withOpacity(0.3),
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          application.statusIcon,
-                          size: 14,
-                          color: _getStatusColor(
-                            application.applicationStatus.toApplicationStatus(),
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          application.statusDisplayName,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: _getStatusColor(
-                              application.applicationStatus
-                                  .toApplicationStatus(),
-                            ),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-
-                  // View Details Button
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      _showApplicationDetails(context, application);
-                    },
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      side: BorderSide(
-                        color: colorScheme.outline.withOpacity(0.3),
-                      ),
-                    ),
-                    icon: Icon(
-                      Icons.visibility_outlined,
-                      size: 14,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                    label: Text(
-                      'View',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ), // Delete  Button
-                  if (application.applicationStatus.toApplicationStatus() ==
-                      ApplicationStatus.pending)
-                    OutlinedButton.icon(
-                      onPressed: () {
-                        _deleteApplication(context, application);
-                      },
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        side: BorderSide(
-                          color: colorScheme.outline.withOpacity(0.3),
-                        ),
-                      ),
-                      icon: Icon(
-                        Icons.delete_forever,
-                        size: 14,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                      label: Text(
-                        'Delete',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  _deleteApplication(
-    BuildContext context,
-    StudentApplication application,
-  ) async {
-    // Show confirmation dialog first
-    bool confirmDelete = await showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Confirm Deletion'),
-          content: const Text(
-            'Are you sure you want to delete this application? This action cannot be undone.',
-          ),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('Cancel'),
-              onPressed: () {
-                Navigator.of(context).pop(false);
-              },
-            ),
-            TextButton(
-              child: const Text('Delete', style: TextStyle(color: Colors.red)),
-              onPressed: () {
-                Navigator.of(context).pop(true);
-              },
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmDelete == true) {
-      // Show reason selection dialog
-      String? selectedReason;
-      String otherReasonText = '';
-
-      List<Map<String, String>> reasons = [
-        {'label': 'Too many applications', 'value': 'TOO_MANY_APPS'},
-        {'label': 'File sent is not clear', 'value': 'FILE_NOT_CLEAR'},
-        {
-          'label': 'Student information is not complete',
-          'value': 'INFO_INCOMPLETE',
-        },
-        {'label': 'Others', 'value': 'OTHER'},
-      ];
-
-      // Variables to manage state
-      bool isOtherSelected = false;
-
-      await showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return StatefulBuilder(
-            builder: (context, setState) {
-              return AlertDialog(
-                title: const Text('Select Deletion Reason'),
-                content: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Reason dropdown
-                      DropdownButtonFormField<String>(
-                        isExpanded: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Reason for deletion *',
-                          border: OutlineInputBorder(),
-                        ),
-                        value: selectedReason,
-                        items: reasons.map((reason) {
-                          return DropdownMenuItem<String>(
-                            value: reason['value'],
-                            child: Text(
-                              reason['label']!,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            selectedReason = value;
-                            isOtherSelected = (value == 'OTHER');
-                          });
-                        },
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Please select a reason';
-                          }
-                          return null;
-                        },
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      // Other reason text field (only shown when "Others" is selected)
-                      if (isOtherSelected)
-                        TextFormField(
-                          decoration: const InputDecoration(
-                            labelText: 'Please specify other reason *',
-                            border: OutlineInputBorder(),
-                          ),
-                          maxLines: 3,
-                          onChanged: (value) {
-                            otherReasonText = value;
-                          },
-                          validator: (value) {
-                            if (isOtherSelected &&
-                                (value == null || value.trim().isEmpty)) {
-                              return 'Please specify the reason';
-                            }
-                            return null;
-                          },
-                        ),
-                    ],
-                  ),
-                ),
-                actions: <Widget>[
-                  TextButton(
-                    child: const Text('Cancel'),
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                    },
-                  ),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      foregroundColor: Colors.white,
-                    ),
-                    child: const Text('Delete Application'),
-                    onPressed: () {
-                      // Validation
-                      if (selectedReason == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Please select a reason for deletion',
-                            ),
-                            backgroundColor: Colors.orange,
-                          ),
-                        );
-                        return;
-                      }
-
-                      if (isOtherSelected && otherReasonText.trim().isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Please specify the reason for deletion',
-                            ),
-                            backgroundColor: Colors.orange,
-                          ),
-                        );
-                        return;
-                      }
-
-                      // Build final reason
-                      String finalReason = reasons.firstWhere(
-                        (r) => r['value'] == selectedReason,
-                      )['label']!;
-
-                      if (isOtherSelected) {
-                        finalReason = otherReasonText.trim();
-                      }
-
-                      // Close dialog and proceed with deletion
-                      Navigator.of(
-                        context,
-                      ).pop({'proceed': true, 'reason': finalReason});
-                    },
-                  ),
-                ],
-              );
-            },
-          );
-        },
-      ).then((result) async {
-        if (result != null && result['proceed'] == true) {
-          // Call API to delete application
-          try {
-            // Show loading indicator
-            showDialog(
-              context: context,
-              barrierDismissible: false,
-              builder: (context) =>
-                  const Center(child: CircularProgressIndicator()),
-            );
-
-            bool isApplicationDeleted;
-
-            // Call your API service
-            try {
-              await company_cloud.deleteApplications(
-                companyId: FirebaseAuth.instance.currentUser!.uid,
-                studentId: application.student.uid,
-                internship: application.internship!.id ?? "",
-                reason: result['reason'],
-                application: application,
-              );
-              isApplicationDeleted = true;
-              setState(() {
-                _filteredApplications.remove(application);
-              });
-            } catch (error) {
-              isApplicationDeleted = false;
-            }
-            if (isApplicationDeleted) {
-              // Show success message
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Application deleted successfully'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-
-              // Refresh the applications list
-              if (context.mounted) {
-                Navigator.of(context).pop(true);
-              }
-            } else {
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Failed to delete application'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              }
-            }
-          } catch (error) {
-            // Close loading indicator if still showing
-            if (context.mounted) {
-              Navigator.of(context).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Error: $error'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            }
-          }
-        }
-      });
-    }
-  }
-
-  // Helper methods
-  Color _getStatusColor(ApplicationStatus status) {
-    switch (status) {
-      case ApplicationStatus.accepted:
-        return Colors.green;
-      case ApplicationStatus.pending:
-        return Colors.orange;
-      case ApplicationStatus.rejected:
-        return Colors.red;
-    }
-  }
-
-  String _formatApplicationDate(DateTime date) {
-    final now = DateTime.now();
-    final difference = now.difference(date);
-
-    if (difference.inDays > 30) {
-      final months = (difference.inDays / 30).floor();
-      return '$months ${months == 1 ? 'month' : 'months'} ago';
-    }
-    if (difference.inDays > 0) {
-      return '${difference.inDays} ${difference.inDays == 1 ? 'day' : 'days'} ago';
-    }
-    if (difference.inHours > 0) {
-      return '${difference.inHours} ${difference.inHours == 1 ? 'hour' : 'hours'} ago';
-    }
-    return 'Just now';
-  }
-
-  // Application details dialog
-  void _showApplicationDetails(
-    BuildContext context,
-    StudentApplication application,
-  ) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          application.internship?.title ?? 'Application Details',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Internship Title
-              if (application.internship?.title != null) ...[
-                const Text(
-                  'Internship Position:',
-                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                ),
-                Text(
-                  application.internship!.title,
-                  style: const TextStyle(fontSize: 16, color: Colors.blue),
-                ),
-                const SizedBox(height: 12),
-              ],
-
-              // Student Information
-              const Text(
-                'Applicant Information:',
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-              ),
-              _buildDetailRow('Name', application.student.fullName),
-              _buildDetailRow('Email', application.student.email),
-              _buildDetailRow('Phone', application.student.phoneNumber),
-              _buildDetailRow('Institution', application.student.institution),
-              _buildDetailRow('Course', application.student.courseOfStudy),
-              _buildDetailRow('Level', application.student.level),
-              _buildDetailRow(
-                'CGPA',
-                '${application.student.cgpa.toStringAsFixed(2)}',
-              ),
-
-              // Application Details
-              const SizedBox(height: 12),
-              const Text(
-                'Application Details:',
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-              ),
-              _buildDetailRow('Status', application.applicationStatus),
-              _buildDetailRow(
-                'Applied Date',
-                _formatDate(application.applicationDate),
-              ),
-
-              // Skills
-              if (application.student.skills.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                const Text(
-                  'Skills:',
-                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                ),
-                Wrap(
-                  spacing: 4,
-                  runSpacing: 4,
-                  children: application.student.skills
-                      .map(
-                        (skill) => Chip(
-                          label: Text(skill),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                      )
-                      .toList(),
-                ),
-              ],
-
-              // // Cover Letter
-              // if (application. != null && application.coverLetter!.isNotEmpty) ...[
-              //   const SizedBox(height: 12),
-              //   const Text(
-              //     'Cover Letter:',
-              //     style: TextStyle(
-              //       fontWeight: FontWeight.w600,
-              //       fontSize: 14,
-              //     ),
-              //   ),
-              //   Container(
-              //     padding: const EdgeInsets.all(12),
-              //     decoration: BoxDecoration(
-              //       color: Colors.grey.shade100,
-              //       borderRadius: BorderRadius.circular(8),
-              //     ),
-              //     child: Text(
-              //       application.coverLetter!,
-              //       style: const TextStyle(fontSize: 14),
-              //     ),
-              //   ),
-              // ],
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-          // Action buttons based on status
-          if (application.applicationStatus.toLowerCase() == 'pending')
-            Row(
-              children: [
-                OutlinedButton(
-                  onPressed: () {
-                    // Reject application
-                    _handleApplicationAction(context, application, 'reject');
-                  },
-                  style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
-                  child: const Text('Reject'),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: () {
-                    // Accept application
-                    _handleApplicationAction(context, application, 'accept');
-                  },
-                  child: const Text('Accept'),
-                ),
-              ],
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 80,
-            child: Text(
-              '$label:',
-              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
-            ),
-          ),
-          Expanded(child: Text(value, style: const TextStyle(fontSize: 13))),
-        ],
-      ),
-    );
-  }
-
-  String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
-  }
-
-  void _handleApplicationAction(
-    BuildContext context,
-    StudentApplication application,
-    String action,
-  ) {
-    // Implement your action logic here
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('${action.capitalize()} Application'),
-        content: Text('Are you sure you want to $action this application?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              // Update application status
-
-              GeneralMethods.showLoading(context);
-              await company_cloud.updateApplicationStatus(
-                companyId: FirebaseAuth.instance.currentUser!.uid,
-                internshipId: application.internship!.id!,
-                studentId: application.student.uid,
-                status: action,
-                application: application,
-              );
-              Student student = application.student;
-              bool
-              notificationSent = await notificationService.sendNotificationToUser(
-                fcmToken: student.fcmToken ?? "",
-                title: application.internship.company.name,
-                body:
-                    "Your application for ${application.internship.title} is ${GeneralMethods.normalizeApplicationStatus(action).toUpperCase()}",
-              );
-
-              await fireStoreNotification.sendNotificationToStudent(
-                studentUid: student.uid,
-                title: application.internship.company.name,
-                body:
-                    "Your application for ${application.internship.title} is ${GeneralMethods.normalizeApplicationStatus(action).toUpperCase()}",
-              );
-              if (!notificationSent) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Failed to send notification'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Notification sent successfully'),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              }
-
-              GeneralMethods.hideLoading(context);
-              Navigator.pop(context); // Close confirmation dialog
-              Navigator.pop(context); // Close details dialog
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Application ${action}ed successfully'),
-                  backgroundColor: action == 'accept'
-                      ? Colors.green
-                      : Colors.red,
-                ),
-              );
-
-              setState(() {
-                application.applicationStatus = action;
-              });
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: action == 'accept' ? Colors.green : Colors.red,
-            ),
-            child: Text(action.capitalize()),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildErrorState(BuildContext context, Object error) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline, size: 64, color: colorScheme.error),
-            const SizedBox(height: 16),
-            Text(
-              'Error Loading Posts',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w500,
-                color: colorScheme.error,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              error.toString(),
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: () {
-                setState(() async {
-                  _cachedApplications = companyCloud
-                      .studentInternshipApplicationsForCompanyStream(
-                        FirebaseAuth.instance.currentUser!.uid,
-                      );
-                  _isDataLoaded = true;
-                });
-              },
-              icon: Icon(Icons.refresh),
-              label: Text('Try Again'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }

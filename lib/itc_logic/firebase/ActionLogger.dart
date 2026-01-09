@@ -1,5 +1,6 @@
 // Action Logger Service
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/cupertino.dart';
 
 import '../../model/RecentActions.dart';
 
@@ -76,7 +77,7 @@ class ActionLogger {
   // Stream company-specific recent actions
   Stream<List<RecentAction>> streamCompanyActions(
     String companyId, {
-    int limit = 50,
+    int limit = 5,
   }) {
     final actionsRef = _getCompanyActionsRef(companyId);
 
@@ -89,6 +90,34 @@ class ActionLogger {
               .map((doc) => RecentAction.fromFirestore(doc))
               .toList(),
         );
+  }
+
+  Stream<List<RecentAction>> streamCompanyActionsPaginated(
+      String companyId, {
+        int pageSize = 20,
+        DocumentSnapshot? lastDocument,
+      }) {
+    try {
+      final actionsRef = _getCompanyActionsRef(companyId);
+
+      Query query = actionsRef
+          .orderBy('timestamp', descending: true)
+          .limit(pageSize);
+
+      // Apply pagination if we have a last document
+      if (lastDocument != null) {
+        query = query.startAfterDocument(lastDocument);
+      }
+
+      return query.snapshots().map(
+            (snapshot) => snapshot.docs
+            .map((doc) => RecentAction.fromFirestore(doc))
+            .toList(),
+      );
+    } catch (e) {
+      debugPrint('Error streaming company actions: $e');
+      return Stream.value([]);
+    }
   }
 
   // Stream actions for a specific user within a company
