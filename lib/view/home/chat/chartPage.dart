@@ -43,6 +43,7 @@ class ChatDetailsPage extends StatefulWidget {
 
 class _ChatDetailsPageState extends State<ChatDetailsPage> {
   final TextEditingController _messageController = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
   late ChatService _chatService = ChatService();
   late Stream<List<Message>> _messagesStream;
@@ -59,6 +60,7 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
   ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic();
   int? _previousMessageCount;
   bool _showScrollToBottomButton = false;
+  Timestamp? previousDate;
 
   @override
   void initState() {
@@ -417,13 +419,21 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
     );
   }
 
-  Widget _buildMessageBubble(Message message, ThemeData theme) {
+
+
+  // Simplified _buildMessageBubble without date header logic
+  Widget _buildMessageBubble(
+      Message message,
+      ThemeData theme,
+      {
+        Message? previousMessage,
+        bool isFirstMessageOfDay = false,
+      }
+      ) {
     final isMe = message.senderId == _currentUserId;
     final time = DateFormat('h:mm a').format(message.timestamp.toDate());
-    final showDateHeader = _shouldShowDateHeader(message);
-    final previousMessage = _getPreviousMessage(message);
 
-    // Get all images from the message (support both single and multiple)
+    // Get images
     final List<String> images = [];
     if (message.imageUrls != null && message.imageUrls!.isNotEmpty) {
       images.addAll(message.imageUrls!);
@@ -432,220 +442,323 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
     }
 
     final bool hasImages = images.isNotEmpty;
-    final bool hasMultipleImages = images.length > 1;
-    final bool isSingleImage = hasImages && !hasMultipleImages;
-
-    // Check if the content is just an image URL that we're already displaying
     final bool contentIsImageUrl = hasImages &&
         GeneralMethods.contentIsOnlyImageUrl(message.content, images);
 
-    return Column(
-      children: [
-        if (showDateHeader) _dateSeparator(message.timestamp, theme),
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4.0),
-          child: GestureDetector(
-            onLongPress: () => _showMessageOptions(message),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisAlignment: isMe
-                  ? MainAxisAlignment.end
-                  : MainAxisAlignment.start,
-              children: [
-                if (!isMe &&
-                    (_shouldShowAvatar(message, previousMessage) ||
-                        hasImages))
-                  CircleAvatar(
-                    backgroundImage: widget.receiverAvatarUrl.isNotEmpty
-                        ? NetworkImage(widget.receiverAvatarUrl)
-                        : null,
-                    radius: 16,
-                    backgroundColor: widget.receiverAvatarUrl.isEmpty
-                        ? theme.colorScheme.primary.withOpacity(0.2)
-                        : null,
-                    child: widget.receiverAvatarUrl.isEmpty
-                        ? Text(
-                      widget.receiverName.substring(0, 1).toUpperCase(),
-                      style: const TextStyle(fontSize: 12),
-                    )
-                        : null,
-                  )
-                else if (!isMe)
-                  const SizedBox(width: 40),
+    // Check if we should show avatar/name
+    final shouldShowAvatar = !isMe && (
+        previousMessage == null ||
+            previousMessage.senderId != message.senderId ||
+            !_isSameDay(previousMessage.timestamp, message.timestamp) ||
+            _timeDifferenceInMinutes(previousMessage.timestamp, message.timestamp) > 5
+    );
 
-                if (!isMe) const SizedBox(width: 8),
+    final shouldShowName = !isMe && (
+        previousMessage == null ||
+            previousMessage.senderId != message.senderId ||
+            !_isSameDay(previousMessage.timestamp, message.timestamp)
+    );
 
-                Flexible(
-                  child: Column(
-                    crossAxisAlignment: isMe
-                        ? CrossAxisAlignment.end
-                        : CrossAxisAlignment.start,
-                    children: [
-                      if (!isMe && _shouldShowName(message, previousMessage))
-                        Padding(
-                          padding: const EdgeInsets.only(
-                            bottom: 2.0,
-                            left: 8.0,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: GestureDetector(
+        onLongPress: () => _showMessageOptions(message),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+          children: [
+            if (!isMe && shouldShowAvatar)
+              CircleAvatar(
+                backgroundImage: widget.receiverAvatarUrl.isNotEmpty
+                    ? NetworkImage(widget.receiverAvatarUrl)
+                    : null,
+                radius: 16,
+                backgroundColor: widget.receiverAvatarUrl.isEmpty
+                    ? theme.colorScheme.primary.withOpacity(0.2)
+                    : null,
+                child: widget.receiverAvatarUrl.isEmpty
+                    ? Text(
+                  widget.receiverName.substring(0, 1).toUpperCase(),
+                  style: const TextStyle(fontSize: 12),
+                )
+                    : null,
+              )
+            else if (!isMe)
+              const SizedBox(width: 40),
+
+            if (!isMe) const SizedBox(width: 8),
+
+            Flexible(
+              child: Column(
+                crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                children: [
+                  if (!isMe && shouldShowName)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 2.0, left: 8.0),
+                      child: Text(
+                        widget.receiverName,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+
+                  Container(
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * 0.7,
+                    ),
+                    padding: hasImages
+                        ? const EdgeInsets.all(8)
+                        : const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: isMe ? theme.colorScheme.primary : theme.colorScheme.surfaceVariant,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (hasImages)
+                          _ImagePreviewCard(
+                            images: images,
+                            isMe: isMe,
+                            theme: theme,
+                            onViewImage: (imageUrl) {
+                              GeneralMethods.navigateTo(
+                                context,
+                                FullScreenViewer(firebasePath: imageUrl),
+                              );
+                            },
+                            onViewGallery: () {
+                              _openImageGallery(message, images);
+                            },
                           ),
-                          child: Text(
-                            widget.receiverName,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
 
-                      Container(
-                        constraints: BoxConstraints(
-                          maxWidth: MediaQuery.of(context).size.width * 0.7,
-                        ),
-                        padding: hasImages
-                            ? const EdgeInsets.all(8)
-                            : const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isMe
-                              ? theme.colorScheme.primary
-                              : theme.colorScheme.surfaceVariant,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Image(s) display - UPDATED
-                            if (hasImages)
-                              _ImagePreviewCard(
-                                images: images,
-                                isMe: isMe,
-                                theme: theme,
-                                onViewImage: (imageUrl) {
-                                  GeneralMethods.navigateTo(
-                                    context,
-                                    FullScreenViewer(
-                                      firebasePath: imageUrl,
-                                    ),
-                                  );
-                                },
-                                onViewGallery: () {
-                                  _openImageGallery(message, images);
-                                },
-                              ),
-
-                            // Only show content if it's NOT just an image URL
-                            if (!contentIsImageUrl && message.content.isNotEmpty)
-                              Column(
-                                children: [
-                                  if (hasImages) const SizedBox(height: 8),
-                                  Text(
-                                    message.content,
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      color: isMe
-                                          ? theme.colorScheme.onPrimary
-                                          : theme.colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                                ],
-                              ),
-
-                            if (message.replyTo != null)
-                              Container(
-                                margin: const EdgeInsets.only(top: 8),
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
+                        if (!contentIsImageUrl && message.content.isNotEmpty)
+                          Column(
+                            children: [
+                              if (hasImages) const SizedBox(height: 8),
+                              Text(
+                                message.content,
+                                style: theme.textTheme.bodyMedium?.copyWith(
                                   color: isMe
-                                      ? theme.colorScheme.primary.withOpacity(
-                                    0.3,
-                                  )
-                                      : theme.colorScheme.surfaceVariant
-                                      .withOpacity(0.7),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
+                                      ? theme.colorScheme.onPrimary
+                                      : theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+
+                        if (message.replyTo != null)
+                          Container(
+                            margin: const EdgeInsets.only(top: 8),
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: isMe
+                                  ? theme.colorScheme.primary.withOpacity(0.3)
+                                  : theme.colorScheme.surfaceVariant.withOpacity(0.7),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: isMe
+                                    ? theme.colorScheme.primary.withOpacity(0.5)
+                                    : theme.colorScheme.outline.withOpacity(0.5),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Replying to',
+                                  style: theme.textTheme.labelSmall?.copyWith(
                                     color: isMe
-                                        ? theme.colorScheme.primary.withOpacity(
-                                      0.5,
-                                    )
-                                        : theme.colorScheme.outline.withOpacity(
-                                      0.5,
-                                    ),
+                                        ? theme.colorScheme.onPrimary.withOpacity(0.8)
+                                        : theme.colorScheme.onSurfaceVariant.withOpacity(0.8),
                                   ),
                                 ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Replying to',
-                                      style: theme.textTheme.labelSmall
-                                          ?.copyWith(
-                                        color: isMe
-                                            ? theme.colorScheme.onPrimary
-                                            .withOpacity(0.8)
-                                            : theme
-                                            .colorScheme
-                                            .onSurfaceVariant
-                                            .withOpacity(0.8),
-                                      ),
-                                    ),
-                                    Text(
-                                      message.replyTo?['content'] ?? '',
-                                      style: theme.textTheme.bodySmall
-                                          ?.copyWith(
-                                        color: isMe
-                                            ? theme.colorScheme.onPrimary
-                                            : theme
-                                            .colorScheme
-                                            .onSurfaceVariant,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ],
+                                Text(
+                                  message.replyTo?['content'] ?? '',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: isMe
+                                        ? theme.colorScheme.onPrimary
+                                        : theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                              ),
-                          ],
-                        ),
-                      ),
-
-                      const SizedBox(height: 4),
-
-                      Row(
-                        mainAxisAlignment: isMe
-                            ? MainAxisAlignment.end
-                            : MainAxisAlignment.start,
-                        children: [
-                          Text(
-                            time,
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: theme.colorScheme.onSurface.withOpacity(
-                                0.6,
-                              ),
+                              ],
                             ),
                           ),
-                          if (isMe) ...[
-                            const SizedBox(width: 4),
-                            Icon(
-                              message.isRead ? Icons.done_all : Icons.done,
-                              size: 12,
-                              color: message.isRead
-                                  ? theme.colorScheme.primary
-                                  : theme.colorScheme.onSurface.withOpacity(
-                                0.6,
-                              ),
-                            ),
-                          ],
-                        ],
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 4),
+
+                  Row(
+                    mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+                    children: [
+                      Text(
+                        time,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onSurface.withOpacity(0.6),
+                        ),
                       ),
+                      if (isMe) ...[
+                        const SizedBox(width: 4),
+                        Icon(
+                          message.isRead ? Icons.done_all : Icons.done,
+                          size: 12,
+                          color: message.isRead
+                              ? theme.colorScheme.primary
+                              : theme.colorScheme.onSurface.withOpacity(0.6),
+                        ),
+                      ],
                     ],
                   ),
-                ),
-              ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+// Helper methods
+  Widget _buildDateHeader(DateTime date, ThemeData theme) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final messageDate = DateTime(date.year, date.month, date.day);
+
+    String dateText;
+    if (messageDate == today) {
+      dateText = 'Today';
+    } else if (messageDate == yesterday) {
+      dateText = 'Yesterday';
+    } else {
+      dateText = DateFormat('EEEE, MMMM d').format(date);
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 12),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceVariant.withOpacity(0.5),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            dateText,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurface.withOpacity(0.7),
+              fontWeight: FontWeight.w500,
             ),
           ),
         ),
-      ],
+      ),
     );
   }
+
+  // Update your _isSameDay method to handle both DateTime and Timestamp
+  bool _isSameDay(dynamic date1, dynamic date2) {
+    DateTime dateTime1, dateTime2;
+
+    // Convert Timestamp to DateTime if needed
+    if (date1 is Timestamp) {
+      dateTime1 = date1.toDate();
+    } else if (date1 is DateTime) {
+      dateTime1 = date1;
+    } else {
+      return false;
+    }
+
+    if (date2 is Timestamp) {
+      dateTime2 = date2.toDate();
+    } else if (date2 is DateTime) {
+      dateTime2 = date2;
+    } else {
+      return false;
+    }
+
+    return dateTime1.year == dateTime2.year &&
+        dateTime1.month == dateTime2.month &&
+        dateTime1.day == dateTime2.day;
+  }
+
+// Or create separate methods for clarity
+  bool _isSameDayTimestamp(Timestamp timestamp1, Timestamp timestamp2) {
+    final date1 = timestamp1.toDate();
+    final date2 = timestamp2.toDate();
+    return date1.year == date2.year &&
+        date1.month == date2.month &&
+        date1.day == date2.day;
+  }
+
+  bool _isSameDayDateTime(DateTime date1, DateTime date2) {
+    return date1.year == date2.year &&
+        date1.month == date2.month &&
+        date1.day == date2.day;
+  }
+  Widget _buildEmptyMessage(ThemeData theme) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Simple icon
+            Icon(
+              Icons.chat_bubble_outline,
+              size: 64,
+              color: theme.colorScheme.onSurface.withOpacity(0.3),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Title
+            Text(
+              'No messages yet',
+              style: theme.textTheme.titleLarge?.copyWith(
+                color: theme.colorScheme.onSurface,
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            // Description
+            Text(
+              'Start a conversation with ${widget.receiverName}',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurface.withOpacity(0.6),
+              ),
+              textAlign: TextAlign.center,
+            ),
+
+            const SizedBox(height: 24),
+
+            // Simple send button
+            ElevatedButton.icon(
+              onPressed: () {
+                _messageController.text = "Hello! How can I help you today?";
+                FocusScope.of(context).requestFocus(_focusNode);
+              },
+              icon: const Icon(Icons.send, size: 18),
+              label: const Text('Send first message'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  int _timeDifferenceInMinutes(Timestamp timestamp1, Timestamp timestamp2) {
+    final date1 = timestamp1.toDate();
+    final date2 = timestamp2.toDate();
+    final difference = date1.difference(date2).abs();
+    return difference.inMinutes;
+  }
+
 // Helper method to open image gallery
   void _openImageGallery(Message message, List<String> images, {int initialIndex = 0}) {
 
@@ -964,136 +1077,104 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
       body: Column(
         children: [
           _buildAppBar(context, theme),
-
           if (_showStudentInfo && _receiverData is Student)
             _buildStudentProfileCard(),
-
           if (_selectedImages.isNotEmpty) _buildSelectedImagesPreview(),
 
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : StreamBuilder<List<Message>>(
-                    stream: _messagesStream,
-                    builder: (context, snapshot) {
+              stream: _messagesStream,
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  debugPrint("snapshot error ${snapshot.error}");
+                  return Center(child: Text('Error: ${snapshot.error}'));
+                }
 
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-                      if (snapshot.hasError) {
-                         debugPrint("snapshot error ${snapshot.error}");
-                        return Center(child: Text('Error: ${snapshot.error}'));
-                      }
+                final messages = snapshot.data!;
 
-                      if (!snapshot.hasData) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
+                // Handle empty state
+                if (messages.isEmpty) {
+                  return const Center(child: Text('No messages yet'));
 
+                }
 
+                // Create a list with date headers
+                final List<Widget> messageWidgets = [];
 
-                      final messages = snapshot.data!;
-                      final listKey = ValueKey(messages.length);
+                // Add typing indicator if needed
+                if (_isTyping) {
+                  messageWidgets.add(_typingIndicator(theme));
+                }
 
-                      // Scroll to bottom when new messages arrive
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (_scrollController.hasClients) {
-                          // Check if this is a new message (not just initial load)
-                          final hasNewMessages = _previousMessageCount != null &&
-                              messages.length > _previousMessageCount!;
+                // Track the last date to show headers
+                DateTime? lastDate;
 
-                          if (hasNewMessages) {
-                            // Always scroll for new incoming messages
-                            _scrollToBottom();
-                          } else {
-                            // For initial load, check if user is near bottom
-                            final isNearBottom = _scrollController.offset >=
-                                _scrollController.position.maxScrollExtent - 100;
+                for (int i = 0; i < messages.length; i++) {
+                  final message = messages[i];
+                  final messageDate = message.timestamp.toDate();
+                  final currentDate = DateTime(
+                    messageDate.year,
+                    messageDate.month,
+                    messageDate.day,
+                  );
 
-                            if (isNearBottom) {
-                              _scrollToBottom();
-                            }
-                          }
+                  // Check if we need a date header
+                  if (lastDate == null || !_isSameDay(lastDate, currentDate)) {
+                    messageWidgets.add(_buildDateHeader(currentDate, theme));
+                    lastDate = currentDate;
+                  }
 
-                          // Update the previous count
-                          _previousMessageCount = messages.length;
-                        }
-                      });
-                      if (messages.isEmpty) {
-                        return Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.chat_bubble_outline,
-                                size: 64,
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'No messages yet',
-                                style: theme.textTheme.bodyLarge,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Start a conversation with ${widget.receiverName}',
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                              if (_currentUserRole == 'company' &&
-                                  _receiverData is Student)
-                                const SizedBox(height: 16),
-                              if (_currentUserRole == 'company' &&
-                                  _receiverData is Student)
-                                ElevatedButton(
-                                  onPressed: () {
-                                    GeneralMethods.navigateTo(
-                                      context,
-                                      StudentProfilePage(
-                                        student: widget.receiverData as Student,
-                                      ),
-                                    );
-                                  },
-                                  child: const Text('View Student Profile'),
-                                ),
-                            ],
-                          ),
-                        );
-                      }
+                  // Get previous message for avatar logic
+                  final previousMessage = i > 0 ? messages[i - 1] : null;
 
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        _scrollToBottom();
-                      });
+                  messageWidgets.add(
+                    _buildMessageBubble(
+                      message,
+                      theme,
+                      previousMessage: previousMessage,
+                      isFirstMessageOfDay: lastDate == currentDate,
+                    ),
+                  );
+                }
 
-                      return Stack(
-                        children: [
-                          ListView.builder(
-                            controller: _scrollController,
-                            padding: const EdgeInsets.all(16),
-                            itemCount: messages.length + 1,
-                            itemBuilder: (context, index) {
-                              if (index == 0) {
-                                return _isTyping
-                                    ? _typingIndicator(theme)
-                                    : const SizedBox.shrink();
-                              }
+                // Scroll logic...
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (_scrollController.hasClients) {
+                    final hasNewMessages = _previousMessageCount != null &&
+                        messages.length > _previousMessageCount!;
 
-                              final messageIndex = index - 1;
-                              final message = messages[messageIndex];
+                    if (hasNewMessages ||
+                        _scrollController.offset >=
+                            _scrollController.position.maxScrollExtent - 100) {
+                      _scrollToBottom();
+                    }
 
-                              Widget messageBubble = _buildMessageBubble(message, theme);
+                    _previousMessageCount = messages.length;
+                  }
+                });
 
-                              return messageBubble;
-                            },
-                          ),
-
-                          // Add the scroll-to-bottom button
-
-                          _buildScrollToBottomButton(theme),
-                        ],
-                      );
-                    },
-                  ),
+                return Stack(
+                  children: [
+                    ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.all(16),
+                      itemCount: messageWidgets.length,
+                      itemBuilder: (context, index) {
+                        return messageWidgets[index];
+                      },
+                    ),
+                    _buildScrollToBottomButton(theme),
+                  ],
+                );
+              },
+            ),
           ),
-
           _inputBar(theme),
         ],
       ),
@@ -1477,6 +1558,7 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
             Expanded(
               child: TextField(
                 controller: _messageController,
+                focusNode: _focusNode,
                 minLines: 1,
                 maxLines: 5,
                 decoration: InputDecoration(
