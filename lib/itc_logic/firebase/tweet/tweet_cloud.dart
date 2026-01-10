@@ -16,7 +16,19 @@ class TweetService {
     'savedTweets',
   );
 
-  // Helper method to generate document ID
+   int _tweetsPerPage = 10; // Adjust as needed
+  DocumentSnapshot? _lastTweetDoc;
+  // Reset pagination
+  void resetPagination() {
+    _lastTweetDoc = null;
+  }
+
+
+  int get tweetsPerPage => _tweetsPerPage;
+
+  set tweetsPerPage(int value) {
+    _tweetsPerPage = value;
+  } // Helper method to generate document ID
   String _generateTweetDocId(String posterId) {
     final now = DateTime.now();
     // Format: posterId_yyyyMMdd_HHmmss
@@ -377,10 +389,23 @@ class TweetService {
         });
   }
 
-  Future<List<TweetModel>> _fetchTweetsWithCommentsAndReplies() async {
-    final tweetSnap = await _tweetCollection
+  // Fetch initial tweets with pagination
+  Future<List<TweetModel>> _fetchTweetsWithCommentsAndReplies({bool loadMore = false}) async {
+    Query tweetQuery = _tweetCollection
         .orderBy('timestamp', descending: true)
-        .get();
+        .limit(_tweetsPerPage);
+
+    // If loading more, start after the last document
+    if (loadMore && _lastTweetDoc != null) {
+      tweetQuery = tweetQuery.startAfterDocument(_lastTweetDoc!);
+    }
+
+    final tweetSnap = await tweetQuery.get();
+
+    // Update the last document for next pagination
+    if (tweetSnap.docs.isNotEmpty) {
+      _lastTweetDoc = tweetSnap.docs.last;
+    }
 
     List<TweetModel> tweets = [];
 
@@ -412,17 +437,36 @@ class TweetService {
       }
 
       tweets.add(
-        TweetModel.fromMap(tweetDoc.data(), tweetDoc.id, comments: comments),
+        TweetModel.fromMap(tweetDoc.data() as Map<String,dynamic>, tweetDoc.id, comments: comments),
       );
     }
 
     return tweets;
   }
 
-  Stream<List<TweetModel>> getTweetsWithCommentsAndReplies() async* {
+  // Stream with lazy loading support
+  Stream<List<TweetModel>> getTweetsWithCommentsAndReplies({bool loadMore = false}) async* {
     yield* _refreshController.stream
-        .asyncMap((_) => _fetchTweetsWithCommentsAndReplies())
-        .startWith(await _fetchTweetsWithCommentsAndReplies());
+        .asyncMap((_) => _fetchTweetsWithCommentsAndReplies(loadMore: false))
+        .startWith(await _fetchTweetsWithCommentsAndReplies(loadMore: false));
+  }
+
+  // Load more tweets specifically
+  Future<List<TweetModel>> loadMoreTweets() async {
+    return await _fetchTweetsWithCommentsAndReplies(loadMore: true);
+  }
+
+  // Check if more tweets exist
+  Future<bool> hasMoreTweets() async {
+    if (_lastTweetDoc == null) return true;
+
+    final nextQuery = _tweetCollection
+        .orderBy('timestamp', descending: true)
+        .startAfterDocument(_lastTweetDoc!)
+        .limit(1);
+
+    final nextSnap = await nextQuery.get();
+    return nextSnap.docs.isNotEmpty;
   }
 
   Stream<TweetModel> getTweetWithCommentsAndReplies(String tweetId) async* {

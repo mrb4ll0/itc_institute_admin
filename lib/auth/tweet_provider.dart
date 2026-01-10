@@ -20,12 +20,15 @@ class TweetProvider extends ChangeNotifier {
   StreamSubscription<List<TweetModel>>? _tweetsSubscription;
   bool _isLoading = true;
   bool get isLoading => _isLoading;
+  bool _isLoadingMore = false;
+  bool _hasMore = true;
 
   // Tweet detail state (for individual tweet view)
   Map<String, TweetModel?> _tweetDetails = {};
   Map<String, List<Comment>> _tweetComments = {};
   Map<String, bool> _tweetDetailLoading = {};
   Map<String, String?> _tweetDetailErrors = {};
+
 
   // Reply/Comment state
   String? _replyingToTweetId;
@@ -58,6 +61,8 @@ class TweetProvider extends ChangeNotifier {
   bool get postingReply => _postingReply;
   bool get postingComment => _postingComment;
   String? get commentingTo => _commentingTo;
+  bool get isLoadingMore => _isLoadingMore;
+  bool get hasMore => _hasMore;
 
   // Helper methods for tweet details
   TweetModel? getTweetDetail(String tweetId) => _tweetDetails[tweetId];
@@ -73,20 +78,58 @@ class TweetProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
+    _tweetService.resetPagination();
     _tweetsSubscription = _tweetService
         .getTweetsWithCommentsAndReplies()
         .listen(
           (tweets) {
-            _tweets = tweets;
-            _isLoading = false;
-            notifyListeners();
-          },
-          onError: (error) {
-            debugPrint('Error fetching tweets: $error');
-            _isLoading = false;
-            notifyListeners();
-          },
-        );
+        _tweets = tweets;
+        _isLoading = false;
+        _hasMore = tweets.length >= _tweetService.tweetsPerPage;
+        notifyListeners();
+      },
+      onError: (error) {
+        debugPrint('Error fetching tweets: $error');
+        _isLoading = false;
+        notifyListeners();
+      },
+    );
+  }
+
+  // Load more tweets
+  Future<void> loadMoreTweets() async {
+    if (_isLoadingMore || !_hasMore) return;
+
+    _isLoadingMore = true;
+    notifyListeners();
+
+    try {
+      final moreTweets = await _tweetService.loadMoreTweets();
+
+      if (moreTweets.isEmpty) {
+        _hasMore = false;
+      } else {
+        _tweets.addAll(moreTweets);
+        _hasMore = moreTweets.length >= _tweetService.tweetsPerPage;
+      }
+    } catch (error) {
+      debugPrint('Error loading more tweets: $error');
+    } finally {
+      _isLoadingMore = false;
+      notifyListeners();
+    }
+  }
+
+  // Check if there are more tweets
+  Future<void> checkHasMore() async {
+    _hasMore = await _tweetService.hasMoreTweets();
+    notifyListeners();
+  }
+
+  // Refresh tweets
+  Future<void> refreshTweets() async {
+    _tweetService.resetPagination();
+    _subscribeToTweets();
   }
 
   // Subscribe to individual tweet details
@@ -482,28 +525,28 @@ class TweetProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> refreshTweets() async {
-    try {
-      _isLoading = true;
-      notifyListeners();
-
-      _tweetsSubscription?.cancel();
-      _tweetsSubscription = null;
-
-      final freshTweets = await _tweetService
-          .getTweetsWithCommentsAndReplies()
-          .first;
-      _tweets = freshTweets;
-
-      _subscribeToTweets();
-      notifyListeners();
-    } catch (e) {
-      debugPrint('Error refreshing tweets: $e');
-      _isLoading = false;
-      notifyListeners();
-      _subscribeToTweets();
-    }
-  }
+  // Future<void> refreshTweets() async {
+  //   try {
+  //     _isLoading = true;
+  //     notifyListeners();
+  //
+  //     _tweetsSubscription?.cancel();
+  //     _tweetsSubscription = null;
+  //
+  //     final freshTweets = await _tweetService
+  //         .getTweetsWithCommentsAndReplies()
+  //         .first;
+  //     _tweets = freshTweets;
+  //
+  //     _subscribeToTweets();
+  //     notifyListeners();
+  //   } catch (e) {
+  //     debugPrint('Error refreshing tweets: $e');
+  //     _isLoading = false;
+  //     notifyListeners();
+  //     _subscribeToTweets();
+  //   }
+  // }
 
   Future<Map<String, UserConverter>> fetchAllStudents(List<TweetModel> tweets) async {
     try {

@@ -840,9 +840,51 @@ class _TweetViewState extends State<TweetView> {
 
         return SliverList(
           delegate: SliverChildBuilderDelegate((context, index) {
+
+            if (index == provider.tweets.length) {
+              // If there are more tweets to load
+              if (provider.hasMore) {
+                // Trigger load more
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  provider.loadMoreTweets();
+                });
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16.0),
+                  child: Center(
+                    child: provider.isLoadingMore
+                        ? CircularProgressIndicator(
+                      color: Color(0xFF1DA1F2),
+                    )
+                        : TextButton(
+                      onPressed: provider.loadMoreTweets,
+                      child: Text(
+                        'Load More',
+                        style: TextStyle(
+                          color: Color(0xFF1DA1F2),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              } else {
+                // No more tweets to load
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16.0),
+                  child: Center(
+                    child: Text(
+                      'No more posts',
+                      style: TextStyle(
+                        color: isDark ? Colors.grey[500] : Colors.grey[600],
+                      ),
+                    ),
+                  ),
+                );
+              }
+            }
             final tweet = provider.tweets[index];
             return FutureBuilder<Map<String, dynamic>>(
-              future: provider.fetchAllStudents(provider.tweets),
+              future: provider.fetchAllStudents([tweet]),
               builder: (context, snapshot) {
                 if (!snapshot.hasData) {
                   return _buildTweetSkeleton(isDark);
@@ -896,7 +938,7 @@ class _TweetViewState extends State<TweetView> {
                 );
               },
             );
-          }, childCount: provider.tweets.length),
+          }, childCount: provider.tweets.length + 1,),
         );
       },
     );
