@@ -7,6 +7,7 @@ class Admin {
    String? photoUrl;
   final DateTime createdAt;
   final String role; // always "admin"
+   final String fcmToken;
 
   Admin({
     required this.uid,
@@ -15,6 +16,7 @@ class Admin {
     this.photoUrl,
     DateTime? createdAt,
     this.role = 'admin',
+    this.fcmToken = ''
   }) : createdAt = createdAt ?? DateTime.now();
 
   /// Construct from Firestore document data + doc ID
@@ -26,6 +28,7 @@ class Admin {
       photoUrl: map['photoUrl'] as String?,
       createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       role: map['role'] as String? ?? 'admin',
+      fcmToken: map['fcmToken'] ??""
     );
   }
 
@@ -37,6 +40,7 @@ class Admin {
       if (photoUrl != null) 'photoUrl': photoUrl,
       'createdAt': Timestamp.fromDate(createdAt),
       'role': role,
+      'fcmToken': fcmToken
     };
   }
 

@@ -276,4 +276,207 @@ final adminDoc = await _firebaseFirestore
       return false;
     }
   }
+
+  // Method to get FCM tokens for notification sending
+  Future<List<String>> getAllFCMTokens({String? specificUserId}) async {
+    List<String> allTokens = [];
+
+    try {
+      // 1. Get all student tokens
+      final studentSnapshot = await _firebaseFirestore
+          .collection(usersCollection)
+          .doc('students')
+          .collection('students')
+          .get();
+
+      for (var doc in studentSnapshot.docs) {
+        final data = doc.data();
+        final token = data['fcmToken'] as String?;
+        final userId = doc.id;
+
+        // If specificUserId is provided, only add that user's token
+        if (specificUserId != null) {
+          if (userId == specificUserId && token != null && token.isNotEmpty) {
+            allTokens.add(token);
+            break; // Found the specific user
+          }
+        } else if (token != null && token.isNotEmpty) {
+          allTokens.add(token);
+        }
+      }
+
+      // If we're looking for a specific user and already found it, return early
+      if (specificUserId != null && allTokens.isNotEmpty) {
+        return allTokens;
+      }
+
+      // 2. Get all company tokens
+      final companySnapshot = await _firebaseFirestore
+          .collection(usersCollection)
+          .doc('companies')
+          .collection('companies')
+          .get();
+
+      for (var doc in companySnapshot.docs) {
+        final data = doc.data();
+        final token = data['fcmToken'] as String?;
+        final userId = doc.id;
+
+        if (specificUserId != null) {
+          if (userId == specificUserId && token != null && token.isNotEmpty) {
+            allTokens.add(token);
+            break;
+          }
+        } else if (token != null && token.isNotEmpty) {
+          allTokens.add(token);
+        }
+      }
+
+      // If we're looking for a specific user and already found it, return early
+      if (specificUserId != null && allTokens.isNotEmpty) {
+        return allTokens;
+      }
+
+      // 3. Get all admin tokens
+      final adminSnapshot = await _firebaseFirestore
+          .collection('admins')
+          .get();
+
+      for (var doc in adminSnapshot.docs) {
+        final data = doc.data();
+        final token = data['fcmToken'] as String?;
+        final userId = doc.id;
+
+        if (specificUserId != null) {
+          // Admins might have IDs prefixed differently
+          if ((userId == specificUserId ||
+              "admin_$userId" == specificUserId) &&
+              token != null && token.isNotEmpty) {
+            allTokens.add(token);
+            break;
+          }
+        } else if (token != null && token.isNotEmpty) {
+          allTokens.add(token);
+        }
+      }
+
+      // Remove duplicates (in case any exist)
+      allTokens = allTokens.toSet().toList();
+
+      debugPrint('✅ Retrieved ${allTokens.length} FCM tokens');
+      return allTokens;
+
+    } catch (e, s) {
+      debugPrint('❌ Error fetching FCM tokens: $e');
+      debugPrint('Stack trace: $s');
+      return allTokens; // Return empty list on error
+    }
+  }
+
+  // Optional: Get FCM tokens by user role
+  Future<List<String>> getFCMTokensByRole(String role) async {
+    List<String> tokens = [];
+
+    try {
+      if (role == 'student') {
+        final studentSnapshot = await _firebaseFirestore
+            .collection(usersCollection)
+            .doc('students')
+            .collection('students')
+            .get();
+
+        for (var doc in studentSnapshot.docs) {
+          final token = doc.data()['fcmToken'] as String?;
+          if (token != null && token.isNotEmpty) {
+            tokens.add(token);
+          }
+        }
+      }
+      else if (role == 'company') {
+        final companySnapshot = await _firebaseFirestore
+            .collection(usersCollection)
+            .doc('companies')
+            .collection('companies')
+            .get();
+
+        for (var doc in companySnapshot.docs) {
+          final token = doc.data()['fcmToken'] as String?;
+          if (token != null && token.isNotEmpty) {
+            tokens.add(token);
+          }
+        }
+      }
+      else if (role == 'admin') {
+        final adminSnapshot = await _firebaseFirestore
+            .collection('admins')
+            .get();
+
+        for (var doc in adminSnapshot.docs) {
+          final token = doc.data()['fcmToken'] as String?;
+          if (token != null && token.isNotEmpty) {
+            tokens.add(token);
+          }
+        }
+      }
+
+      debugPrint('✅ Retrieved ${tokens.length} FCM tokens for role: $role');
+      return tokens;
+    } catch (e, s) {
+      debugPrint('❌ Error fetching FCM tokens for role $role: $e');
+      return tokens;
+    }
+  }
+
+  // Optional: Stream version for real-time token updates
+  Stream<List<String>> getAllFCMTokensStream() {
+    return _firebaseFirestore
+        .collectionGroup(usersCollection) // This might need adjustment based on your structure
+        .snapshots()
+        .asyncMap((querySnapshot) async {
+      List<String> tokens = [];
+
+      // This is a simplified version - you might need to adjust
+      // based on your exact Firestore structure
+      for (var doc in querySnapshot.docs) {
+        final data = doc.data();
+        final token = data['fcmToken'] as String?;
+        if (token != null && token.isNotEmpty) {
+          tokens.add(token);
+        }
+      }
+
+      return tokens.toSet().toList(); // Remove duplicates
+    });
+  }
+
+  // Optional: Update a user's FCM token (call this when user logs in)
+  Future<void> updateUserFCMToken(String token) async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) return;
+
+    final uid = currentUser.uid;
+
+    try {
+      // Try to update in student collection
+      await _firebaseFirestore
+          .collection(usersCollection)
+          .doc('students')
+          .collection('students')
+          .doc(uid)
+          .set({'fcmToken': token}, SetOptions(merge: true));
+
+      // Try to update in company collection
+      await _firebaseFirestore
+          .collection(usersCollection)
+          .doc('companies')
+          .collection('companies')
+          .doc(uid)
+          .set({'fcmToken': token}, SetOptions(merge: true));
+
+      debugPrint('✅ FCM token updated for user: $uid');
+    } catch (e) {
+      debugPrint('❌ Error updating FCM token: $e');
+    }
+  }
+
 }

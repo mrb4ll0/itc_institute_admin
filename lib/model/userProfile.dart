@@ -11,6 +11,7 @@ abstract class UserProfile {
   String get imageUrl;
   String get uid;
   String get phoneNumber;
+  String get fcmToken;
 }
 
 class UserConverter implements UserProfile {
@@ -48,6 +49,16 @@ class UserConverter implements UserProfile {
       return (_user as Company).name;
     } else if (_user is Admin) {
       return (_user as Admin).fullName;
+    }
+    return '';
+  }@override
+  String get fcmToken {
+    if (_user is Student) {
+      return (_user as Student).fcmToken??"";
+    } else if (_user is Company) {
+      return (_user as Company).fcmToken;
+    } else if (_user is Admin) {
+      return (_user as Admin).fcmToken;
     }
     return '';
   }
