@@ -674,149 +674,177 @@ class _RecentActionsFullPageState extends State<RecentActionsFullPage> {
       builder: (context) {
         return Dialog(
           backgroundColor: isDark ? const Color(0xFF1e293b) : Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(20),
+              topRight: Radius.circular(20),
+            ),
           ),
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Header
-                  Row(
-                    children: [
-                      Container(
-                        width: 50,
-                        height: 50,
-                        decoration: BoxDecoration(
-                          color: _getActionColor(action.actionType).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Icon(
-                          _getActionIcon(action.actionType),
-                          color: _getActionColor(action.actionType),
-                          size: 24,
-                        ),
+          insetPadding: EdgeInsets.zero,
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height * 0.9,
+            width: MediaQuery.of(context).size.width,
+            child: Column(
+              children: [
+                // Header with close button
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
                       ),
-                      const SizedBox(width: 16),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        child: Row(
                           children: [
-                            Text(
-                              _capitalize(action.actionType),
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w700,
-                                color: isDark ? Colors.white : Colors.black,
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: _getActionColor(action.actionType).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Icon(
+                                _getActionIcon(action.actionType),
+                                color: _getActionColor(action.actionType),
+                                size: 20,
                               ),
                             ),
-                            Text(
-                              '${_capitalize(action.entityType)} • ${action.timeAgo}',
-                              style: TextStyle(
-                                color: isDark ? Colors.grey[400] : Colors.grey[600],
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _capitalize(action.actionType),
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w700,
+                                      color: isDark ? Colors.white : Colors.black,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${_capitalize(action.entityType)} • ${action.timeAgo}',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: isDark ? Colors.grey[400] : Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
                         ),
                       ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Description
-                  Text(
-                    'Description',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: isDark ? Colors.grey[400] : Colors.grey[700],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    action.description,
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: isDark ? Colors.white : Colors.black,
-                      height: 1.5,
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Details Grid
-                  GridView.count(
-                    shrinkWrap: true,
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                    childAspectRatio: 3,
-                    children: [
-                      _buildDetailItem(
-                        'Entity Type',
-                        _capitalize(action.entityType),
-                        isDark,
-                      ),
-                      _buildDetailItem(
-                        'Entity Name',
-                        action.entityName,
-                        isDark,
-                      ),
-                      _buildDetailItem(
-                        'Entity ID',
-                        action.entityId,
-                        isDark,
-                        isId: true,
-                      ),
-                      _buildDetailItem(
-                        'User',
-                        action.userName,
-                        isDark,
-                      ),
-                      _buildDetailItem(
-                        'User Role',
-                        action.userRole,
-                        isDark,
-                      ),
-                      _buildDetailItem(
-                        'Date & Time',
-                        DateFormat('MMM dd, yyyy • hh:mm a').format(action.timestamp),
-                        isDark,
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Close button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: isDark ? Colors.blueAccent : Colors.blue,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: Icon(
+                          Icons.close,
+                          color: isDark ? Colors.grey[400] : Colors.grey[600],
                         ),
                       ),
-                      child: const Text('Close'),
+                    ],
+                  ),
+                ),
+
+                // Scrollable content
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Description
+                        Text(
+                          'Description',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.grey[400] : Colors.grey[700],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: isDark ? Colors.grey[900] : Colors.grey[50],
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            action.description,
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: isDark ? Colors.white : Colors.black,
+                              height: 1.5,
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        // Details Grid - 3 columns for larger screens
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            int crossAxisCount = constraints.maxWidth > 600 ? 3 : 2;
+                            return GridView.count(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              crossAxisCount: crossAxisCount,
+                              crossAxisSpacing: 16,
+                              mainAxisSpacing: 16,
+                              childAspectRatio: 3,
+                              children: [
+                                _buildDetailItem(
+                                  'Entity Type',
+                                  _capitalize(action.entityType),
+                                  isDark,
+                                ),
+                                _buildDetailItem(
+                                  'Entity Name',
+                                  action.entityName,
+                                  isDark,
+                                ),
+                                _buildDetailItem(
+                                  'Entity ID',
+                                  action.entityId,
+                                  isDark,
+                                  isId: true,
+                                ),
+                                _buildDetailItem(
+                                  'User',
+                                  action.userName,
+                                  isDark,
+                                ),
+                                _buildDetailItem(
+                                  'User Role',
+                                  action.userRole,
+                                  isDark,
+                                ),
+                                _buildDetailItem(
+                                  'Date & Time',
+                                  DateFormat('MMM dd, yyyy • hh:mm a').format(action.timestamp),
+                                  isDark,
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         );
       },
     );
   }
-
   Widget _buildDetailItem(String label, String value, bool isDark, {bool isId = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -829,16 +857,18 @@ class _RecentActionsFullPageState extends State<RecentActionsFullPage> {
           ),
         ),
         const SizedBox(height: 4),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: isDark ? Colors.white : Colors.black,
-            fontFamily: isId ? 'monospace' : null,
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.white : Colors.black,
+              fontFamily: isId ? 'monospace' : null,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
         ),
       ],
     );
