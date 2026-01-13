@@ -240,9 +240,55 @@ class Company {
       isMutedOn: map['isMutedOn'] != null
           ? DateTime.tryParse(map['isMutedOn'].toString())
           : null,
-      forms: (map['forms'] as List<dynamic>?)
-          ?.map((e) => CompanyForm.fromMap(Map<String, dynamic>.from(e)))
-          .toList(),
+      forms: () {
+        final formsData = map['forms'];
+        final formUrlsData = map['formUrl']; // Also check formUrl field
+
+        // First, try to parse as proper CompanyForm objects from 'forms' field
+        if (formsData is List) {
+          final List<CompanyForm> forms = [];
+          for (final item in formsData) {
+            try {
+              if (item is Map<String, dynamic>) {
+                forms.add(CompanyForm.fromMap(item));
+              } else if (item is Map) {
+                forms.add(CompanyForm.fromMap(item.cast<String, dynamic>()));
+              } else if (item is String) {
+                // If it's a string URL, create a CompanyForm from it
+                forms.add(CompanyForm(
+                  formId: "",
+                  companyId: "",
+                  departmentName: "",
+                  uploadedAt: DateTime.now(),
+                  downloadUrl: item,
+                  fileName: item.split('/').last.split('?').first,
+                  // Add other default fields as needed
+                ));
+              }
+            } catch (e) {
+              print('Warning: Could not parse form data: $item');
+            }
+          }
+          if (forms.isNotEmpty) return forms;
+        }
+
+        // Second, try to parse from 'formUrl' field (array of strings)
+        if (formUrlsData is List) {
+          return formUrlsData.whereType<String>().map((url) {
+            return CompanyForm(
+              formId: "",
+              departmentName: "",
+              companyId: "",
+              downloadUrl: url,
+              fileName: url.split('/').last.split('?').first,
+              uploadedAt: DateTime.now(), // Or use a default/createdAt date
+              // Add other default fields
+            );
+          }).toList();
+        }
+
+        return null;
+      }(),
       updatedAt: map['updatedAt'] != null
           ? DateTime.tryParse(map['updatedAt'].toString())
           : null,

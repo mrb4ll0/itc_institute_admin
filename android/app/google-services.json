@@ -1,50 +1,35 @@
 {
   "project_info": {
-    "project_number": "469455600641",
-    "firebase_url": "https://it-connect-77048-default-rtdb.firebaseio.com",
-    "project_id": "it-connect-77048",
-    "storage_bucket": "it-connect-77048.firebasestorage.app"
+    "project_number": "635582656637",
+    "firebase_url": "https://itconnectweb-eea87-default-rtdb.firebaseio.com",
+    "project_id": "itconnectweb-eea87",
+    "storage_bucket": "itconnectweb-eea87.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:469455600641:android:28f5742bf5aacee9b79400",
+        "mobilesdk_app_id": "1:635582656637:android:abc9a8190840da1c828114",
         "android_client_info": {
           "package_name": "com.itc_institute_admin.itc_institute_admin"
         }
       },
       "oauth_client": [
         {
-          "client_id": "469455600641-rgi0mmi0toc5m3hspqjke61kcmpgbj3b.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.itc_institute_admin.itc_institute_admin",
-            "certificate_hash": "7f2caeb50edf791d20a7d6f95b35d1e248d216fe"
-          }
-        },
-        {
-          "client_id": "469455600641-ai7b54frkn9nod3vu7ejddvhf0tpcb6m.apps.googleusercontent.com",
+          "client_id": "635582656637-hnjvi4qr683gusmv09jo2k8gfvv383ss.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyDpLlO8V0awJZgZHmg4Mu8-ltpO_S0LbhQ"
+          "current_key": "AIzaSyBRSBbt99T4kfL_JXqoar6SYJj3KcofmwE"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "469455600641-a27ms5263plet1mkq05emkb8v2r2uldo.apps.googleusercontent.com",
+              "client_id": "635582656637-hnjvi4qr683gusmv09jo2k8gfvv383ss.apps.googleusercontent.com",
               "client_type": 3
-            },
-            {
-              "client_id": "469455600641-9g94jdoraqhfhd60ar60ku742l9ekr9q.apps.googleusercontent.com",
-              "client_type": 2,
-              "ios_info": {
-                "bundle_id": "com.itconnect.admin.itcAdmin"
-              }
             }
           ]
         }
@@ -52,147 +37,28 @@
     },
     {
       "client_info": {
-        "mobilesdk_app_id": "1:469455600641:android:2f9bfe6480e99883b79400",
-        "android_client_info": {
-          "package_name": "com.itconnect.admin.itc_admin"
-        }
-      },
-      "oauth_client": [
-        {
-          "client_id": "469455600641-5gd4ebk2264i77dgiigv0vqtc17886ts.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.itconnect.admin.itc_admin",
-            "certificate_hash": "7f2caeb50edf791d20a7d6f95b35d1e248d216fe"
-          }
-        },
-        {
-          "client_id": "469455600641-ai7b54frkn9nod3vu7ejddvhf0tpcb6m.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
-      "api_key": [
-        {
-          "current_key": "AIzaSyDpLlO8V0awJZgZHmg4Mu8-ltpO_S0LbhQ"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "469455600641-a27ms5263plet1mkq05emkb8v2r2uldo.apps.googleusercontent.com",
-              "client_type": 3
-            },
-            {
-              "client_id": "469455600641-9g94jdoraqhfhd60ar60ku742l9ekr9q.apps.googleusercontent.com",
-              "client_type": 2,
-              "ios_info": {
-                "bundle_id": "com.itconnect.admin.itcAdmin"
-              }
-            }
-          ]
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:469455600641:android:31fa13614a018d56b79400",
+        "mobilesdk_app_id": "1:635582656637:android:5615baa3e71fee73828114",
         "android_client_info": {
           "package_name": "com.mrb4ll0.it_connect"
         }
       },
       "oauth_client": [
         {
-          "client_id": "469455600641-0hvdb7j1jfo2276nqt459vl513l9qei6.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.mrb4ll0.it_connect",
-            "certificate_hash": "9bbb3186b2189ef16d8f272bdab59362c395cbb4"
-          }
-        },
-        {
-          "client_id": "469455600641-0tvqagp6n63j3etup4jdk2k1jc9eamof.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.mrb4ll0.it_connect",
-            "certificate_hash": "7f2caeb50edf791d20a7d6f95b35d1e248d216fe"
-          }
-        },
-        {
-          "client_id": "469455600641-gl373p5r50h6dnfj17ao6dge6qqa0dd5.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.mrb4ll0.it_connect",
-            "certificate_hash": "bf501acd7b4cc748958f5c62eabd1c73651704f0"
-          }
-        },
-        {
-          "client_id": "469455600641-ai7b54frkn9nod3vu7ejddvhf0tpcb6m.apps.googleusercontent.com",
+          "client_id": "635582656637-hnjvi4qr683gusmv09jo2k8gfvv383ss.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyDpLlO8V0awJZgZHmg4Mu8-ltpO_S0LbhQ"
+          "current_key": "AIzaSyBRSBbt99T4kfL_JXqoar6SYJj3KcofmwE"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "469455600641-a27ms5263plet1mkq05emkb8v2r2uldo.apps.googleusercontent.com",
+              "client_id": "635582656637-hnjvi4qr683gusmv09jo2k8gfvv383ss.apps.googleusercontent.com",
               "client_type": 3
-            },
-            {
-              "client_id": "469455600641-9g94jdoraqhfhd60ar60ku742l9ekr9q.apps.googleusercontent.com",
-              "client_type": 2,
-              "ios_info": {
-                "bundle_id": "com.itconnect.admin.itcAdmin"
-              }
-            }
-          ]
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:469455600641:android:813d6e81a658fee1b79400",
-        "android_client_info": {
-          "package_name": "com.mycompany.itconnect"
-        }
-      },
-      "oauth_client": [
-        {
-          "client_id": "469455600641-etp18cnonqcrtjb2lefui0bj13kagggc.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.mycompany.itconnect",
-            "certificate_hash": "9bbb3186b2189ef16d8f272bdab59362c395cbb4"
-          }
-        },
-        {
-          "client_id": "469455600641-ai7b54frkn9nod3vu7ejddvhf0tpcb6m.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
-      "api_key": [
-        {
-          "current_key": "AIzaSyDpLlO8V0awJZgZHmg4Mu8-ltpO_S0LbhQ"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "469455600641-a27ms5263plet1mkq05emkb8v2r2uldo.apps.googleusercontent.com",
-              "client_type": 3
-            },
-            {
-              "client_id": "469455600641-9g94jdoraqhfhd60ar60ku742l9ekr9q.apps.googleusercontent.com",
-              "client_type": 2,
-              "ios_info": {
-                "bundle_id": "com.itconnect.admin.itcAdmin"
-              }
             }
           ]
         }
