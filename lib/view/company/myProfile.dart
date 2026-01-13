@@ -1,16 +1,19 @@
 import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:itc_institute_admin/model/company.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/general_cloud.dart';
 import 'package:intl/intl.dart';
+import 'package:itc_institute_admin/notification/view/companyFormUploadPage.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:itc_institute_admin/view/company/companyEdit.dart';
 
 import '../../auth/login_view.dart';
 import '../../generalmethods/GeneralMethods.dart';
 import '../../itc_logic/help_support/help.dart';
+import '../../notification/view/companyFormsList.dart';
 import '../home/aboutITConnect.dart'; // Add this import
 
 class CompanyMyProfilePage extends StatefulWidget {
@@ -76,8 +79,9 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage> with Single
 
   // Share profile functionality (for recruitment)
   void _shareProfile() {
-    final shareText = 'Check out ${widget.company.name} - ${widget.company.industry} company. ${widget.company.description.isNotEmpty ? widget.company.description.substring(0, 100) + '...' : ''}';
-
+    final shareText = 'Check out ${widget.company.name} - ${widget.company.industry} company. ${widget.company.description.isNotEmpty ? widget.company.description.substring(0, 10) + '...' : ''}';
+    Fluttertoast.showToast(msg: "Feature not available yet ");
+    return;
     showModalBottomSheet(
       context: context,
       builder: (context) => SafeArea(
@@ -440,7 +444,7 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage> with Single
   // Dashboard Tab - Shows overview with stats
   Widget _buildDashboardTab(ThemeData theme) {
     final traineesCount = widget.company.potentialtrainee.length;
-    final formCount = widget.company.formUrl?.length ?? 0;
+    final formCount = widget.company.forms?.length ?? 0;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -592,6 +596,7 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage> with Single
                 color: Colors.green,
                 onTap: () {
                   // Navigate to forms upload
+                  GeneralMethods.navigateTo(context, CompanyFormUploadPage(companyId: widget.company.id, companyName: widget.company.name,));
                 },
                 theme: theme,
               ),
@@ -889,6 +894,23 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage> with Single
             child: Column(
               children: [
                 ListTile(
+                  leading: const Icon(Icons.format_color_text_outlined),
+                  title: const Text('IT Forms'),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: () {
+                    // Navigate to help
+                    GeneralMethods.navigateTo(context, CompanyFormsListPage(company: widget.company,));
+                  },
+                ),
+              ],
+            ),
+          ),
+const SizedBox(height: 20),
+
+          Card(
+            child: Column(
+              children: [
+                ListTile(
                   leading: const Icon(Icons.help),
                   title: const Text('Help & Support'),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
@@ -1134,7 +1156,7 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage> with Single
           const SizedBox(height: 24),
 
           // Documents Section
-          if (widget.company.formUrl != null && widget.company.formUrl!.isNotEmpty)
+          if (widget.company.forms != null && widget.company.forms!.isNotEmpty)
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1318,7 +1340,7 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage> with Single
   }
 
   Widget _buildDocumentsList(ThemeData theme) {
-    final documents = widget.company.formUrl!;
+    final documents = widget.company.forms!;
 
     return Card(
       child: Padding(
@@ -1336,7 +1358,7 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage> with Single
             ...documents.asMap().entries.map((entry) {
               final index = entry.key;
               final url = entry.value;
-              final fileName = url.split('/').last;
+              final fileName = url.downloadUrl?.split('/').last;
 
               return ListTile(
                 leading: Container(
@@ -1348,11 +1370,11 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage> with Single
                   child: const Icon(Icons.insert_drive_file, size: 20),
                 ),
                 title: Text(
-                  'Document ${index + 1}: ${_truncateText(fileName, 30)}',
+                  'Document ${index + 1}: ${_truncateText(fileName??"not specified", 30)}',
                   style: theme.textTheme.bodyMedium,
                 ),
                 subtitle: Text(
-                  _truncateText(url, 40),
+                  _truncateText(url.fileName??url.downloadUrl??"", 40),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),

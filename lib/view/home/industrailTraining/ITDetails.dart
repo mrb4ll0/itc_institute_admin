@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/company_cloud.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/general_cloud.dart';
+import 'package:itc_institute_admin/model/companyForm.dart';
 import 'package:itc_institute_admin/model/internship_model.dart';
 import 'package:itc_institute_admin/view/home/industrailTraining/EditIndustrialTraining.dart';
 import 'package:itc_institute_admin/view/home/industrailTraining/fileDetails.dart';
@@ -438,7 +439,7 @@ class _InternshipDetailsPageState extends State<InternshipDetailsPage> {
         }
 
         final company = snapshot.data;
-        final universalForms = company?.formUrl ?? [];
+        final universalForms = company?.forms ?? [];
         final specificForms = _internship.files ?? _internship.attachmentUrls;
 
         // If no forms at all, return empty
@@ -502,7 +503,7 @@ class _InternshipDetailsPageState extends State<InternshipDetailsPage> {
 
   Widget _buildAttachmentCardContent(
     BuildContext context, {
-    required List<String> universalForms,
+    required List<CompanyForm> universalForms,
     required List<dynamic> specificForms,
     required String companyName,
   }) {
@@ -528,7 +529,7 @@ class _InternshipDetailsPageState extends State<InternshipDetailsPage> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                if (universalForms.isNotEmpty || specificForms.isNotEmpty)
+                if ( specificForms.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(left: 8),
                     child: Container(
@@ -543,7 +544,7 @@ class _InternshipDetailsPageState extends State<InternshipDetailsPage> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        '${universalForms.length + specificForms.length}',
+                        '${ specificForms.length}',
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
                           color: Theme.of(context).colorScheme.primary,
                           fontWeight: FontWeight.w600,
@@ -554,20 +555,6 @@ class _InternshipDetailsPageState extends State<InternshipDetailsPage> {
               ],
             ),
             const SizedBox(height: 16),
-
-            // Universal Forms Section (from company)
-            if (universalForms.isNotEmpty) ...[
-              _buildFormsSection(
-                context,
-                title: 'Universal Company Forms',
-                subtitle: 'Standard forms for all IT at $companyName',
-                forms: universalForms,
-                icon: Icons.business,
-                isUniversal: true,
-              ),
-              if (specificForms.isNotEmpty) const SizedBox(height: 20),
-            ],
-
             // Internship-Specific Forms Section
             if (specificForms.isNotEmpty)
               _buildFormsSection(
@@ -678,11 +665,30 @@ class _InternshipDetailsPageState extends State<InternshipDetailsPage> {
         const SizedBox(height: 12),
 
         // Forms List
+
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: forms.map((url) {
-            return _buildFormItem(context, url, isUniversal: isUniversal);
+          children: forms.map((item) {
+            debugPrint("form is $item");
+            if (item is CompanyForm) {
+              return _buildFormItem(
+                context,
+                (item).downloadUrl??"",
+                isUniversal: isUniversal,
+              );
+            }
+
+            if (item is String) {
+              return _buildFormItem(
+                context,
+                item, 
+                isUniversal: isUniversal,
+              );
+            }
+
+
+            return const SizedBox.shrink();
           }).toList(),
         ),
       ],

@@ -5,7 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
-import 'package:open_filex/open_filex.dart';
+import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -871,7 +871,7 @@ class _FullScreenViewerState extends State<FullScreenViewer> {
 
   Future<void> _openFile(String path) async {
     try {
-      await OpenFilex.open(path);
+      await OpenFile.open(path);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -927,6 +927,27 @@ class _FullScreenViewerState extends State<FullScreenViewer> {
 
   @override
   Widget build(BuildContext context) {
+
+    // Check if _downloadUrls is still empty (initializing)
+    if (_isLoading && _downloadUrls.isEmpty) {
+      return Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 20),
+              Text(
+                'Loading file...',
+                style: TextStyle(color: Colors.white),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(

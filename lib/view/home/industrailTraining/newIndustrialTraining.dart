@@ -6,13 +6,17 @@ import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/company_cloud.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/general_cloud.dart';
 import 'package:itc_institute_admin/model/internship_model.dart';
+import 'package:itc_institute_admin/view/home/industrailTraining/fileDetails.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../../firebase_cloud_storage/firebase_cloud.dart';
 import '../../../model/company.dart';
+import '../../../model/companyForm.dart';
+
 
 class CreateIndustrialTrainingPage extends StatefulWidget {
   const CreateIndustrialTrainingPage({super.key});
@@ -33,7 +37,7 @@ class _CreateIndustrialTrainingPageState
   final TextEditingController _intakeController = TextEditingController();
   final TextEditingController _stipendController = TextEditingController();
   final TextEditingController _contactPersonController =
-      TextEditingController();
+  TextEditingController();
 
   final Company_Cloud company_cloud = Company_Cloud();
   final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic();
@@ -44,20 +48,28 @@ class _CreateIndustrialTrainingPageState
   String? _status;
   String? _formUsage;
   List<PlatformFile> _selectedFiles = [];
+  List<String> _existingFormFiles = [];
   bool _isLoading = false;
+  bool _loadingExistingForms = false;
   String? _companyLogoUrl;
   String? _companyName;
   String? _companyId;
+  List<CompanyForm> _existingForms = [];
+  List<CompanyForm>? _selectedForm;
+  bool _showExistingForms = false;
 
   final List<String> _statusOptions = ['Open', 'Closed'];
   final List<String> _aptitudeTestOptions = ['Yes', 'No'];
-  final List<String> _formUsageOptions = ['universal', 'single'];
+  final List<String> _formUsageOptions = [
+    'Use existing categorized form',
+    'Upload new form',
+  ];
 
   @override
   void initState() {
     super.initState();
     _loadCompanyData();
-    _formUsage = _formUsageOptions[0]; // Default to universal
+    _formUsage = _formUsageOptions[1]; // Default to Universal template
     _status = _statusOptions[0]; // Default to Open
   }
 
@@ -66,7 +78,7 @@ class _CreateIndustrialTrainingPageState
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      final companyDoc = await FirebaseFirestore.instance
+      final companyDoc = await FirebaseFirestore.instance.collection("users").doc("companies")
           .collection('companies')
           .doc(user.uid)
           .get();
@@ -78,9 +90,34 @@ class _CreateIndustrialTrainingPageState
           _companyName = data['companyName'] ?? 'Company';
           _companyLogoUrl = data['logoUrl'] ?? data['profileImage'] ?? '';
         });
+
+        // Load existing forms after company data is loaded
+        _loadExistingForms();
       }
     } catch (e) {
       print('Error loading company data: $e');
+    }
+  }
+
+  Future<void> _loadExistingForms() async {
+    if (_companyId == null) return;
+
+    setState(() {
+      _loadingExistingForms = true;
+    });
+
+    try {
+      final forms = await company_cloud.getCompanyForms(_companyId!);
+      debugPrint("existing form ${forms.length}");
+      setState(() {
+        _existingForms = forms;
+        _loadingExistingForms = false;
+      });
+    } catch (e) {
+      print('Error loading existing forms: $e');
+      setState(() {
+        _loadingExistingForms = false;
+      });
     }
   }
 
@@ -105,33 +142,44 @@ class _CreateIndustrialTrainingPageState
   Future<List<String>> _uploadFiles() async {
     List<String> downloadUrls = [];
 
-    if (_selectedFiles.isEmpty) {
+    if (_selectedFiles.isEmpty && _existingFormFiles.isEmpty) {
       return downloadUrls;
     }
 
     try {
-      // Convert PlatformFiles to Files
-      List<File> filesToUpload = await _convertPlatformFilesToFiles(
-        _selectedFiles,
-      );
+      // Upload new files if any
+      if (_selectedFiles.isNotEmpty) {
+        List<File> filesToUpload = await _convertPlatformFilesToFiles(
+          _selectedFiles,
+        );
 
-      if (filesToUpload.isEmpty) {
-        throw Exception('No valid files to upload');
+        if (filesToUpload.isNotEmpty) {
+          List<String> newUrls = await firebaseUploader.uploadMultipleFiles(
+            filesToUpload,
+            _companyId ?? FirebaseAuth.instance.currentUser!.uid,
+            'training_opportunities',
+          );
+          downloadUrls.addAll(newUrls);
+        }
       }
 
-      // Call uploadMultipleFiles with converted Files
-      downloadUrls = await firebaseUploader.uploadMultipleFiles(
-        filesToUpload,
-        _companyId ?? FirebaseAuth.instance.currentUser!.uid,
-        'training_opportunities',
-      );
+      // Add existing form files if selected
+      if (_selectedForm != null ) {
+        for(CompanyForm form in _selectedForm!)
+          {
+            downloadUrls.add(form.downloadUrl!);
+          }
+
+      } else if (_existingFormFiles.isNotEmpty) {
+        downloadUrls.addAll(_existingFormFiles);
+      }
 
       // Clear files after successful upload
       setState(() {
         _selectedFiles.clear();
       });
 
-      print('Successfully uploaded ${downloadUrls.length} files');
+      print('Successfully prepared ${downloadUrls.length} files');
     } catch (e) {
       print('Error in _uploadFiles: $e');
       _showError('Failed to upload files: $e');
@@ -141,8 +189,8 @@ class _CreateIndustrialTrainingPageState
   }
 
   Future<List<File>> _convertPlatformFilesToFiles(
-    List<PlatformFile> platformFiles,
-  ) async {
+      List<PlatformFile> platformFiles,
+      ) async {
     List<File> files = [];
 
     for (final platformFile in platformFiles) {
@@ -200,32 +248,73 @@ class _CreateIndustrialTrainingPageState
     });
 
     try {
-      // Upload files if any
+      // Prepare files based on form usage selection
       List<String> attachmentUrls = [];
-      if (_selectedFiles.isNotEmpty) {
+
+      if (_formUsage == _formUsageOptions[0]) {
+        // Use existing categorized form
+        if (_selectedForm == null && _existingFormFiles.isEmpty) {
+          _showError('Please select an existing form or upload files');
+          setState(() { _isLoading = false; });
+          return;
+        }
+        debugPrint("_selectedForm size is ${_selectedForm?.length}");
+        for(CompanyForm  form in _selectedForm!)
+
+          {
+            if(form.downloadUrl == null)continue;
+            attachmentUrls.add(form.downloadUrl!);
+          }
+
+
+      } else if (_formUsage == _formUsageOptions[1]) {
+        // Upload new form
+        if (_selectedFiles.isEmpty) {
+          _showError('Please upload at least one file for the new form');
+          setState(() { _isLoading = false; });
+          return;
+        }
         attachmentUrls = await _uploadFiles();
+
+        // Save the new form as a categorized form for future use
+        if (attachmentUrls.isNotEmpty) {
+          final newForm = CompanyForm(
+            formId: 'form_${DateTime.now().millisecondsSinceEpoch}',
+            companyId: _companyId!,
+            fileName: '${_departmentController.text.trim()} - ${DateTime.now().toLocal()}',
+            departmentName: _departmentController.text.trim(),
+            downloadUrl: attachmentUrls.first, // Use first file as main form
+            uploadedAt: DateTime.now(),
+          );
+
+          await company_cloud.addCompanyForm(_companyId!, newForm);
+        }
+      } else {
+        // Universal template - upload files if any
+        if (_selectedFiles.isNotEmpty) {
+          attachmentUrls = await _uploadFiles();
+        }
       }
+
       Company? company = await _itcFirebaseLogic.getCompany(
         FirebaseAuth.instance.currentUser!.uid,
       );
 
       if (company == null) {
         Fluttertoast.showToast(
-          msg: "Company account not found, kidly re-login",
+          msg: "Company account not found, kindly re-login",
         );
-      }
-      debugPrint("form usage: $_formUsage");
-      if (_formUsage == 'universal') {
-        await company_cloud.updateCompanyForm(
-          FirebaseAuth.instance.currentUser!.uid,
-          attachmentUrls,
-        );
+        setState(() { _isLoading = false; });
+        return;
       }
 
+      debugPrint("form usage: $_formUsage");
+
+
       IndustrialTraining it = IndustrialTraining(
-        company: company!,
+        company: company,
         title: _titleController.text.trim(),
-        industry: company?.industry ?? "",
+        industry: company.industry ?? "",
         duration: null,
         startDate: null,
         endDate: null,
@@ -236,29 +325,17 @@ class _CreateIndustrialTrainingPageState
         intake: int.tryParse(_intakeController.text.trim()) ?? 0,
         status: _status!.toLowerCase(),
         stipendAvailable:
-            _stipendController.text.trim() != null &&
+        _stipendController.text.trim() != null &&
             _stipendController.text.trim().isNotEmpty,
         stipend: _stipendController.text.trim(),
         eligibilityCriteria: _skillsController.text.trim(),
-        files: _formUsage != 'universal' ? attachmentUrls : [],
+        files: attachmentUrls,
         aptitudeTestRequired: _aptitudeTest == 'Yes',
-        isTemplate: _formUsage == 'universal',
-        isUniversalForm: _formUsage == 'universal',
         contactPerson: _contactPersonController.text.trim(),
       );
-
-      // If it's a universal template, also save to templates collection
-      if (_formUsage == 'universal') {
-        await FirebaseFirestore.instance
-            .collection('training_templates')
-            .doc(_companyId)
-            .set({
-              'template': it.toMap(),
-              'createdAt': FieldValue.serverTimestamp(),
-              'updatedAt': FieldValue.serverTimestamp(),
-            }, SetOptions(merge: true));
-      }
+         debugPrint("internship details ${it.files?.length}");
       await company_cloud.postInternship(it);
+
       // Show success message
       _showSuccess('Training opportunity posted successfully!');
 
@@ -287,9 +364,12 @@ class _CreateIndustrialTrainingPageState
     _contactPersonController.clear();
     setState(() {
       _selectedFiles.clear();
+      _existingFormFiles.clear();
+      _selectedForm = null;
       _aptitudeTest = null;
       _status = _statusOptions[0];
       _formUsage = _formUsageOptions[0];
+      _showExistingForms = false;
     });
   }
 
@@ -311,66 +391,515 @@ class _CreateIndustrialTrainingPageState
     });
   }
 
-  Widget _buildFilePreview() {
-    if (_selectedFiles.isEmpty) return const SizedBox();
+  void _removeExistingFile(int index) {
+    setState(() {
+      _existingFormFiles.removeAt(index);
+    });
+  }
+
+  void _selectForm(List<CompanyForm> form) {
+    setState(() {
+      _selectedForm = form;
+      _existingFormFiles.clear();
+
+        for(CompanyForm form in form)
+          {
+            _existingFormFiles.add(form.downloadUrl!);
+          }
+
+      _showExistingForms = false;
+    });
+  }
+
+  void _clearFormSelection() {
+    setState(() {
+      _selectedForm = null;
+      _existingFormFiles.clear();
+    });
+  }
+   String? _selectedDepartment;
+  Widget _buildExistingFormsSelector() {
+    if (_loadingExistingForms) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        child: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    if (_existingForms.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey[300]!),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Center(
+          child: Text(
+            'No existing forms available. Upload a new form first.',
+            style: TextStyle(color: Colors.grey[600]),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+
+    // Group forms by department
+    final Map<String, List<CompanyForm>> formsByDepartment = {};
+    for (final form in _existingForms) {
+      final department = form.departmentName ?? 'Uncategorized';
+      if (!formsByDepartment.containsKey(department)) {
+        formsByDepartment[department] = [];
+      }
+      formsByDepartment[department]!.add(form);
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 16),
         Text(
-          'Selected Files:',
-          style: Theme.of(
-            context,
-          ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
+          'Select a categorized form:',
+          style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16),
         ),
-        const SizedBox(height: 8),
-        ..._selectedFiles.asMap().entries.map((entry) {
-          final index = entry.key;
-          final file = entry.value;
-          return Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceVariant,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Theme.of(context).dividerColor),
+        const SizedBox(height: 12),
+
+        if (_selectedForm != null)
+          InkWell(
+            onTap: () {
+              if (_selectedForm == null ) return;
+              // Show dialog with all files in this department
+              _showDepartmentFilesDialog(
+                _selectedForm?.first.departmentName ?? 'Uncategorized',
+                formsByDepartment[_selectedForm?.first.departmentName ?? 'Uncategorized'] ?? [],
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.green[50],
+                border: Border.all(color: Colors.green),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _selectedForm?.first.departmentName ?? "Not specified",
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: Colors.green[800],
+                          ),
+                        ),
+                        if (_selectedForm != null)
+                          Text(
+                            'Department: ${_selectedForm?.first.departmentName}',
+                            style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                          ),
+                        Text(
+                          'Files in department: ${formsByDepartment[_selectedForm?.first.departmentName ?? 'Uncategorized']?.length ?? 1}',
+                          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.close, color: Colors.red),
+                    onPressed: _clearFormSelection,
+                  ),
+                ],
+              ),
             ),
-            child: Row(
-              children: [
-                Icon(
-                  _getFileIcon(file.extension),
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+          )
+        else
+          Container(
+            constraints: BoxConstraints(maxHeight: 300),
+            child: ListView.builder(
+              shrinkWrap: true,
+              physics: AlwaysScrollableScrollPhysics(),
+              itemCount: formsByDepartment.length,
+              itemBuilder: (context, index) {
+                final department = formsByDepartment.keys.toList()[index];
+                final departmentForms = formsByDepartment[department]!;
+
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: Row(
                     children: [
-                      Text(
-                        file.name,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                        overflow: TextOverflow.ellipsis,
+                      Radio<String>(
+                        value: department,
+                        groupValue: _selectedDepartment, // ← THIS IS REQUIRED!
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedDepartment = value; // Update the selected department
+                            _selectedForm = formsByDepartment[value];
+                          });
+                        },
                       ),
-                      Text(
-                        '${(file.size / 1024).toStringAsFixed(2)} KB',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      Expanded(
+                        child: ExpansionTile(
+                          leading: Icon(Icons.folder, color: Colors.blue),
+                          title: Text(
+                            department,
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          subtitle: Text(
+                            '${departmentForms.length} form${departmentForms.length > 1 ? 's' : ''} available',
+                            style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                          ),
+                          children: departmentForms.map((form) {
+                            return ListTile(
+                              leading: Icon(Icons.description, color: Colors.grey[700]),
+                              title: Text(form.fileName ?? "Unnamed Form"),
+                              subtitle: Text(
+                                'Uploaded: ${form.uploadedAt != null ? _formatDate(form.uploadedAt!) : 'Unknown date'}',
+                                style: TextStyle(color: Colors.grey[600], fontSize: 11),
+                              ),
+                              trailing: Icon(Icons.arrow_forward_ios, size: 16),
+                              onTap: () => _showDepartmentFilesDialog(department, departmentForms),
+                            );
+                          }).toList(),
                         ),
                       ),
                     ],
                   ),
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+
+  void _showDepartmentFilesDialog(String department, List<CompanyForm> departmentForms) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          insetPadding: const EdgeInsets.all(20),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: Container(
+            constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Dialog Header
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(12),
+                      topRight: Radius.circular(12),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.folder, color: Colors.blue),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              department,
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                                color: Colors.blue[900],
+                              ),
+                            ),
+                            Text(
+                              '${departmentForms.length} form${departmentForms.length > 1 ? 's' : ''}',
+                              style: TextStyle(color: Colors.blue[700]),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline),
-                  color: Theme.of(context).colorScheme.error,
-                  onPressed: () => _removeFile(index),
+
+                // Files List
+                Expanded(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.all(8),
+                    itemCount: departmentForms.length,
+                    itemBuilder: (context, index) {
+                      final form = departmentForms[index];
+                      final allFileUrls = [
+                        if (form.downloadUrl != null) form.downloadUrl!
+                      ];
+
+                      return Card(
+                        margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                        child: ListTile(
+                          leading: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: Colors.blue[100],
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              _getFileIconFromUrl(form.downloadUrl ?? ''),
+                              color: Colors.blue,
+                              size: 20,
+                            ),
+                          ),
+                          title: Text(
+                            form.fileName ?? 'Unnamed Form',
+                            style: TextStyle(fontWeight: FontWeight.w500),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${allFileUrls.length} file${allFileUrls.length > 1 ? 's' : ''}',
+                                style: TextStyle(fontSize: 12),
+                              ),
+                              if (form.uploadedAt != null)
+                                Text(
+                                  'Uploaded: ${_formatDate(form.uploadedAt!)}',
+                                  style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                                ),
+                            ],
+                          ),
+                          trailing: allFileUrls.length > 1
+                              ? PopupMenuButton(
+                            icon: Icon(Icons.more_vert),
+                            itemBuilder: (context) => [
+                              PopupMenuItem(
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.visibility, size: 20),
+                                    const SizedBox(width: 8),
+                                    Text('Preview Files'),
+                                  ],
+                                ),
+                                onTap: () => _previewForm(form, index, departmentForms),
+                              ),
+                              PopupMenuItem(
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.select_all, size: 20),
+                                    const SizedBox(width: 8),
+                                    Text('Select This Form'),
+                                  ],
+                                ),
+                                onTap: () {
+                                  Navigator.pop(context); // Close popup menu
+                                  Navigator.pop(context); // Close dialog
+                                  _selectForm(departmentForms);
+                                },
+                              ),
+                            ],
+                          )
+                              : IconButton(
+                            icon: Icon(Icons.visibility),
+                            onPressed: () => _previewForm(form, index, departmentForms),
+                          ),
+                          onTap: () => _previewForm(form, index, departmentForms),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+
+                // Select Button
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    border: Border(top: BorderSide(color: Colors.grey[300]!)),
+                  ),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      icon: Icon(Icons.check),
+                      label: Text('SELECT FORM'),
+                      onPressed: () {
+                        if (_selectedForm == null && departmentForms.isNotEmpty) {
+                          _selectForm(departmentForms);
+                        }
+                        Navigator.pop(context);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        backgroundColor: Colors.blue[700],
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
-          );
-        }).toList(),
-      ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _previewForm(CompanyForm form, int index, List<CompanyForm> departmentForms) async {
+    Navigator.pop(context); // Close dialog first
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => FullScreenViewer(
+          firebasePath: form.downloadUrl,
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  IconData _getFileIconFromUrl(String url) {
+    if (url.toLowerCase().contains('.pdf')) return Icons.picture_as_pdf;
+    if (url.toLowerCase().contains('.doc')) return Icons.description;
+    if (url.toLowerCase().contains('.jpg') ||
+        url.toLowerCase().contains('.jpeg') ||
+        url.toLowerCase().contains('.png')) return Icons.image;
+    return Icons.insert_drive_file;
+  }
+
+
+  Widget _buildFilePreview() {
+    List<Widget> fileWidgets = [];
+
+    // Show selected existing form files
+    if (_existingFormFiles.isNotEmpty) {
+      fileWidgets.add(
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Selected Form Files:',
+              style: TextStyle(fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 8),
+            ..._existingFormFiles.asMap().entries.map((entry) {
+              final index = entry.key;
+              final url = entry.value;
+              final fileName = url.split('/').last;
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue[200]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.description, color: Colors.blue),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            fileName,
+                            style: TextStyle(fontWeight: FontWeight.w500),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            'From existing form',
+                            style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.delete_outline, color: Colors.red),
+                      onPressed: () => _removeExistingFile(index),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ],
+        ),
+      );
+    }
+
+    // Show newly uploaded files
+    if (_selectedFiles.isNotEmpty) {
+      fileWidgets.add(
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (_existingFormFiles.isNotEmpty) const SizedBox(height: 16),
+            Text(
+              'Newly Uploaded Files:',
+              style: TextStyle(fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 8),
+            ..._selectedFiles.asMap().entries.map((entry) {
+              final index = entry.key;
+              final file = entry.value;
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey[300]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      _getFileIcon(file.extension),
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            file.name,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            '${(file.size / 1024).toStringAsFixed(2)} KB',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline),
+                      color: Theme.of(context).colorScheme.error,
+                      onPressed: () => _removeFile(index),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: fileWidgets,
     );
   }
 
@@ -483,7 +1012,7 @@ class _CreateIndustrialTrainingPageState
                                   label: 'Training Title',
                                   controller: _titleController,
                                   hintText:
-                                      'e.g., Software Development Trainee',
+                                  'e.g., Software Development Trainee',
                                   isRequired: true,
                                   icon: Icons.title,
                                 ),
@@ -514,7 +1043,7 @@ class _CreateIndustrialTrainingPageState
                                   label: 'Description',
                                   controller: _descriptionController,
                                   hintText:
-                                      'Provide a detailed description of the training...',
+                                  'Provide a detailed description of the training...',
                                   isRequired: true,
                                   maxLines: 5,
                                 ),
@@ -525,7 +1054,7 @@ class _CreateIndustrialTrainingPageState
                                   label: 'Required Skills/Qualifications',
                                   controller: _skillsController,
                                   hintText:
-                                      'List required skills, e.g., Java, Python, Project Management',
+                                  'List required skills, e.g., Java, Python, Project Management',
                                   maxLines: 4,
                                 ),
                                 const SizedBox(height: 16),
@@ -568,7 +1097,7 @@ class _CreateIndustrialTrainingPageState
                                         label: 'Stipend Offered',
                                         controller: _stipendController,
                                         hintText:
-                                            "e.g., \$1000/month or 'Unpaid'",
+                                        "e.g., \$1000/month or 'Unpaid'",
                                         isRequired: true,
                                       ),
                                     ),
@@ -600,81 +1129,6 @@ class _CreateIndustrialTrainingPageState
                                 ),
                                 const SizedBox(height: 24),
 
-                                // File Upload Section
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Attach Files',
-                                      style: theme.textTheme.bodyMedium
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                    ),
-                                    const SizedBox(height: 8),
-
-                                    GestureDetector(
-                                      onTap: _pickFiles,
-                                      child: DottedBorder(
-                                        options: CustomPathDottedBorderOptions(
-                                          color: const Color(0xFFcbd5e0),
-                                          strokeWidth: 2,
-                                          dashPattern: const [5, 3],
-                                          customPath: (size) => Path()
-                                            ..moveTo(0, size.height)
-                                            ..relativeLineTo(size.width, 0),
-                                        ),
-
-                                        child: Container(
-                                          width: double.infinity,
-                                          padding: const EdgeInsets.all(32),
-                                          decoration: BoxDecoration(
-                                            color: isDark
-                                                ? const Color(0xFF2d3448)
-                                                : const Color(0xFFf8f9fa),
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                          ),
-                                          child: Column(
-                                            children: [
-                                              Icon(
-                                                Icons.cloud_upload,
-                                                size: 48,
-                                                color: const Color(0xFF6c757d),
-                                              ),
-                                              const SizedBox(height: 16),
-                                              Text(
-                                                'Click to upload or drag and drop',
-                                                style: theme
-                                                    .textTheme
-                                                    .bodyMedium
-                                                    ?.copyWith(
-                                                      color: const Color(
-                                                        0xFF6c757d,
-                                                      ),
-                                                    ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                'PDF, DOC, DOCX, JPG, PNG (Max. 10MB each)',
-                                                style: theme.textTheme.bodySmall
-                                                    ?.copyWith(
-                                                      color: const Color(
-                                                        0xFF6c757d,
-                                                      ),
-                                                    ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    _buildFilePreview(),
-                                  ],
-                                ),
-                                const SizedBox(height: 24),
-
                                 // Form Usage Options
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -683,8 +1137,8 @@ class _CreateIndustrialTrainingPageState
                                       'Form Usage',
                                       style: theme.textTheme.bodyMedium
                                           ?.copyWith(
-                                            fontWeight: FontWeight.w500,
-                                          ),
+                                        fontWeight: FontWeight.w500,
+                                      ),
                                     ),
                                     const SizedBox(height: 12),
                                     ..._formUsageOptions.map((option) {
@@ -701,6 +1155,11 @@ class _CreateIndustrialTrainingPageState
                                               onChanged: (value) {
                                                 setState(() {
                                                   _formUsage = value;
+                                                  _selectedForm = null;
+                                                  _existingFormFiles.clear();
+                                                  if (value == _formUsageOptions[0]) {
+                                                    _loadExistingForms();
+                                                  }
                                                 });
                                               },
                                               activeColor: const Color(
@@ -711,33 +1170,37 @@ class _CreateIndustrialTrainingPageState
                                             Expanded(
                                               child: Column(
                                                 crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
+                                                CrossAxisAlignment.start,
                                                 children: [
                                                   Text(
-                                                    option == 'universal'
-                                                        ? 'Use as Universal Form Template'
-                                                        : 'Use for Single Posting Only',
+                                                    option == _formUsageOptions[0]
+                                                        ? 'Use Existing Categorized Form'
+                                                        : option == _formUsageOptions[1]
+                                                        ? 'Upload New Form (Will be saved for future use)'
+                                                        : 'Universal Template',
                                                     style: theme
                                                         .textTheme
                                                         .bodyMedium
                                                         ?.copyWith(
-                                                          fontWeight:
-                                                              FontWeight.w600,
-                                                        ),
+                                                      fontWeight:
+                                                      FontWeight.w600,
+                                                    ),
                                                   ),
                                                   const SizedBox(height: 4),
                                                   Text(
-                                                    option == 'universal'
-                                                        ? 'Save this form as a template for future postings. You can reuse it across multiple departments.'
-                                                        : 'Post this opportunity only to the specified department above.',
+                                                    option == _formUsageOptions[0]
+                                                        ? 'Select from your previously uploaded forms categorized by department'
+                                                        : option == _formUsageOptions[1]
+                                                        ? 'Upload new files. These will be saved as a categorized form for future use'
+                                                        : 'Save this form as a universal template for future postings',
                                                     style: theme
                                                         .textTheme
                                                         .bodySmall
                                                         ?.copyWith(
-                                                          color: const Color(
-                                                            0xFF6c757d,
-                                                          ),
-                                                        ),
+                                                      color: const Color(
+                                                        0xFF6c757d,
+                                                      ),
+                                                    ),
                                                   ),
                                                 ],
                                               ),
@@ -748,6 +1211,115 @@ class _CreateIndustrialTrainingPageState
                                     }).toList(),
                                   ],
                                 ),
+                                const SizedBox(height: 16),
+
+                                // Show existing forms selector if that option is selected
+                                if (_formUsage == _formUsageOptions[0])
+                                  Column(
+                                    children: [
+                                      _buildExistingFormsSelector(),
+                                      const SizedBox(height: 16),
+                                    ],
+                                  ),
+
+                                // File Upload Section (only for new form upload or universal template)
+                                if (_formUsage == _formUsageOptions[1])
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        _formUsage == _formUsageOptions[1]
+                                            ? 'Upload Form Files (Will be saved for future use)'
+                                            : 'Attach Files (Optional)',
+                                        style: theme.textTheme.bodyMedium
+                                            ?.copyWith(
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+
+                                      GestureDetector(
+                                        onTap: _pickFiles,
+                                        child: DottedBorder(
+                                          options: CustomPathDottedBorderOptions(
+                                            color: const Color(0xFFcbd5e0),
+                                            strokeWidth: 2,
+                                            dashPattern: const [5, 3],
+                                            customPath: (size) => Path()
+                                              ..moveTo(0, size.height)
+                                              ..relativeLineTo(size.width, 0),
+                                          ),
+
+                                          child: Container(
+                                            width: double.infinity,
+                                            padding: const EdgeInsets.all(32),
+                                            decoration: BoxDecoration(
+                                              color: isDark
+                                                  ? const Color(0xFF2d3448)
+                                                  : const Color(0xFFf8f9fa),
+                                              borderRadius: BorderRadius.circular(
+                                                8,
+                                              ),
+                                            ),
+                                            child: Column(
+                                              children: [
+                                                Icon(
+                                                  Icons.cloud_upload,
+                                                  size: 48,
+                                                  color: const Color(0xFF6c757d),
+                                                ),
+                                                const SizedBox(height: 16),
+                                                Text(
+                                                  'Click to upload or drag and drop',
+                                                  style: theme
+                                                      .textTheme
+                                                      .bodyMedium
+                                                      ?.copyWith(
+                                                    color: const Color(
+                                                      0xFF6c757d,
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  'PDF, DOC, DOCX, JPG, PNG (Max. 10MB each)',
+                                                  style: theme.textTheme.bodySmall
+                                                      ?.copyWith(
+                                                    color: const Color(
+                                                      0xFF6c757d,
+                                                    ),
+                                                  ),
+                                                ),
+                                                if (_formUsage == _formUsageOptions[1])
+                                                  Padding(
+                                                    padding: const EdgeInsets.only(top: 8),
+                                                    child: Text(
+                                                      'This form will be categorized under: ${_departmentController.text.isNotEmpty ? _departmentController.text : "Current Department"}',
+                                                      style: TextStyle(
+                                                        color: Colors.blue[700],
+                                                        fontWeight: FontWeight.w500,
+                                                      ),
+                                                      textAlign: TextAlign.center,
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      _buildFilePreview(),
+                                    ],
+                                  ),
+
+                                // Show file preview for existing forms
+                                if (_formUsage == _formUsageOptions[0] && (_existingFormFiles.isNotEmpty || _selectedFiles.isNotEmpty))
+                                  Column(
+                                    children: [
+                                      const SizedBox(height: 16),
+                                      _buildFilePreview(),
+                                    ],
+                                  ),
+
                                 const SizedBox(height: 32),
 
                                 // Submit Button
@@ -767,36 +1339,36 @@ class _CreateIndustrialTrainingPageState
                                     ),
                                     child: _isLoading
                                         ? const SizedBox(
-                                            height: 20,
-                                            width: 20,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              valueColor:
-                                                  AlwaysStoppedAnimation<Color>(
-                                                    Colors.white,
-                                                  ),
-                                            ),
-                                          )
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                        AlwaysStoppedAnimation<Color>(
+                                          Colors.white,
+                                        ),
+                                      ),
+                                    )
                                         : Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Text(
-                                                'Submit',
-                                                style: theme.textTheme.bodyLarge
-                                                    ?.copyWith(
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                      color: Colors.white,
-                                                    ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              const Icon(
-                                                Icons.send,
-                                                size: 20,
-                                                color: Colors.white,
-                                              ),
-                                            ],
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          'Submit',
+                                          style: theme.textTheme.bodyLarge
+                                              ?.copyWith(
+                                            fontWeight:
+                                            FontWeight.bold,
+                                            color: Colors.white,
                                           ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        const Icon(
+                                          Icons.send,
+                                          size: 20,
+                                          color: Colors.white,
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ],

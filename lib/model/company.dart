@@ -1,5 +1,10 @@
 import 'dart:convert';
 
+
+import 'package:flutter/foundation.dart';
+
+import 'companyForm.dart'; // Note: corrected casing
+
 class Company {
   final String id;
   final String name;
@@ -13,7 +18,7 @@ class Company {
   final String role;
   final String fcmToken;
   final String registrationNumber;
-  final String description; // Added description field
+  final String description;
   final bool isfeatured;
   final bool isActive;
   final bool isVerified;
@@ -29,16 +34,15 @@ class Company {
   final String? isMutedBy;
   final String? isMutedFor;
   final DateTime? isMutedOn;
-  final List<String>? formUrl;
+   List<CompanyForm>? forms; // Changed from formUrl to forms
   final DateTime? updatedAt;
   final List<dynamic> potentialtrainee;
-  // Add these new fields
-  List<String> pendingApplications = [];
-  List<String> acceptedTrainees = []; // Accepted but not started
-  List<String> currentTrainees = [];  // Currently active
-  List<String> completedTrainees = []; // Completed training
-  List<String> rejectedApplications = [];
-  List<String> supervisors = []; // Supervisor IDs
+  final List<String> pendingApplications;
+  final List<String> acceptedTrainees;
+  final List<String> currentTrainees;
+  final List<String> completedTrainees;
+  final List<String> rejectedApplications;
+  final List<String> supervisors;
 
   Company({
     required this.id,
@@ -53,7 +57,7 @@ class Company {
     required this.role,
     required this.fcmToken,
     required this.registrationNumber,
-    required this.description, // Added to constructor
+    required this.description,
     required this.isfeatured,
     this.isActive = true,
     this.isVerified = false,
@@ -69,16 +73,15 @@ class Company {
     this.isMutedBy,
     this.isMutedFor,
     this.isMutedOn,
-    this.formUrl,
+    this.forms, // Updated field name
     this.updatedAt,
     this.potentialtrainee = const [],
-    this.acceptedTrainees = const [],
-    this.rejectedApplications = const [],
-    this.completedTrainees = const [],
-    this.currentTrainees = const [],
     this.pendingApplications = const [],
+    this.acceptedTrainees = const [],
+    this.currentTrainees = const [],
+    this.completedTrainees = const [],
+    this.rejectedApplications = const [],
     this.supervisors = const [],
-
   });
 
   Company copyWith({
@@ -94,7 +97,7 @@ class Company {
     String? role,
     String? fcmToken,
     String? registrationNumber,
-    String? description, // Added to copyWith
+    String? description,
     bool? isfeatured,
     bool? isActive,
     bool? isVerified,
@@ -110,14 +113,14 @@ class Company {
     String? isMutedBy,
     String? isMutedFor,
     DateTime? isMutedOn,
-    List<String>? formUrl,
+    List<CompanyForm>? forms, // Updated parameter
     DateTime? updatedAt,
     List<dynamic>? potentialtrainee,
-    List<String>? acceptedTrainees,
-    List<String>? rejectedApplications,
-    List<String>? completedTrainees,
-    List<String>? currentTrainees,
     List<String>? pendingApplications,
+    List<String>? acceptedTrainees,
+    List<String>? currentTrainees,
+    List<String>? completedTrainees,
+    List<String>? rejectedApplications,
     List<String>? supervisors,
   }) {
     return Company(
@@ -133,7 +136,7 @@ class Company {
       role: role ?? this.role,
       fcmToken: fcmToken ?? this.fcmToken,
       registrationNumber: registrationNumber ?? this.registrationNumber,
-      description: description ?? this.description, // Added here
+      description: description ?? this.description,
       isfeatured: isfeatured ?? this.isfeatured,
       isActive: isActive ?? this.isActive,
       isVerified: isVerified ?? this.isVerified,
@@ -149,14 +152,14 @@ class Company {
       isMutedBy: isMutedBy ?? this.isMutedBy,
       isMutedFor: isMutedFor ?? this.isMutedFor,
       isMutedOn: isMutedOn ?? this.isMutedOn,
-      formUrl: formUrl ?? this.formUrl,
+      forms: forms ?? this.forms, // Updated parameter
       updatedAt: updatedAt ?? this.updatedAt,
       potentialtrainee: potentialtrainee ?? this.potentialtrainee,
-      acceptedTrainees: acceptedTrainees ?? this.acceptedTrainees,
-      rejectedApplications: rejectedApplications ?? this.rejectedApplications,
-      completedTrainees: completedTrainees ?? this.completedTrainees,
-      currentTrainees: currentTrainees ?? this.currentTrainees,
       pendingApplications: pendingApplications ?? this.pendingApplications,
+      acceptedTrainees: acceptedTrainees ?? this.acceptedTrainees,
+      currentTrainees: currentTrainees ?? this.currentTrainees,
+      completedTrainees: completedTrainees ?? this.completedTrainees,
+      rejectedApplications: rejectedApplications ?? this.rejectedApplications,
       supervisors: supervisors ?? this.supervisors,
     );
   }
@@ -175,7 +178,7 @@ class Company {
       'role': role,
       'fcmToken': fcmToken,
       'registrationNumber': registrationNumber,
-      'description': description, // Added to toMap
+      'description': description,
       'isfeatured': isfeatured,
       'isActive': isActive,
       'isVerified': isVerified,
@@ -191,14 +194,14 @@ class Company {
       'isMutedBy': isMutedBy,
       'isMutedFor': isMutedFor,
       'isMutedOn': isMutedOn?.toIso8601String(),
-      'formUrl': formUrl,
-      'updatedAt': updatedAt,
+      'forms': forms?.map((form) => form.toMap()).toList(), // Convert forms to list of maps
+      'updatedAt': updatedAt?.toIso8601String(),
       'potentialtrainee': potentialtrainee,
-      'acceptedTrainees': acceptedTrainees,
-      'rejectedApplications': rejectedApplications,
-      'completedTrainees': completedTrainees,
-      'currentTrainees': currentTrainees,
       'pendingApplications': pendingApplications,
+      'acceptedTrainees': acceptedTrainees,
+      'currentTrainees': currentTrainees,
+      'completedTrainees': completedTrainees,
+      'rejectedApplications': rejectedApplications,
       'supervisors': supervisors,
     };
   }
@@ -217,7 +220,7 @@ class Company {
       role: map['role']?.toString() ?? 'company',
       fcmToken: map['fcmToken']?.toString() ?? '',
       registrationNumber: map['registrationNumber']?.toString() ?? '',
-      description: map['description']?.toString() ?? '', // Added to fromMap
+      description: map['description']?.toString() ?? '',
       isfeatured: map['isfeatured'] as bool? ?? false,
       isActive: map['isActive'] as bool? ?? true,
       isVerified: map['isVerified'] as bool? ?? false,
@@ -237,19 +240,15 @@ class Company {
       isMutedOn: map['isMutedOn'] != null
           ? DateTime.tryParse(map['isMutedOn'].toString())
           : null,
-      formUrl:
-          (map['formUrl'] as List<dynamic>?)
-              ?.map((e) => e.toString())
-              .toList() ??
-          [],
+      forms: (map['forms'] as List<dynamic>?)
+          ?.map((e) => CompanyForm.fromMap(Map<String, dynamic>.from(e)))
+          .toList(),
       updatedAt: map['updatedAt'] != null
           ? DateTime.tryParse(map['updatedAt'].toString())
           : null,
-      potentialtrainee:
-          (map['potentialtrainee'] as List<dynamic>?)
-              ?.map((e) => e.toString())
-              .toList() ??
-          [],
+      potentialtrainee: (map['potentialtrainee'] as List<dynamic>?)
+          ?.map((e) => e.toString())
+          .toList() ?? [],
       pendingApplications: List<String>.from(map['pendingApplications'] ?? []),
       acceptedTrainees: List<String>.from(map['acceptedTrainees'] ?? []),
       currentTrainees: List<String>.from(map['currentTrainees'] ?? []),
@@ -266,7 +265,7 @@ class Company {
 
   @override
   String toString() {
-    return 'Company(id: $id, name: $name, industry: $industry, email: $email, phoneNumber: $phoneNumber, logoURL: $logoURL, localGovernment: $localGovernment, state: $state, address: $address, role: $role, fcmToken: $fcmToken, registrationNumber: $registrationNumber, description: $description, isfeatured: $isfeatured, isActive: $isActive, isVerified: $isVerified, isDeleted: $isDeleted, isApproved: $isApproved, isRejected: $isRejected, isPending: $isPending, isBlocked: $isBlocked, isSuspended: $isSuspended, isBanned: $isBanned, isMuted: $isMuted, isMutedUntil: $isMutedUntil, isMutedBy: $isMutedBy, isMutedFor: $isMutedFor, isMutedOn: $isMutedOn)';
+    return 'Company(id: $id, name: $name, industry: $industry, email: $email, phoneNumber: $phoneNumber, logoURL: $logoURL, localGovernment: $localGovernment, state: $state, address: $address, role: $role, fcmToken: $fcmToken, registrationNumber: $registrationNumber, description: $description, isfeatured: $isfeatured, isActive: $isActive, isVerified: $isVerified, isDeleted: $isDeleted, isApproved: $isApproved, isRejected: $isRejected, isPending: $isPending, isBlocked: $isBlocked, isSuspended: $isSuspended, isBanned: $isBanned, isMuted: $isMuted, isMutedUntil: $isMutedUntil, isMutedBy: $isMutedBy, isMutedFor: $isMutedFor, isMutedOn: $isMutedOn, forms: $forms, updatedAt: $updatedAt, potentialtrainee: $potentialtrainee, pendingApplications: $pendingApplications, acceptedTrainees: $acceptedTrainees, currentTrainees: $currentTrainees, completedTrainees: $completedTrainees, rejectedApplications: $rejectedApplications, supervisors: $supervisors)';
   }
 
   @override
@@ -286,7 +285,7 @@ class Company {
         other.role == role &&
         other.fcmToken == fcmToken &&
         other.registrationNumber == registrationNumber &&
-        other.description == description && // Added to equality check
+        other.description == description &&
         other.isfeatured == isfeatured &&
         other.isActive == isActive &&
         other.isVerified == isVerified &&
@@ -302,16 +301,15 @@ class Company {
         other.isMutedBy == isMutedBy &&
         other.isMutedFor == isMutedFor &&
         other.isMutedOn == isMutedOn &&
-        other.formUrl == formUrl &&
+        listEquals(other.forms, forms) && // Use listEquals for list comparison
         other.updatedAt == updatedAt &&
-        other.acceptedTrainees == acceptedTrainees &&
-        other.rejectedApplications == rejectedApplications &&
-        other.completedTrainees == completedTrainees &&
-        other.currentTrainees == currentTrainees &&
-        other.pendingApplications == pendingApplications &&
-        other.supervisors == supervisors &&
-        other.potentialtrainee == potentialtrainee;
-
+        listEquals(other.potentialtrainee, potentialtrainee) &&
+        listEquals(other.pendingApplications, pendingApplications) &&
+        listEquals(other.acceptedTrainees, acceptedTrainees) &&
+        listEquals(other.currentTrainees, currentTrainees) &&
+        listEquals(other.completedTrainees, completedTrainees) &&
+        listEquals(other.rejectedApplications, rejectedApplications) &&
+        listEquals(other.supervisors, supervisors);
   }
 
   @override
@@ -329,7 +327,7 @@ class Company {
       role,
       fcmToken,
       registrationNumber,
-      description, // Added to hashCode
+      description,
       isfeatured,
       isActive,
       isVerified,
@@ -345,15 +343,50 @@ class Company {
       isMutedBy,
       isMutedFor,
       isMutedOn,
-      formUrl,
+      forms,
       updatedAt,
-      potentialtrainee,
-      acceptedTrainees,
-      rejectedApplications,
-      completedTrainees,
-      currentTrainees,
-      pendingApplications,
-      supervisors,
+      Object.hashAll(potentialtrainee),
+      Object.hashAll(pendingApplications),
+      Object.hashAll(acceptedTrainees),
+      Object.hashAll(currentTrainees),
+      Object.hashAll(completedTrainees),
+      Object.hashAll(rejectedApplications),
+      Object.hashAll(supervisors),
     ]);
   }
+
+  // Helper methods for forms
+  void addForm(CompanyForm form) {
+    final currentForms = forms ?? [];
+    forms = [...currentForms, form];
+  }
+
+  void removeForm(String formId) {
+    forms?.removeWhere((form) => form.formId == formId);
+  }
+
+
+  CompanyForm? getFormById(String formId) {
+    if (forms == null) return null;
+    try {
+      return forms!.firstWhere((form) => form.formId == formId);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  List<CompanyForm> getFormsByDepartment(String departmentName) {
+    return forms
+        ?.where((form) => form.departmentName.toLowerCase() == departmentName.toLowerCase())
+        .toList() ?? [];
+  }
+
+  bool hasFormsForDepartment(String departmentName) {
+    return forms?.any((form) =>
+    form.departmentName.toLowerCase() == departmentName.toLowerCase()) ?? false;
+  }
+
+  int get totalFormsCount => forms?.length ?? 0;
+
+
 }

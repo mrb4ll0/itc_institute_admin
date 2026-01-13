@@ -10,6 +10,7 @@ import 'package:itc_institute_admin/itc_logic/service/tranineeService.dart';
 
 import '../../model/RecentActions.dart';
 import '../../model/company.dart';
+import '../../model/companyForm.dart';
 import '../../model/internship_model.dart';
 import '../../model/localNotification.dart';
 import '../../model/review.dart';
@@ -1967,6 +1968,190 @@ class Company_Cloud {
       debugPrint("Document after update: ${updatedDoc.data()}");
 
       debugPrint("Update completed for company $companyId");
+    } catch (e) {
+      debugPrint("Error updating company form: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> removeCompanyForm(String companyId, String formId) async {
+    debugPrint("remove company form got called for company: $companyId, form: $formId");
+
+    try {
+      final docRef = _firebaseFirestore
+          .collection("users")
+          .doc("companies")
+          .collection("companies")
+          .doc(companyId);
+
+      // Get current company data
+      final docSnapshot = await docRef.get();
+
+      if (!docSnapshot.exists) {
+        throw Exception("Company document not found with ID: $companyId");
+      }
+
+      final currentData = docSnapshot.data() as Map<String, dynamic>? ?? {};
+      final currentForms = List<Map<String, dynamic>>.from(currentData['forms'] ?? []);
+
+      // Find and remove the form
+      final formToRemove = currentForms.firstWhere(
+            (form) => form['formId'] == formId,
+        orElse: () => {},
+      );
+
+      if (formToRemove.isNotEmpty) {
+        await docRef.update({
+          'forms': FieldValue.arrayRemove([formToRemove]),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        debugPrint("Form removed successfully: $formId");
+      } else {
+        debugPrint("Form not found: $formId");
+      }
+
+    } catch (e) {
+      debugPrint("Error removing company form: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> addCompanyForm(String companyId, CompanyForm companyForm) async {
+    debugPrint("add company form got called for company: $companyId");
+
+    try {
+      final docRef = _firebaseFirestore
+          .collection("users")
+          .doc("companies")
+          .collection("companies")
+          .doc(companyId);
+
+      // Check if document exists
+      final docSnapshot = await docRef.get();
+      debugPrint("Document exists: ${docSnapshot.exists}");
+
+      if (!docSnapshot.exists) {
+        throw Exception("Company document not found with ID: $companyId");
+      }
+
+      // Add form to forms array using arrayUnion
+      await docRef.update({
+        'forms': FieldValue.arrayUnion([companyForm.toMap()]),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      debugPrint("Form added successfully for company $companyId");
+
+    } catch (e) {
+      debugPrint("Error adding company form: $e");
+      rethrow;
+    }
+  }
+
+  Future<List<CompanyForm>> getCompanyForms(String companyId) async {
+    debugPrint("getCompanyForms called for company: $companyId");
+
+    try {
+      final docRef = _firebaseFirestore
+          .collection("users")
+          .doc("companies")
+          .collection("companies")
+          .doc(companyId);
+
+      // Get the company document
+      final docSnapshot = await docRef.get();
+
+      if (!docSnapshot.exists) {
+        debugPrint("Company document not found with ID: $companyId");
+        return [];
+      }
+
+      final data = docSnapshot.data() as Map<String, dynamic>? ?? {};
+      final formsData = data['forms'] as List<dynamic>? ?? [];
+
+      debugPrint("Found ${formsData.length} forms for company $companyId");
+
+      // Convert each form data to CompanyForm object
+      final List<CompanyForm> forms = [];
+
+      for (final formData in formsData) {
+        try {
+          if (formData is Map<String, dynamic>) {
+            final companyForm = CompanyForm.fromMap(formData);
+            forms.add(companyForm);
+          }
+        } catch (e) {
+          debugPrint("Error parsing form data: $e");
+          debugPrint("Form data: $formData");
+        }
+      }
+
+      // Sort by upload date (newest first)
+      forms.sort((a, b) => b.uploadedAt.compareTo(a.uploadedAt));
+
+      debugPrint("Successfully parsed ${forms.length} forms");
+      return forms;
+
+    } catch (e) {
+      debugPrint("Error getting company forms: $e");
+      rethrow;
+    }
+  }
+  Future<void> updateCompanyFormModel(String companyId, CompanyForm companyForm) async {
+    debugPrint("update company form got called for company: $companyId");
+    debugPrint("Form details - ID: ${companyForm.formId}, Department: ${companyForm.departmentName}");
+
+    try {
+      final docRef = _firebaseFirestore
+          .collection("users")
+          .doc("companies")
+          .collection("companies")
+          .doc(companyId);
+
+      // First, get the current company data to update forms array
+      final docSnapshot = await docRef.get();
+      debugPrint("Document exists before update: ${docSnapshot.exists}");
+
+      if (!docSnapshot.exists) {
+        throw Exception("Company document not found with ID: $companyId");
+      }
+
+      // Get current forms array
+      final currentData = docSnapshot.data() as Map<String, dynamic>? ?? {};
+      final currentForms = List<Map<String, dynamic>>.from(currentData['forms'] ?? []);
+
+      // Check if form already exists
+      final existingFormIndex = currentForms.indexWhere(
+              (form) => form['formId'] == companyForm.formId
+      );
+
+      if (existingFormIndex != -1) {
+        // Update existing form
+        currentForms[existingFormIndex] = companyForm.toMap();
+        debugPrint("Updating existing form at index $existingFormIndex");
+      } else {
+        // Add new form
+        currentForms.add(companyForm.toMap());
+        debugPrint("Adding new form to array");
+      }
+
+      // Update the document
+      await docRef.update({
+        'forms': currentForms,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Verify the update
+      final updatedDoc = await docRef.get();
+      final updatedForms = List<Map<String, dynamic>>.from(
+          updatedDoc.data()?['forms'] ?? []
+      );
+
+      debugPrint("Total forms after update: ${updatedForms.length}");
+      debugPrint("Latest form: ${updatedForms.last}");
+
+      debugPrint("Update completed for company $companyId");
+
     } catch (e) {
       debugPrint("Error updating company form: $e");
       rethrow;
