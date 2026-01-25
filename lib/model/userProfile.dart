@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:itc_institute_admin/model/authority.dart';
 import 'package:itc_institute_admin/model/student.dart';
 
 import 'admin.dart';
@@ -25,6 +26,8 @@ class UserConverter implements UserProfile {
       type = 'company';
     } else if (_user is Admin) {
       type = 'admin';
+    } else if (_user is Authority) {
+      type = 'authority';
     } else {
       throw ArgumentError('Unknown user type: ${_user.runtimeType}');
     }

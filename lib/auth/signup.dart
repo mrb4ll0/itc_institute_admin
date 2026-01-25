@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:math';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -9,11 +10,13 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:itc_institute_admin/auth/login_view.dart';
 import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
+import 'package:itc_institute_admin/itc_logic/admin_task.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/general_cloud.dart';
 import 'package:itc_institute_admin/model/company.dart';
 import 'package:itc_institute_admin/view/home/companyDashBoard.dart';
 
 import '../firebase_cloud_storage/firebase_cloud.dart';
+import '../model/authority.dart';
 
 class CompanySignupScreen extends StatefulWidget {
   const CompanySignupScreen({super.key});
@@ -43,6 +46,9 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
   int _currentStep =
       0; // 0: Company Details, 1: Location, 2: Contact, 3: Account
   FirebaseUploader cloudStorage = FirebaseUploader();
+
+
+
   // Nigerian states and LGAs (simplified version)
   final Map<String, List<String>> _statesAndLgas = {
     'Abia': [
@@ -900,7 +906,7 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
 
     // Initialize with placeholder
     _registrationNumberController.text =
-        "Enter company name and industry first";
+        "Enter company/Organization name and industry first";
   }
 
   @override
@@ -915,6 +921,13 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
     _confirmPasswordController.dispose();
     super.dispose();
   }
+
+
+  // NEW: Account Type variables
+  String _selectedAccountType = 'Company';
+  String? _selectedAuthorityId;
+  String? _selectedAuthorityName;
+
 
   Future<void> _signup() async {
     if (!_formKey.currentState!.validate()) {
@@ -963,11 +976,17 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
         Fluttertoast.showToast(msg: "Logo failed to upload, kindly retry");
         return;
       }
-      await _saveCompanyData(userCredential.user!.uid, logoUrl);
+      bool result = await _saveCompanyData(userCredential.user!.uid, logoUrl);
 
-      if (mounted) {
+      if (mounted && result) {
         showRegistrationSuccessDialog(context);
-      } else {
+
+      }
+      else if(mounted && !result)
+        {
+          Fluttertoast.showToast(msg: "Registration failed, kindly retry");
+        }
+      else {
         debugPrint("Widget disposed, cannot show dialog");
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (context) => LoginScreen()),
@@ -988,60 +1007,128 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
     }
   }
 
-  Future<String> _uploadCompanyLogo(String userId, File logoFile) async {
+
+  Future<bool> _saveCompanyData(String userId, String? logoUrl) async {
     try {
-      final storageRef = FirebaseStorage.instance
-          .ref()
-          .child('company_logos')
-          .child('$userId-${DateTime.now().millisecondsSinceEpoch}.jpg');
+      // Get FCM token for notifications
+      String? fcmToken = await FirebaseMessaging.instance.getToken();
 
-      await storageRef.putFile(logoFile);
-      return await storageRef.getDownloadURL();
-    } catch (e) {
-      print('Error uploading logo: $e');
-      rethrow;
-    }
-  }
+      if (_selectedAccountType == 'Company') {
+        // Create regular Company
+        Company company = Company(
+          id: userId,
+          name: _companyNameController.text,
+          industry: _industryController.text,
+          registrationNumber: _registrationNumberController.text,
+          email: _emailController.text,
+          phoneNumber: _contactNumberController.text,
+          logoURL: logoUrl!,
+          state: _selectedState!,
+          localGovernment: _selectedLocalGovernment!,
+          description: "",
+          role: "Company",
+          address: _addressController.text,
+          fcmToken: fcmToken ?? "",
+          isfeatured: false,
+          isUnderAuthority: false,
+          authorityId: null,
+          authorityName: null,
+          authorityLinkStatus: "NONE",
+        );
 
-  Future<void> _saveCompanyData(String userId, String? logoUrl) async {
-    //* final _formKey = GlobalKey<FormState>();
-    //   final _companyNameController = TextEditingController();
-    //   final _industryController = TextEditingController();
-    //   final _registrationNumberController = TextEditingController();
-    //   final _addressController = TextEditingController();
-    //   final _contactNumberController = TextEditingController();
-    //   final _emailController = TextEditingController();
-    //   final _passwordController = TextEditingController();
-    //   final _confirmPasswordController = TextEditingController();*
-    //String? _selectedState;
-    //   String? _selectedLocalGovernment;
+        await itcFirebaseLogic.addCompany(company);
+        return true;
 
-    String? fmcToken = await FirebaseMessaging.instance.getToken();
-    Company company = Company(
-      id: userId,
-      name: _companyNameController.text,
-      industry: _industryController.text,
-      registrationNumber: _registrationNumberController.text,
-      email: _emailController.text,
-      phoneNumber: _contactNumberController.text,
-      logoURL: logoUrl!,
-      state: _selectedState!,
-      localGovernment: _selectedLocalGovernment!,
-      description: "",
-      role: "Company",
-      address: _addressController.text,
-      fcmToken: fmcToken ?? "",
-      isfeatured: false,
-    );
+      } else if (_selectedAccountType == 'Government Authority') {
+        // Create Government Authority
+        Authority authority = Authority(
+          id: userId,
+          name: _companyNameController.text,
+          email: _emailController.text,
+          contactPerson: null, // You might want to add a field for this
+          phoneNumber: _contactNumberController.text,
+          logoURL: logoUrl,
+          address: _addressController.text,
+          state: _selectedState,
+          localGovernment: _selectedLocalGovernment,
+          registrationNumber: _registrationNumberController.text,
+          description: _industryController.text, // Using industry as description
+          isActive: true,
+          isVerified: false,
+          isApproved: false,
+          isBlocked: false,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+          // All other fields use defaults from model
+          linkedCompanies: [],
+          pendingApplications: [],
+          approvedApplications: [],
+          rejectedApplications: [],
+          admins: [userId], // Current user becomes first admin
+          supervisors: [],
+          fcmToken: fcmToken ?? "",
+          notificationTokens: [],
+          autoApproveAfterAuthority: false,
+          maxCompaniesAllowed: 50,
+          maxApplicationsPerBatch: 100,
+          requirePhysicalLetter: false,
+          letterTemplateUrl: null,
+          totalApplicationsReviewed: 0,
+          currentPendingCount: 0,
+          averageProcessingTimeDays: 0.0,
+        );
 
-    try {
-      await itcFirebaseLogic.addCompany(company);
+        await itcFirebaseLogic.addAuthority(authority);
+        return true;
+
+      } else if (_selectedAccountType == 'Government Facility') {
+        // Create Government Facility (Company under Authority)
+        Company company = Company(
+          id: userId,
+          name: _companyNameController.text,
+          industry: _industryController.text,
+          registrationNumber: _registrationNumberController.text,
+          email: _emailController.text,
+          phoneNumber: _contactNumberController.text,
+          logoURL: logoUrl!,
+          state: _selectedState!,
+          localGovernment: _selectedLocalGovernment!,
+          description: "",
+          role: "Government Facility",
+          address: _addressController.text,
+          fcmToken: fcmToken ?? "",
+          isfeatured: false,
+          isUnderAuthority: true,
+          authorityId: _selectedAuthorityId,
+          authorityName: _selectedAuthorityName,
+          authorityLinkStatus: 'PENDING', // Needs approval from authority
+        );
+
+        // Save the company
+        await itcFirebaseLogic.addCompany(company);
+
+        // If authority is selected, add this company to authority's pending applications
+        if (_selectedAuthorityId != null && _selectedAuthorityId!.isNotEmpty) {
+
+          await itcFirebaseLogic.addCompanyToAuthorityPendingApplications(
+            authorityId: _selectedAuthorityId!,
+            companyId: userId,
+            companyName: _companyNameController.text,
+            selectedAuthorityName: _selectedAuthorityName!,
+          );
+        }
+
+        return true;
+      }
+
+      return false; // If none of the account types matched
+
     } catch (error, stack) {
       debugPrintStack(stackTrace: stack);
       debugPrint(error.toString());
+      return false;
     }
   }
-
   String _getErrorMessage(String errorCode) {
     switch (errorCode) {
       case 'invalid-email':
@@ -1057,13 +1144,7 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
     }
   }
 
-  void _navigateToHome() {
-    if (mounted) {
-      Navigator.of(
-        context,
-      ).pushReplacement(MaterialPageRoute(builder: (_) => Companydashboard()));
-    }
-  }
+
 
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -1355,6 +1436,7 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
   }
 
   Widget _buildCompanyDetailsStep(bool isDarkMode) {
+
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1376,13 +1458,13 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
 
           // Company Name
           _buildFormField(
-            label: "Company Name",
+            label: "Company/Organization Name",
             icon: Icons.business_center,
             controller: _companyNameController,
-            hintText: "Enter company name",
+            hintText: "Enter company/Organization name",
             validator: (value) {
               if (value?.isEmpty ?? true) {
-                return 'Please enter company name';
+                return 'Please enter company/Organization name';
               }
               return null;
             },
@@ -1393,7 +1475,7 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
 
           // Industry
           _buildFormField(
-            label: "Industry",
+            label: "Industry or Sector",
             icon: Icons.category,
             controller: _industryController,
             hintText: "e.g., Technology, Finance",
@@ -1406,6 +1488,178 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
             isDarkMode: isDarkMode,
           ),
 
+          const SizedBox(height: 16),
+
+          // 🔽 NEW: Account Type Selection
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Account Type",
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: isDarkMode ? Colors.white : Colors.blueGrey[700],
+                ),
+              ),
+              const SizedBox(height: 4),
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  color: isDarkMode
+                      ? Colors.grey[800]!.withOpacity(0.5)
+                      : Colors.grey[50],
+                ),
+                child: DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  value: _selectedAccountType,
+                  decoration: InputDecoration(
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    filled: true,
+                    fillColor: Colors.transparent,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 16,
+                    ),
+                    prefixIcon: Icon(
+                      Icons.account_balance,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  hint: const Text("Select Account Type"),
+                  items: [
+                    DropdownMenuItem<String>(
+                      value: 'Company',
+                      child: Row(
+                        children: [
+                          Icon(Icons.business, size: 20, color: Colors.blue),
+                          SizedBox(width: 10),
+                          Expanded(child: Text('Regular Company')),
+                        ],
+                      ),
+                    ),
+                    DropdownMenuItem<String>(
+                      value: 'Government Authority',
+                      child: Row(
+                        children: [
+                          Icon(Icons.account_balance, size: 20, color: Colors.green),
+                          SizedBox(width: 10),
+                          Expanded(child: Text('Government Authority')),
+                        ],
+                      ),
+                    ),
+                    DropdownMenuItem<String>(
+                      value: 'Government Facility',
+                      child: Row(
+                        children: [
+                          Icon(Icons.business_outlined, size: 20, color: Colors.orange),
+                          SizedBox(width: 10),
+                          Expanded(child: Text('Government Facility (Under Authority)')),
+                        ],
+                      ),
+                    ),
+                  ],
+                  onChanged: (String? newValue) {
+                    setState(() {
+                      debugPrint("new value is  $newValue");
+                      _selectedAccountType = newValue ?? 'Company';
+                    });
+                  },
+                  validator: (value) {
+                    if (value == null) {
+                      return 'Please select account type';
+                    }
+                    return null;
+                  },
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // 🔽 NEW: If Government Facility is selected, show authority selection
+          if (_selectedAccountType == 'Government Facility')
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Parent Authority",
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: isDarkMode ? Colors.white : Colors.blueGrey[700],
+                  ),
+                ),
+                Text(
+                  "Note: If your authority is not available, skip this section",
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: isDarkMode ? Colors.white : Colors.blueGrey[700],
+                  ),
+                ),
+                const SizedBox(height: 4),
+                FutureBuilder<List<Authority>>(
+                  future:itcFirebaseLogic.getAllAuthorities(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return CircularProgressIndicator();
+                    }
+
+                    if (snapshot.hasError || !snapshot.hasData || snapshot.data?.length == 0) {
+                      return Text('No authorities available');
+                    }
+
+                    return DropdownButtonFormField<String>(
+                      isExpanded: true,
+                      value: _selectedAuthorityId,
+                      decoration: InputDecoration(
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        filled: true,
+                        fillColor: Colors.transparent,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 16,
+                        ),
+                        prefixIcon: Icon(
+                          Icons.supervisor_account,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                      hint: const Text("Select Parent Authority"),
+                      items: snapshot.data!.map((authority) {
+                        return DropdownMenuItem<String>(
+                          value: authority.id,
+                          child: Text(authority.name),
+                        );
+                      }).toList(),
+                      onChanged: (String? newValue) {
+                        setState(() {
+                          _selectedAuthorityId = newValue;
+                          _selectedAuthorityName = snapshot.data!
+                              .firstWhere((auth) => auth.id == newValue)
+                              .name;
+                        });
+                      },
+                      validator: (value) {
+                        if (_selectedAccountType == 'Government Facility' &&
+                            (value == null || value.isEmpty)) {
+                          return 'Please select parent authority';
+                        }
+                        return null;
+                      },
+                    );
+                  },
+                ),
+              ],
+            ),
           const SizedBox(height: 16),
 
           // Registration Number
@@ -1476,7 +1730,7 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
       _registrationNumberController.text = registrationNumber;
     } else {
       _registrationNumberController.text =
-          "Enter company name and industry first";
+          "Enter company/Organization name and industry first";
     }
   }
 
@@ -1505,7 +1759,7 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
             label: "Address",
             icon: Icons.location_on,
             controller: _addressController,
-            hintText: "Enter company address",
+            hintText: "Enter company/Authority address",
             validator: (value) {
               if (value?.isEmpty ?? true) {
                 return 'Please enter address';

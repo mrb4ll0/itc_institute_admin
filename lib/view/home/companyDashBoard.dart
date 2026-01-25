@@ -8,15 +8,18 @@ import 'package:itc_institute_admin/itc_logic/firebase/ActionLogger.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/activeStudentCloud.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/company_cloud.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/general_cloud.dart';
+import 'package:itc_institute_admin/model/authorityCompanyMapper.dart';
 import 'package:itc_institute_admin/view/home/industrailTraining/newIndustrialTraining.dart';
 
 import '../../model/RecentActions.dart';
+import '../../model/authority.dart';
 import '../../model/company.dart';
 import '../../model/student.dart';
 import '../recentActions/recentActionsList.dart';
 
 class Companydashboard extends StatefulWidget {
-  const Companydashboard({super.key});
+    final bool isAuthority;
+  const Companydashboard({super.key, required this.isAuthority});
 
   @override
   State<Companydashboard> createState() => _CompanydashboardState();
@@ -27,12 +30,13 @@ class _CompanydashboardState extends State<Companydashboard>
   Company? _company;
   bool _isLoading = true;
   String _error = '';
-  int _selectedTab =
-  0; // 0: Applications, 1: Trainings, 2: Supervisors, 3: Accepted
+  int _selectedTab = 0; // 0: Applications, 1: Trainings, 2: Supervisors, 3: Accepted
   late List<Application> studentApplications;
   int newApplicationCounts = 0;
+
   late int activeApplicationsCounts = 0;
   late int supervisorCount = 0;
+  late int totalCompany = 0;
   late int acceptedApplicationCount = 0;
   final Company_Cloud company_cloud = new Company_Cloud();
   final ActiveTrainingService activeTrainingService = ActiveTrainingService();
@@ -48,6 +52,7 @@ class _CompanydashboardState extends State<Companydashboard>
   @override
   void initState() {
     super.initState();
+    debugPrint(" isAuthority ${widget.isAuthority}");
     if (!_isDataLoaded) {
       _loadCompanyData();
     }
@@ -175,7 +180,16 @@ class _CompanydashboardState extends State<Companydashboard>
         throw Exception('No user is currently logged in.');
       }
       String companyId = currentUser.uid;
-      final company = await ITCFirebaseLogic().getCompany(companyId);
+      Company? company;
+       company = await ITCFirebaseLogic().getCompany(companyId);
+       if(company == null)
+         {
+           Authority? authority = await ITCFirebaseLogic().getAuthority(companyId);
+           if(authority != null) {
+             company = AuthorityCompanyMapper.createCompanyFromAuthority(
+                 authority: authority);
+           }
+         }
       int newApps = await company_cloud.getTotalNewApplications(companyId);
       int acceptedApps = await company_cloud.getTotalAcceptedApplications(
         companyId,
@@ -183,6 +197,8 @@ class _CompanydashboardState extends State<Companydashboard>
       int currentStudents = await activeTrainingService.getActiveTraineesCount(
         companyId,
       );
+
+      totalCompany = 1;
 
       debugPrint("currentStudents count $currentStudents");
       debugPrint("acceptedApps count $acceptedApps");
@@ -306,7 +322,7 @@ class _CompanydashboardState extends State<Companydashboard>
         children: [
           Expanded(
             child: Text(
-              'Company Dashboard',
+              '${widget.isAuthority? 'Authority':'Company'} Dashboard',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -335,13 +351,17 @@ class _CompanydashboardState extends State<Companydashboard>
         children: [
           _buildStatCard(
             title: 'New Applications',
-            value: newApplicationCounts.toString(),
+            value: _company?.originalAuthority?.linkedCompanies.length.toString()??"0",
           ),
           _buildStatCard(
             title: 'Active Trainings',
             value: activeApplicationsCounts.toString(),
           ),
+          widget.isAuthority?
           _buildStatCard(
+            title: 'Companies',
+            value: totalCompany.toString(),
+          ):_buildStatCard(
             title: 'Supervisors',
             value: supervisorCount.toString(),
           ),

@@ -38,7 +38,7 @@ class _StudentProfilePageState extends State<StudentProfilePage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: _currentUserId == widget.student.uid?4:3, vsync: this);
     _getCurrentUser();
   }
 
@@ -93,11 +93,11 @@ class _StudentProfilePageState extends State<StudentProfilePage>
               delegate: _SliverTabBarDelegate(
                 TabBar(
                   controller: _tabController,
-                  tabs: const [
+                  tabs:  [
                     Tab(icon: Icon(Icons.info), text: 'Overview'),
                     Tab(icon: Icon(Icons.school), text: 'Education'),
                     Tab(icon: Icon(Icons.work), text: 'Portfolio'),
-                    Tab(icon: Icon(Icons.contact_page), text: 'Documents'),
+                    _currentUserId == widget.student.uid ?Tab(icon: Icon(Icons.contact_page), text: 'Documents'):Container(),
                   ],
                   indicatorColor: colorScheme.primary,
                   labelColor: colorScheme.primary,
@@ -114,7 +114,7 @@ class _StudentProfilePageState extends State<StudentProfilePage>
             _buildOverviewTab(context),
             _buildEducationTab(context),
             _buildPortfolioTab(context),
-            _buildDocumentsTab(context),
+            _currentUserId == widget.student.uid ?_buildDocumentsTab(context):Container(),
           ],
         ),
       ),
@@ -821,7 +821,8 @@ class _StudentProfilePageState extends State<StudentProfilePage>
           ),
 
           // Program Details
-          _buildSection(
+          _currentUserId != widget.student.uid
+              ?Container():_buildSection(
             context,
             title: 'Program Details',
             icon: Icons.book,
@@ -861,8 +862,8 @@ class _StudentProfilePageState extends State<StudentProfilePage>
           ),
 
           // Academic Timeline
-          if (widget.student.admissionDate != null ||
-              widget.student.expectedGraduationDate != null)
+          if ((widget.student.admissionDate != null ||
+              widget.student.expectedGraduationDate != null)&& _currentUserId == widget.student.uid)
             _buildSection(
               context,
               title: 'Academic Timeline',
@@ -931,7 +932,7 @@ class _StudentProfilePageState extends State<StudentProfilePage>
             ),
 
           // GPA Classification
-          if (widget.student.cgpa > 0)
+          if (widget.student.cgpa > 0 && _currentUserId == widget.student.uid)
             _buildSection(
               context,
               title: 'Academic Performance',

@@ -5,9 +5,10 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:itc_institute_admin/auth/login_view.dart';
 import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
 import 'package:itc_institute_admin/itc_logic/help_support/help.dart';
+import 'package:itc_institute_admin/model/authorityCompanyMapper.dart';
 import 'package:itc_institute_admin/notification/view/NotificationPage.dart';
-import 'package:itc_institute_admin/view/company/companyDetailPage.dart';
 import 'package:itc_institute_admin/view/company/myProfile.dart';
+import 'package:itc_institute_admin/view/home/LinkedCompaniesScreen.dart';
 import 'package:itc_institute_admin/view/home/chatListPage.dart';
 import 'package:itc_institute_admin/view/home/companyDashBoard.dart';
 import 'package:itc_institute_admin/view/home/studentApplicationPage.dart';
@@ -16,8 +17,10 @@ import 'package:itc_institute_admin/view/home/tweet_view.dart';
 import 'package:itc_institute_admin/view/studentList.dart';
 
 import '../../itc_logic/firebase/general_cloud.dart';
+import '../../model/authority.dart';
 import '../../model/company.dart';
 import '../company/companyEdit.dart';
+import 'dialog/pendingCompanyDialog.dart';
 import 'iTList.dart';
 
 class CompanyDashboardController extends StatefulWidget {
@@ -39,21 +42,37 @@ class _CompanyDashboardControllerState
   @override
   void initState() {
     super.initState();
+
     _pages = [
-      const Companydashboard(),
+       Companydashboard( isAuthority: widget.tweetCompany.originalAuthority != null,),
       const StudentApplicationsPage(),
       const IndustrialTrainingPostsPage(),
       TweetView(company: widget.tweetCompany),
        MessagesView(),
     ];
     _loadCompany();
+      WidgetsBinding.instance.addPostFrameCallback(
+            (_) async {
+              if(widget.tweetCompany.originalAuthority != null) showPendingCompaniesDialog(context, widget.tweetCompany.originalAuthority!);
+            }
+      );
+
   }
 
   Future<void> _loadCompany() async {
     try {
       final currentUser = FirebaseAuth.instance.currentUser;
+      Company? company ;
       if (currentUser != null) {
-        final company = await ITCFirebaseLogic().getCompany(currentUser.uid);
+         company = await ITCFirebaseLogic().getCompany(currentUser.uid);
+         if(company == null)
+           {
+             Authority? authority = await ITCFirebaseLogic().getAuthority(currentUser.uid);
+              if(authority != null)
+                {
+                  company = AuthorityCompanyMapper.createCompanyFromAuthority(authority: authority);
+                }
+           }
         setState(() {
           _company = company;
           _isLoading = false;
@@ -86,7 +105,7 @@ class _CompanyDashboardControllerState
     // Show loading while company data is being fetched
     if (_isLoading) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Company Portal'), elevation: 0,actions: [IconButton(onPressed: ()
+        appBar: AppBar(title:  Text('${widget.tweetCompany.originalAuthority == null? 'Company': 'Authority'} Portal'), elevation: 0,actions: [IconButton(onPressed: ()
             {
               GeneralMethods.navigateTo(context, CompanyNotificationsPage(companyId: FirebaseAuth.instance.currentUser!.uid));
             }, icon: Icon(Icons.notifications_active_rounded))],),
@@ -96,7 +115,7 @@ class _CompanyDashboardControllerState
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Company Portal'),
+        title: Text('${widget.tweetCompany.originalAuthority == null? 'Company': 'Authority'} Portal'),
         actions: [IconButton(onPressed: ()
         {
           GeneralMethods.navigateTo(context, CompanyNotificationsPage(companyId: FirebaseAuth.instance.currentUser!.uid));
@@ -165,6 +184,18 @@ class _CompanyDashboardControllerState
               GeneralMethods.navigateTo(context, StudentListPage(company: _company!));
             },
           ),
+          ?widget.tweetCompany.originalAuthority!=null? _buildDrawerItem(
+            icon: Icons.people,
+            text: 'Company List',
+            onTap: () {
+               if(_company == null)
+                 {
+                   Fluttertoast.showToast(msg: "Company not found , kindly logout and login ");
+                   return;
+                 }
+              GeneralMethods.navigateTo(context, AuthorityCompaniesScreen(authorityId: _company?.originalAuthority?.id??"", authorityName: _company?.name??""));
+            },
+          ):null,
           _buildDrawerItem(
             icon: Icons.settings,
             text: 'Settings',
@@ -226,7 +257,7 @@ class _CompanyDashboardControllerState
         padding: EdgeInsets.zero,
         children: [
           UserAccountsDrawerHeader(
-            accountName: const Text('Company Portal'),
+            accountName:  Text('${widget.tweetCompany.originalAuthority == null? 'Company': 'Authority'} Portal'),
             accountEmail: const Text('Loading...'),
             currentAccountPicture: CircleAvatar(
               backgroundColor: theme.colorScheme.onPrimary,

@@ -9,12 +9,15 @@ import 'package:intl/intl.dart';
 import 'package:itc_institute_admin/firebase_cloud_storage/firebase_cloud.dart';
 import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/general_cloud.dart';
+import 'package:itc_institute_admin/model/authorityCompanyMapper.dart';
+import 'package:itc_institute_admin/model/userProfile.dart';
 import 'package:itc_institute_admin/view/home/industrailTraining/fileDetails.dart';
 import 'package:itc_institute_admin/view/home/student/studentDetails.dart';
 
 import '../../../itc_logic/firebase/message/message_service.dart';
 import '../../../itc_logic/service/userService.dart';
 import '../../../model/admin.dart';
+import '../../../model/authority.dart';
 import '../../../model/company.dart';
 import '../../../model/message.dart';
 import '../../../model/student.dart';
@@ -56,11 +59,12 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
   final ImagePicker _imagePicker = ImagePicker();
   bool _showStudentInfo = false; // For showing student profile card
   late dynamic _receiverData; // Store the receiver data
-  late Company? company;
+  late Company? _company;
   ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic();
   int? _previousMessageCount;
   bool _showScrollToBottomButton = false;
   Timestamp? previousDate;
+
 
   @override
   void initState() {
@@ -72,6 +76,12 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
       _markMessagesAsRead();
     });
   }
+
+
+  _loadUser() async {
+
+  }
+
   void _scrollToBottom() {
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
@@ -177,9 +187,17 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
       setState(() {
         _isLoading = false;
       });
-      company = await itcFirebaseLogic.getCompany(
+      _company = await itcFirebaseLogic.getCompany(
         FirebaseAuth.instance.currentUser!.uid,
       );
+      if(_company == null)
+        {
+          Authority? authority = await itcFirebaseLogic.getAuthority(FirebaseAuth.instance.currentUser!.uid);
+          if(authority != null)
+            {
+              _company = AuthorityCompanyMapper.createCompanyFromAuthority(authority: authority);
+            }
+        }
       // Scroll to bottom after messages load
       _scrollToBottomOnMessagesLoad();
     }
@@ -232,7 +250,7 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
           _messageController.text.trim(),
           body: _messageController.text.trim(),
           type: "message",
-          title: company?.name ?? "Company__",
+          title: _company?.name ?? "Company__",
         );
       }
 
@@ -1242,9 +1260,9 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
                       ),
                     );
                   }
-                  else if(company != null)
+                  else if(company != null &&_company != null)
                   {
-                    GeneralMethods.navigateTo(context, CompanyDetailPage(company: company));
+                    GeneralMethods.navigateTo(context, CompanyDetailPage(company: company, user: UserConverter(_company),));
                   }
                   else if(admin != null)
                   {

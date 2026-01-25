@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:itc_institute_admin/auth/signup.dart';
 import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
 import 'package:itc_institute_admin/itc_logic/notification/notitification_service.dart';
+import 'package:itc_institute_admin/model/authorityCompanyMapper.dart';
 
 import '../itc_logic/firebase/general_cloud.dart';
+import '../model/authority.dart';
 import '../model/company.dart';
 import '../view/home/companyDashboardController.dart';
 
@@ -56,8 +58,18 @@ class _LoginScreenState extends State<LoginScreen> {
         _isLoading = true;
       });
 
-      Company? company = await ITCFirebaseLogic().getCompany(currentUser.uid);
+      Company? company;
+       company = await ITCFirebaseLogic().getCompany(currentUser.uid);
+       if(company == null)
+         {
+           Authority? authority = await ITCFirebaseLogic().getAuthority(currentUser.uid);
+           if(authority != null)
+             {
+               company = AuthorityCompanyMapper.createCompanyFromAuthority(authority: authority);
+             }
+         }
 
+      debugPrint('company is $company and ${company?.originalAuthority == null}');
       if (company != null) {
         // User has a company, navigate to dashboard
         if (mounted) {
@@ -101,18 +113,32 @@ class _LoginScreenState extends State<LoginScreen> {
           );
 
       // Check if user has a company
-      Company? company = await ITCFirebaseLogic().getCompany(
+      Company? company;
+       company = await ITCFirebaseLogic().getCompany(
         userCredential.user!.uid,
       );
 
+       if(company == null)
+         {
+           Authority? authority = await ITCFirebaseLogic().getAuthority(userCredential.user!.uid);
+           if(authority != null)
+             {
+               company = AuthorityCompanyMapper.createCompanyFromAuthority(authority: authority);
+             }
+
+         }
+
+
       if (company == null) {
-        _showError("Company profile not found. Please contact support.");
+        _showError("Company or Authority profile not found. Please contact support.");
         setState(() {
           _isLoading = false;
           _currentStep = 1; // Go back to password step on error
         });
         return;
       }
+
+      debugPrint('company is $company and ${company.originalAuthority == null}');
       await notificationService.saveTokenToFirestore();
       // Successfully logged in with company, navigate to dashboard
       if (mounted) {
@@ -137,6 +163,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   String _getAuthErrorMessage(String code) {
+    debugPrint("code is $code");
     switch (code) {
       case 'user-not-found':
         return 'No user found with this email.';
@@ -150,6 +177,8 @@ class _LoginScreenState extends State<LoginScreen> {
         return 'Too many attempts. Please try again later.';
       case 'network-request-failed':
         return 'Network error. Please check your connection.';
+        case 'invalid-credential':
+        return 'Invalid credentials. Please ensure you entered the right email and password.';
       default:
         return 'Login failed. Please try again.';
     }

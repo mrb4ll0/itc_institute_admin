@@ -1443,7 +1443,7 @@ class _ProfessionalTweetCardState extends State<ProfessionalTweetCard> {
       GeneralMethods.navigateTo(
         context,
         CompanyDetailPage(
-            company: widget.tweetPoster.getAs<Company>()!),
+            company: widget.tweetPoster.getAs<Company>()!, user: UserConverter(widget.currentStudent),),
       );
     } else if (isStudent && !isCompany) {
       Navigator.push(

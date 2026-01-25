@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import 'authority.dart';
 import 'companyForm.dart'; // Note: corrected casing
 
 class Company {
@@ -44,6 +45,20 @@ class Company {
   final List<String> rejectedApplications;
   final List<String> supervisors;
 
+  // Authority relationship
+  final bool isUnderAuthority;
+  final String? authorityId;          // Linked authority orgId
+  final String? authorityName;        // Optional (for UI display)
+  final String authorityLinkStatus;   // PENDING | APPROVED | REJECTED | NONE
+
+  final bool? wasAuthority; // Whether this company was converted from authority
+  final String? originalAuthorityId; // Original authority ID if converted
+  final DateTime? convertedAt; // When conversion happened
+  final Authority? originalAuthority;
+
+
+
+
   Company({
     required this.id,
     required this.name,
@@ -82,6 +97,16 @@ class Company {
     this.completedTrainees = const [],
     this.rejectedApplications = const [],
     this.supervisors = const [],
+    // 🔽 NEW
+    this.isUnderAuthority = false,
+    this.authorityId,
+    this.authorityName,
+    this.authorityLinkStatus = "NONE",
+
+    this.wasAuthority = false,
+    this.originalAuthorityId,
+    this.convertedAt,
+    this.originalAuthority,
   });
 
   Company copyWith({
@@ -122,6 +147,14 @@ class Company {
     List<String>? completedTrainees,
     List<String>? rejectedApplications,
     List<String>? supervisors,
+    bool? isUnderAuthority,
+    String? authorityId,
+    String? authorityName,
+    String? authorityLinkStatus,
+    bool? wasAuthority,
+    String? originalAuthorityId,
+    DateTime? convertedAt,
+    Authority? originalAuthority,
   }) {
     return Company(
       id: id ?? this.id,
@@ -161,6 +194,14 @@ class Company {
       completedTrainees: completedTrainees ?? this.completedTrainees,
       rejectedApplications: rejectedApplications ?? this.rejectedApplications,
       supervisors: supervisors ?? this.supervisors,
+      isUnderAuthority: isUnderAuthority ?? this.isUnderAuthority,
+      authorityId: authorityId ?? this.authorityId,
+      authorityName: authorityName ?? this.authorityName,
+      authorityLinkStatus: authorityLinkStatus ?? this.authorityLinkStatus,
+      wasAuthority: wasAuthority ?? this.wasAuthority,
+      originalAuthorityId: originalAuthorityId ?? this.originalAuthorityId,
+      convertedAt: convertedAt ?? this.convertedAt,
+      originalAuthority: originalAuthority ?? this.originalAuthority,
     );
   }
 
@@ -203,6 +244,14 @@ class Company {
       'completedTrainees': completedTrainees,
       'rejectedApplications': rejectedApplications,
       'supervisors': supervisors,
+      'isUnderAuthority': isUnderAuthority,
+      'authorityId': authorityId,
+      'authorityName': authorityName,
+      'authorityLinkStatus': authorityLinkStatus,
+      'wasAuthority': wasAuthority,
+      'originalAuthorityId': originalAuthorityId,
+      'convertedAt': convertedAt?.toIso8601String(),
+      'originalAuthority': originalAuthority?.toMap(),
     };
   }
 
@@ -301,6 +350,20 @@ class Company {
       completedTrainees: List<String>.from(map['completedTrainees'] ?? []),
       rejectedApplications: List<String>.from(map['rejectedApplications'] ?? []),
       supervisors: List<String>.from(map['supervisors'] ?? []),
+      isUnderAuthority: map['isUnderAuthority'] as bool? ?? false,
+      authorityId: map['authorityId']?.toString(),
+      authorityName: map['authorityName']?.toString(),
+      authorityLinkStatus:
+      map['authorityLinkStatus']?.toString() ?? "NONE",
+
+      wasAuthority: map['wasAuthority'] as bool? ?? false,
+      originalAuthorityId: map['originalAuthorityId']?.toString(),
+      convertedAt: map['convertedAt'] != null
+          ? DateTime.tryParse(map['convertedAt'].toString())
+          : null,
+      originalAuthority: map['originalAuthority'] != null
+          ? Authority.fromMap(Map<String, dynamic>.from(map['originalAuthority']))
+          : null,
     );
   }
 
@@ -309,9 +372,54 @@ class Company {
   factory Company.fromJson(String source) =>
       Company.fromMap(json.decode(source));
 
+  /// Check if this company was originally an authority
+  bool get isConvertedAuthority => wasAuthority == true && originalAuthority != null;
+
+  /// Get authority-specific data if available
+  Authority? get authorityData => originalAuthority;
+
+  /// Get linked companies from authority (if converted)
+  List<String> get authorityLinkedCompanies =>
+      originalAuthority?.linkedCompanies ?? [];
+
+  /// Get authority admins (if converted)
+  List<String> get authorityAdmins => originalAuthority?.admins ?? [];
+
+  /// Get authority supervisors (if converted)
+  List<String> get authoritySupervisors => originalAuthority?.supervisors ?? [];
+
+  /// Get pending applications from authority
+  List<String> get authorityPendingApplications =>
+      originalAuthority?.pendingApplications ?? [];
+
+  /// Check if has specific authority functionality
+  bool hasAuthorityFeature(String feature) {
+    if (!isConvertedAuthority) return false;
+
+    switch (feature) {
+      case 'canReviewApplications':
+        return originalAuthority!.pendingApplications.isNotEmpty;
+      case 'hasLinkedCompanies':
+        return originalAuthority!.linkedCompanies.isNotEmpty;
+      case 'canAutoApprove':
+        return originalAuthority!.autoApproveAfterAuthority;
+      case 'requirePhysicalLetter':
+        return originalAuthority!.requirePhysicalLetter;
+      default:
+        return false;
+    }
+  }
+
   @override
   String toString() {
-    return 'Company(id: $id, name: $name, industry: $industry, email: $email, phoneNumber: $phoneNumber, logoURL: $logoURL, localGovernment: $localGovernment, state: $state, address: $address, role: $role, fcmToken: $fcmToken, registrationNumber: $registrationNumber, description: $description, isfeatured: $isfeatured, isActive: $isActive, isVerified: $isVerified, isDeleted: $isDeleted, isApproved: $isApproved, isRejected: $isRejected, isPending: $isPending, isBlocked: $isBlocked, isSuspended: $isSuspended, isBanned: $isBanned, isMuted: $isMuted, isMutedUntil: $isMutedUntil, isMutedBy: $isMutedBy, isMutedFor: $isMutedFor, isMutedOn: $isMutedOn, forms: $forms, updatedAt: $updatedAt, potentialtrainee: $potentialtrainee, pendingApplications: $pendingApplications, acceptedTrainees: $acceptedTrainees, currentTrainees: $currentTrainees, completedTrainees: $completedTrainees, rejectedApplications: $rejectedApplications, supervisors: $supervisors)';
+    return 'Company(id: $id, name: $name, industry: $industry, email: $email, phoneNumber: $phoneNumber, logoURL: $logoURL, localGovernment: $localGovernment, state: $state, address: $address, role: $role, fcmToken: $fcmToken, registrationNumber: $registrationNumber, description: $description, isfeatured: $isfeatured, isActive: $isActive, isVerified: $isVerified, isDeleted: $isDeleted, isApproved: $isApproved, isRejected: $isRejected, isPending: $isPending, isBlocked: $isBlocked, isSuspended: $isSuspended, isBanned: $isBanned, isMuted: $isMuted, isMutedUntil: $isMutedUntil, isMutedBy: $isMutedBy, isMutedFor: $isMutedFor, isMutedOn: $isMutedOn, forms: $forms, updatedAt: $updatedAt, potentialtrainee: $potentialtrainee, pendingApplications: $pendingApplications, acceptedTrainees: $acceptedTrainees, currentTrainees: $currentTrainees, completedTrainees: $completedTrainees, rejectedApplications: $rejectedApplications, supervisors: $supervisors '
+        ' isUnderAuthority: $isUnderAuthority,'
+        ' authorityId: $authorityId,'
+        ' authorityName: $authorityName,'
+        ' authorityLinkStatus: $authorityLinkStatus)'
+        'wasAuthority: $wasAuthority, '
+        'originalAuthorityId: $originalAuthorityId, '
+        'hasAuthorityData: ${originalAuthority != null})';
   }
 
   @override
