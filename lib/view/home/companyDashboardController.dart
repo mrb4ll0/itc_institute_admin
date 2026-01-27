@@ -16,9 +16,11 @@ import 'package:itc_institute_admin/view/home/themePage.dart';
 import 'package:itc_institute_admin/view/home/tweet_view.dart';
 import 'package:itc_institute_admin/view/studentList.dart';
 
+import '../../itc_logic/firebase/authority_cloud.dart';
 import '../../itc_logic/firebase/general_cloud.dart';
 import '../../model/authority.dart';
 import '../../model/company.dart';
+import '../CompanyAuthoritySpecificationDialog.dart';
 import '../company/companyEdit.dart';
 import 'dialog/pendingCompanyDialog.dart';
 import 'iTList.dart';
@@ -26,6 +28,7 @@ import 'iTList.dart';
 class CompanyDashboardController extends StatefulWidget {
   final Company tweetCompany;
   const CompanyDashboardController({super.key, required this.tweetCompany});
+
 
   @override
   State<CompanyDashboardController> createState() =>
@@ -39,22 +42,38 @@ class _CompanyDashboardControllerState
   Company? _company;
   bool _isLoading = true;
 
+  // Add AuthorityService instance
+  final AuthorityService _authorityService = AuthorityService();
+
   @override
   void initState() {
     super.initState();
 
     _pages = [
        Companydashboard( isAuthority: widget.tweetCompany.originalAuthority != null,),
-      const StudentApplicationsPage(),
+       StudentApplicationsPage(isAuthority: widget.tweetCompany.originalAuthority != null, companyIds: widget.tweetCompany.originalAuthority?.linkedCompanies??[],),
       const IndustrialTrainingPostsPage(),
       TweetView(company: widget.tweetCompany),
        MessagesView(),
     ];
-    _loadCompany();
+
       WidgetsBinding.instance.addPostFrameCallback(
             (_) async {
+
               if(widget.tweetCompany.originalAuthority != null) showPendingCompaniesDialog(context, widget.tweetCompany.originalAuthority!);
+              await _loadCompany();
+              debugPrint("widget.tweetCompany.originalAuthority != null ${widget.tweetCompany.originalAuthority}");
+              debugPrint("_company == null ? ${_company == null}");
+              if (_company != null && widget.tweetCompany.originalAuthority == null ) {
+                debugPrint("condition meet , dialog should be shown");
+                checkAndShowAuthoritySpecificationDialog(
+                  context: context,
+                  company: _company!,
+                  firebaseLogic: ITCFirebaseLogic(),
+                );
+              }
             }
+
       );
 
   }
@@ -217,6 +236,25 @@ class _CompanyDashboardControllerState
           _buildDrawerItem(icon: Icons.nightlight, text: 'Theme', onTap: () {
             GeneralMethods.navigateTo(context,ThemeSettingsPage());
           }),
+          widget.tweetCompany.originalAuthority != null?Container():
+          _buildDrawerItem(
+            icon: Icons.link,
+            text: _getAuthorityMenuItemText(),
+            onTap: () async {
+              // Close drawer first
+              Navigator.pop(context);
+
+              // Use _company if available, otherwise use widget.tweetCompany
+              final currentCompany = _company ?? widget.tweetCompany;
+
+              // Small delay to ensure drawer is closed
+              await Future.delayed(const Duration(milliseconds: 300));
+
+              if (mounted) {
+                await _handleAuthoritySpecification(currentCompany);
+              }
+            },
+          ),
           const Divider(),
           _buildDrawerItem(
             icon: Icons.logout,
@@ -229,6 +267,111 @@ class _CompanyDashboardControllerState
       ),
     );
   }
+
+  // ============ NEW METHOD: Handle Authority Specification ============
+  Future<void> _handleAuthoritySpecification(Company company) async {
+    try {
+      debugPrint('Opening authority specification dialog for: ${company.name}');
+
+      // Check if dialog should be shown (optional, but good practice)
+      final shouldShowDialog = await _authorityService.needsAuthoritySpecificationDialog(company.id);
+
+      if (!mounted) return;
+
+      // // Always allow manual access, but show appropriate message
+      // if (!shouldShowDialog && company.isUnderAuthority) {
+      //   // Company already has authority - show current status
+      //   _showCurrentAuthorityStatus(company);
+      //   return;
+      // }
+
+      // Show the dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => CompanyAuthoritySpecificationDialog(
+          company: company,
+          onSpecificationComplete: () {
+            if (mounted) {
+              // Refresh company data
+              _loadCompany();
+
+              // Show success message
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Authority specification updated successfully!'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            }
+          }, firebaseLogic: ITCFirebaseLogic(),
+        ),
+      );
+    } catch (e, stack) {
+      debugPrint('Error showing authority dialog: $e');
+      debugPrint('Stack trace: $stack');
+
+      if (mounted) {
+        // Show error dialog
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text('Error'),
+            content: Text('Failed to open authority dialog: ${e.toString()}'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+  }
+
+  // ============ HELPER: Get appropriate menu item text ============
+  String _getAuthorityMenuItemText() {
+    final company = _company ?? widget.tweetCompany;
+
+    if (company.isUnderAuthority) {
+      return 'Change Authority Link';
+    } else if (company.authorityLinkStatus == 'PREVIOUSLY_LINKED') {
+      return 'Specify Authority Relationship';
+    } else if (company.authorityLinkStatus == 'STANDALONE') {
+      return 'Link to Authority';
+    } else {
+      return 'Set Authority Relationship';
+    }
+  }
+
+  // ============ HELPER: Show current authority status ============
+  void _showCurrentAuthorityStatus(Company company) {
+    String message;
+    Color color;
+
+    if (company.isUnderAuthority) {
+      message = 'Currently linked to: ${company.authorityName ?? "Authority"}';
+      color = Colors.blue;
+    } else if (company.authorityLinkStatus == 'STANDALONE') {
+      message = 'Company is set as standalone';
+      color = Colors.green;
+    } else if (company.authorityLinkStatus == 'PREVIOUSLY_LINKED') {
+      message = 'Previously linked to authority - you can update your status';
+      color = Colors.orange;
+    } else {
+      message = 'No authority relationship set';
+      color = Colors.grey;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: color,
+      ),
+    );
+  }
+
 
   void navigateToEditCompany(Company company) {
     Navigator.push(

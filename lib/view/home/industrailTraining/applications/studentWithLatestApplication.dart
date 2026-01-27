@@ -109,6 +109,22 @@ class StudentWithLatestApplication {
     );
   }
 
+  // COPY WITH METHOD
+  StudentWithLatestApplication copyWith({
+    Student? student,
+    StudentApplication? latestApplication,
+    int? totalApplications,
+    DateTime? lastApplicationDate,
+  }) {
+    return StudentWithLatestApplication(
+      student: student ?? this.student,
+      latestApplication: latestApplication ?? this.latestApplication,
+      totalApplications: totalApplications ?? this.totalApplications,
+      lastApplicationDate: lastApplicationDate ?? this.lastApplicationDate,
+    );
+  }
+
+
   @override
   String toString() {
     return 'StudentWithLatestApplication(student: $studentName, totalApplications: $totalApplications, lastApplication: $internshipTitle)';

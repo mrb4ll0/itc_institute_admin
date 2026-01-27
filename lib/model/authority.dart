@@ -55,6 +55,7 @@ class Authority {
   final String? convertedBy;
   final DateTime? convertedAt;
   final bool isArchived; // Keep authority data but mark as archived
+  List<Map<String, dynamic>>? unlinkedCompaniesHistory;
 
   Authority({
     required this.id,
@@ -106,6 +107,7 @@ class Authority {
     this.convertedBy,
     this.convertedAt,
     this.isArchived = false,
+    List<Map<String, dynamic>>? unlinkedCompaniesHistory,
   });
 
   // Copy with method
@@ -234,6 +236,7 @@ class Authority {
       'convertedBy': convertedBy,
       'convertedAt': convertedAt?.toIso8601String(),
       'isArchived': isArchived,
+      'unlinkedCompaniesHistory': unlinkedCompaniesHistory,
     };
   }
 
@@ -285,6 +288,7 @@ class Authority {
           ? DateTime.tryParse(map['convertedAt'].toString())
           : null,
       isArchived: map['isArchived'] as bool? ?? false,
+      unlinkedCompaniesHistory: (map['unlinkedCompaniesHistory'] as List?)?.cast<Map<String, dynamic>>(),
     );
   }
 

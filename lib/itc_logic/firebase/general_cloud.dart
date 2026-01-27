@@ -94,7 +94,6 @@ class ITCFirebaseLogic {
           .get();
 
       if (doc.exists) {
-        debugPrint("company exist");
         Company company = Company.fromMap(doc.data()!);
         return company;
       }
@@ -415,7 +414,6 @@ class ITCFirebaseLogic {
       final snapshot = await query.get();
 
       return snapshot.docs.map((doc) {
-        debugPrint("doc data is ${doc.data()}");
         return Authority.fromMap(doc.data() as Map<String,dynamic>);
       }).toList();
 
@@ -986,7 +984,7 @@ class ITCFirebaseLogic {
   }
 
 
-  Future<void> addCompanyToAuthorityPendingApplications({
+  Future<bool> addCompanyToAuthorityPendingApplications({
     required String authorityId,
     required String companyId,
     required String companyName,
@@ -1017,6 +1015,7 @@ class ITCFirebaseLogic {
         'decisionDate': null,
         'remarks': null,
       });
+      return true;
     } catch (e) {
       rethrow;
     }

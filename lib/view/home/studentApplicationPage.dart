@@ -14,7 +14,9 @@ import 'industrailTraining/newIndustrialTraining.dart';
 // Import the new model and service
 
 class StudentApplicationsPage extends StatefulWidget {
-  const StudentApplicationsPage({super.key});
+  final bool isAuthority;
+    final List<String> companyIds;
+  const StudentApplicationsPage({super.key,required this.isAuthority, required this.companyIds});
 
   @override
   State<StudentApplicationsPage> createState() =>
@@ -89,7 +91,7 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
 
       // Get students with their latest applications
       final studentsStream = _companyApplicationsService
-          .streamStudentsWithLatestApplications(companyId);
+          .streamStudentsWithLatestApplications(companyId,isAuthority: widget.isAuthority, companyIds: widget.companyIds);
 
       final students = await studentsStream.first;
 
@@ -1098,7 +1100,7 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
 
   void _navigateToStudentApplications(StudentWithLatestApplication student) {
     // Navigate to page showing all applications for this student
-    GeneralMethods.navigateTo(context, SpecificStudentApplicationsPage(companyId:FirebaseAuth.instance.currentUser?.uid?? "", studentUid: student.student.uid));
+    GeneralMethods.navigateTo(context, SpecificStudentApplicationsPage(companyId: student.latestApplication?.internship.company.id??"", studentUid: student.student.uid));
   }
 
   void _showApplicationDetails(

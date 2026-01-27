@@ -69,7 +69,6 @@ class _LoginScreenState extends State<LoginScreen> {
              }
          }
 
-      debugPrint('company is $company and ${company?.originalAuthority == null}');
       if (company != null) {
         // User has a company, navigate to dashboard
         if (mounted) {

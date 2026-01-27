@@ -49,7 +49,7 @@ class Company {
   final bool isUnderAuthority;
   final String? authorityId;          // Linked authority orgId
   final String? authorityName;        // Optional (for UI display)
-  final String authorityLinkStatus;   // PENDING | APPROVED | REJECTED | NONE
+  final String authorityLinkStatus;   // PENDING | APPROVED | REJECTED | NONE | UNLINKED
 
   final bool? wasAuthority; // Whether this company was converted from authority
   final String? originalAuthorityId; // Original authority ID if converted

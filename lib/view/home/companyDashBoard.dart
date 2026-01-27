@@ -84,6 +84,7 @@ class _CompanydashboardState extends State<Companydashboard>
       // Load all data in parallel for better performance
       final results = await Future.wait([
         ITCFirebaseLogic().getCompany(companyId),
+        ITCFirebaseLogic().getAuthority(companyId),
         company_cloud.getTotalNewApplications(companyId),
         company_cloud.getTotalAcceptedApplications(companyId),
         activeTrainingService.getActiveTraineesCount(companyId),
@@ -91,9 +92,18 @@ class _CompanydashboardState extends State<Companydashboard>
 
       setState(() {
         _company = results[0] as Company?;
-        newApplicationCounts = results[1] as int;
-        acceptedApplicationCount = results[2] as int;
-        activeApplicationsCounts = results[3] as int;
+        if(_company == null)
+          {
+            Authority? authority = results[1] as Authority?;
+             if(authority != null)
+               {
+                 _company = AuthorityCompanyMapper.createCompanyFromAuthority(
+                     authority: authority);
+               }
+          }
+        newApplicationCounts = results[2] as int;
+        acceptedApplicationCount = results[3] as int;
+        activeApplicationsCounts = results[4] as int;
         supervisorCount = 0;
         _isRefreshing = false;
         _error = '';
@@ -351,7 +361,7 @@ class _CompanydashboardState extends State<Companydashboard>
         children: [
           _buildStatCard(
             title: 'New Applications',
-            value: _company?.originalAuthority?.linkedCompanies.length.toString()??"0",
+            value: newApplicationCounts.toString()??"0",
           ),
           _buildStatCard(
             title: 'Active Trainings',
@@ -360,7 +370,7 @@ class _CompanydashboardState extends State<Companydashboard>
           widget.isAuthority?
           _buildStatCard(
             title: 'Companies',
-            value: totalCompany.toString(),
+            value: _company?.originalAuthority?.linkedCompanies.length.toString()??'0',
           ):_buildStatCard(
             title: 'Supervisors',
             value: supervisorCount.toString(),

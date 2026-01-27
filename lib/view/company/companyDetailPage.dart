@@ -934,6 +934,7 @@ class _CompanyDetailPageState extends State<CompanyDetailPage>
          context,
          ChatDetailsPage(
            receiverId: widget.company.id, receiverName: widget.company.name, receiverAvatarUrl: widget.company.logoURL,
+           receiverRole: widget.company.role,
         ));
   }
 
