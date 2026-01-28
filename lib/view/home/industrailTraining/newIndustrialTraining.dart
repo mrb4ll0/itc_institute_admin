@@ -19,7 +19,8 @@ import '../../../model/companyForm.dart';
 
 
 class CreateIndustrialTrainingPage extends StatefulWidget {
-  const CreateIndustrialTrainingPage({super.key});
+  final bool isAuthority;
+  const CreateIndustrialTrainingPage({super.key, required this.isAuthority});
 
   @override
   State<CreateIndustrialTrainingPage> createState() =>
@@ -334,7 +335,7 @@ class _CreateIndustrialTrainingPageState
         contactPerson: _contactPersonController.text.trim(),
       );
          debugPrint("internship details ${it.files?.length}");
-      await company_cloud.postInternship(it);
+      await company_cloud.postInternship(it,isAuthority:widget.isAuthority);
 
       // Show success message
       _showSuccess('Training opportunity posted successfully!');

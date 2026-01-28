@@ -313,7 +313,7 @@ class _CompanydashboardState extends State<Companydashboard>
       floatingActionButton: FloatingActionButton(
         heroTag: GeneralMethods.getUniqueHeroTag(),
         onPressed: () {
-          GeneralMethods.navigateTo(context, CreateIndustrialTrainingPage());
+          GeneralMethods.navigateTo(context, CreateIndustrialTrainingPage(isAuthority: widget.isAuthority));
         },
         backgroundColor: const Color(0xFF135bec),
         child: const Icon(Icons.add, color: Colors.white),
@@ -490,7 +490,7 @@ class _CompanydashboardState extends State<Companydashboard>
     final borderColor = isDark ? Colors.grey.shade800 : Colors.grey.shade200;
 
     return StreamBuilder<List<RecentAction>>(
-      stream: _actionLogger.streamCompanyActions(_company!.id),
+      stream: _actionLogger.streamCompanyActions(_company!.id,isAuthority: widget.isAuthority),
       builder: (context, actionStream) {
         if (actionStream.connectionState == ConnectionState.waiting) {
           return _buildLoadingState();

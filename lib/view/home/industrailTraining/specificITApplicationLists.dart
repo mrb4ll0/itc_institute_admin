@@ -14,7 +14,8 @@ import '../../../model/student.dart';
 
 class SpecificITStudentApplicationsPage extends StatefulWidget {
   final String itId;
-  const SpecificITStudentApplicationsPage({super.key, required this.itId});
+  final bool isAuthority;
+  const SpecificITStudentApplicationsPage({super.key, required this.itId,required this.isAuthority});
 
   @override
   State<SpecificITStudentApplicationsPage> createState() =>
@@ -1217,7 +1218,7 @@ class _SpecificITStudentApplicationsPageState
           // Navigate to application details
           GeneralMethods.navigateTo(
             context,
-            StudentApplicationDetailsPage(application: application),
+            StudentApplicationDetailsPage(application: application,isAuthority: widget.isAuthority,),
           );
         },
         borderRadius: BorderRadius.circular(12),
@@ -1661,6 +1662,7 @@ class _SpecificITStudentApplicationsPageState
             // Call your API service
             try {
               await company_cloud.deleteApplications(
+                isAuthority: widget.isAuthority,
                 companyId: FirebaseAuth.instance.currentUser!.uid,
                 studentId: application.student.uid,
                 internship: application.internship!.id ?? "",
@@ -1921,6 +1923,7 @@ class _SpecificITStudentApplicationsPageState
 
               GeneralMethods.showLoading(context);
               await company_cloud.updateApplicationStatus(
+                isAuthority: widget.isAuthority,
                 companyId: FirebaseAuth.instance.currentUser!.uid,
                 internshipId: application.internship!.id!,
                 studentId: application.student.uid,

@@ -173,7 +173,7 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
 
       // Get fresh data
       final studentsStream = _companyApplicationsService
-          .streamStudentsWithLatestApplications(companyId);
+          .streamStudentsWithLatestApplications(companyId,isAuthority: widget.isAuthority, companyIds: widget.companyIds);
 
       final students = await studentsStream.first;
 
@@ -365,7 +365,7 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
       floatingActionButton: FloatingActionButton(
         heroTag: GeneralMethods.getUniqueHeroTag(),
         onPressed: () {
-          GeneralMethods.navigateTo(context, CreateIndustrialTrainingPage());
+          GeneralMethods.navigateTo(context, CreateIndustrialTrainingPage(isAuthority: widget.isAuthority,));
         },
         backgroundColor: colorScheme.primary,
         foregroundColor: colorScheme.onPrimary,
@@ -1100,7 +1100,7 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
 
   void _navigateToStudentApplications(StudentWithLatestApplication student) {
     // Navigate to page showing all applications for this student
-    GeneralMethods.navigateTo(context, SpecificStudentApplicationsPage(companyId: student.latestApplication?.internship.company.id??"", studentUid: student.student.uid));
+    GeneralMethods.navigateTo(context, SpecificStudentApplicationsPage(isAuthority: widget.isAuthority,companyId: student.latestApplication?.internship.company.id??"", studentUid: student.student.uid));
   }
 
   void _showApplicationDetails(

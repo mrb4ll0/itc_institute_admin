@@ -291,7 +291,8 @@ class TraineeService {
     String role = '',
     String description = '',
     bool fromUpdateStatus = false,
-    String status = "accepted"
+    String status = "accepted",
+    required bool isAuthority
   }) async {
     try {
       debugPrint('Creating trainee record for student: ${application.student.uid}');
@@ -338,6 +339,7 @@ class TraineeService {
       // Update application status using your existing Company_Cloud
       if(!fromUpdateStatus) {
         await _companyCloud.updateApplicationStatus(
+          isAuthority: isAuthority,
           companyId: companyId,
           internshipId: application.internship.id!,
           studentId: application.student.uid,
@@ -355,7 +357,7 @@ class TraineeService {
     }
   }
 
-  Future<void> syncTraineesFromApplications(String companyId) async {
+  Future<void> syncTraineesFromApplications(String companyId,isAuthority) async {
     try {
       final applications =
       await _companyCloud.studentInternshipApplicationsForCompany(companyId);
@@ -388,6 +390,7 @@ class TraineeService {
         if (existing == null) {
           // Create trainee
           await createTraineeFromApplication(
+            isAuthority:isAuthority,
             application: latestApp,
             companyId: companyId,
             companyName: latestApp.internship.company.name,
@@ -517,9 +520,11 @@ class TraineeService {
     required String studentId,
     required String status,
     required StudentApplication application,
+    required bool isAuthority
   }) async {
     try {
       await _companyCloud.updateApplicationStatus(
+        isAuthority: isAuthority,
         companyId: companyId,
         internshipId: internshipId,
         studentId: studentId,
@@ -1437,6 +1442,7 @@ class TraineeService {
     required String status, // 'pending', 'accepted', 'rejected', 'reviewed', 'shortlisted', etc.
     String? reason,
     Map<String, dynamic>? traineeUpdateData,
+  required bool isAuthority
   }) async {
     try {
       debugPrint('Updating application status with trainee sync: $applicationId');
@@ -1455,6 +1461,7 @@ class TraineeService {
 
       // 2. Update application status in Company_Cloud
       await _companyCloud.updateApplicationStatusByIds(
+        isAuthority: isAuthority,
         companyId: companyId,
         internshipId: internshipId,
         studentId: studentId,
@@ -1464,6 +1471,7 @@ class TraineeService {
 
       // 3. Handle trainee collection based on status
       return await _syncTraineeWithApplicationStatus(
+        isAuthority:isAuthority,
         companyId: companyId,
         internshipId: internshipId,
         studentId: studentId,
@@ -1491,6 +1499,7 @@ class TraineeService {
     required String status,
     String? reason,
     Map<String, dynamic>? additionalData,
+    required bool isAuthority
   }) async {
     try {
       final normalizedStatus = status.toLowerCase();
@@ -1507,6 +1516,7 @@ class TraineeService {
           if (existingTrainee == null) {
             // Create new trainee record
             final newTrainee = await createTraineeFromApplication(
+              isAuthority: isAuthority,
               application: application,
               companyId: companyId,
               companyName: application.internship.company.name,

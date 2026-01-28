@@ -10,7 +10,9 @@ import 'industrailTraining/ITDetails.dart';
 import 'industrailTraining/newIndustrialTraining.dart';
 
 class IndustrialTrainingPostsPage extends StatefulWidget {
-  const IndustrialTrainingPostsPage({super.key});
+  final bool isAuthority;
+ final List<String> companyIds;
+  const IndustrialTrainingPostsPage({super.key, required this.isAuthority, required this.companyIds});
 
   @override
   State<IndustrialTrainingPostsPage> createState() =>
@@ -33,6 +35,8 @@ class _IndustrialTrainingPostsPageState
     super.initState();
     _internshipsStream = companyCloud.getCurrentCompanyInternships(
       FirebaseAuth.instance.currentUser!.uid,
+      isAuthority: widget.isAuthority,
+      companyIds: widget.companyIds
     );
 
     _internshipsSubscription = _internshipsStream.listen((internships) {
@@ -290,7 +294,7 @@ class _IndustrialTrainingPostsPageState
           debugPrint("Internship Details Page");
           GeneralMethods.navigateTo(
             context,
-            InternshipDetailsPage(internship: post),
+            InternshipDetailsPage(internship: post,isAuthority: widget.isAuthority,),
           );
         },
         child: Padding(
@@ -763,6 +767,6 @@ class _IndustrialTrainingPostsPageState
   }
 
   void _createNewInternship() {
-    GeneralMethods.navigateTo(context, const CreateIndustrialTrainingPage());
+    GeneralMethods.navigateTo(context,  CreateIndustrialTrainingPage(isAuthority: widget.isAuthority,));
   }
 }

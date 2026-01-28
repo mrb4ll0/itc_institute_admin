@@ -15,8 +15,9 @@ import '../industrailTraining/fileDetails.dart';
 
 class StudentApplicationDetailsPage extends StatefulWidget {
   final StudentApplication application;
+  final bool isAuthority;
 
-  const StudentApplicationDetailsPage({super.key, required this.application});
+  const StudentApplicationDetailsPage({super.key, required this.application,required this.isAuthority});
 
   @override
   State<StudentApplicationDetailsPage> createState() =>
@@ -818,6 +819,7 @@ class _StudentApplicationDetailsPageState
                 "companyId data ${FirebaseAuth.instance.currentUser?.uid}",
               );
               await company_cloud.updateApplicationStatus(
+                isAuthority: widget.isAuthority,
                 companyId: FirebaseAuth.instance.currentUser!.uid,
                 internshipId: application.internship!.id!,
                 studentId: application.student.uid,

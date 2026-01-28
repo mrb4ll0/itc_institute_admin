@@ -17,6 +17,7 @@ class SpecificStudentApplicationsPage extends StatefulWidget {
   final String studentUid;
   final String studentName;
   final int totalApplications;
+  final bool isAuthority;
 
   const SpecificStudentApplicationsPage({
     Key? key,
@@ -24,6 +25,7 @@ class SpecificStudentApplicationsPage extends StatefulWidget {
     required this.studentUid,
     this.studentName = '',
     this.totalApplications = 0,
+    required this.isAuthority,
   }) : super(key: key);
 
   @override
@@ -207,6 +209,7 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
       GeneralMethods.showLoading(context);
 
       await _applicationService.updateApplicationStatus(
+        isAuthority: widget.isAuthority,
         companyId: widget.companyId,
         internshipId: application.internship.id??"",
         studentId: application.student.uid,
@@ -813,7 +816,7 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
                       onPressed: () {
                         GeneralMethods.navigateTo(
                             context,
-                            StudentApplicationDetailsPage(application: application)
+                            StudentApplicationDetailsPage(application: application,isAuthority: widget.isAuthority,)
                         );
                       },
                       icon: Icon(Icons.visibility_outlined, size: 16),

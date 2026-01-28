@@ -16,8 +16,9 @@ import '../../../model/company.dart';
 
 class InternshipDetailsPage extends StatefulWidget {
   final IndustrialTraining internship;
+  final bool isAuthority;
 
-  const InternshipDetailsPage({super.key, required this.internship});
+  const InternshipDetailsPage({super.key, required this.internship,required this.isAuthority});
 
   @override
   State<InternshipDetailsPage> createState() => _InternshipDetailsPageState();
@@ -143,7 +144,7 @@ class _InternshipDetailsPageState extends State<InternshipDetailsPage> {
   void _editInternship() {
     GeneralMethods.navigateTo(
       context,
-      EditIndustrialTrainingPage(training: widget.internship),
+      EditIndustrialTrainingPage(training: widget.internship,isAuthority: widget.isAuthority,),
     );
   }
 
@@ -1347,6 +1348,7 @@ class _InternshipDetailsPageState extends State<InternshipDetailsPage> {
                 GeneralMethods.navigateTo(
                   context,
                   SpecificITStudentApplicationsPage(
+                    isAuthority: widget.isAuthority,
                     itId: widget.internship.id ?? "",
                   ),
                 );
@@ -1368,7 +1370,7 @@ class _InternshipDetailsPageState extends State<InternshipDetailsPage> {
   }
 
   _updateStatus(String status) async {
-    await company_cloud.updateInternshipStatus(widget.internship, status);
+    await company_cloud.updateInternshipStatus(widget.internship, status,isAuthority: widget.isAuthority);
     setState(() {
       widget.internship.status = status;
     });

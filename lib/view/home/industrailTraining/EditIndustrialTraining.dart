@@ -17,11 +17,13 @@ import '../../../model/company.dart';
 class EditIndustrialTrainingPage extends StatefulWidget {
   final IndustrialTraining training;
   final Function()? onUpdate;
+  final bool isAuthority;
 
   const EditIndustrialTrainingPage({
     super.key,
     required this.training,
     this.onUpdate,
+    required this.isAuthority,
   });
 
   @override
@@ -318,7 +320,7 @@ class _EditIndustrialTrainingPageState
       }
 
       // Update in company_cloud
-      await company_cloud.updateInternship(updatedTraining);
+      await company_cloud.updateInternship(updatedTraining,isAuthority: widget.isAuthority);
 
       // Show success message
       _showSuccess('Training opportunity updated successfully!');

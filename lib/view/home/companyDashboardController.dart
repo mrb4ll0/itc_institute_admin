@@ -52,7 +52,7 @@ class _CompanyDashboardControllerState
     _pages = [
        Companydashboard( isAuthority: widget.tweetCompany.originalAuthority != null,),
        StudentApplicationsPage(isAuthority: widget.tweetCompany.originalAuthority != null, companyIds: widget.tweetCompany.originalAuthority?.linkedCompanies??[],),
-      const IndustrialTrainingPostsPage(),
+       IndustrialTrainingPostsPage(isAuthority: widget.tweetCompany.originalAuthority != null, companyIds: widget.tweetCompany.originalAuthority?.linkedCompanies??[],),
       TweetView(company: widget.tweetCompany),
        MessagesView(),
     ];
@@ -200,7 +200,7 @@ class _CompanyDashboardControllerState
                    Fluttertoast.showToast(msg: "Company not found , kindly logout and login ");
                    return;
                  }
-              GeneralMethods.navigateTo(context, StudentListPage(company: _company!));
+              GeneralMethods.navigateTo(context, StudentListPage(company: _company!,isAuthority: widget.tweetCompany.originalAuthority != null));
             },
           ),
           ?widget.tweetCompany.originalAuthority!=null? _buildDrawerItem(

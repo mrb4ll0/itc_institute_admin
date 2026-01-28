@@ -8,13 +8,20 @@ class ActionLogger {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // Get company-specific actions collection reference
-  CollectionReference _getCompanyActionsRef(String companyId) {
-    return _firestore
+  CollectionReference _getCompanyActionsRef(String companyId,{bool isAuthority = false}) {
+    return !isAuthority?_firestore
         .collection('users')
         .doc('companies')
         .collection('companies')
         .doc(companyId)
-        .collection('recentActions');
+        .collection('recentActions'):
+    _firestore
+        .collection('users')
+        .doc('authorities')
+        .collection('authorities')
+        .doc(companyId)
+        .collection('recentActions')
+    ;
   }
 
   // Generate a unique document ID for actions
@@ -28,9 +35,10 @@ class ActionLogger {
   Future<void> logAction(
     RecentAction action, {
     required String companyId,
+     required bool isAuthority ,
   }) async {
     try {
-      final actionsRef = _getCompanyActionsRef(companyId);
+      final actionsRef = _getCompanyActionsRef(companyId,isAuthority: isAuthority);
       final actionId = _generateActionId(action);
 
       // Add companyId to the action metadata
@@ -52,9 +60,10 @@ class ActionLogger {
   Future<void> logActions(
     List<RecentAction> actions, {
     required String companyId,
+        required bool isAuthority ,
   }) async {
     try {
-      final actionsRef = _getCompanyActionsRef(companyId);
+      final actionsRef = _getCompanyActionsRef(companyId,isAuthority: isAuthority);
       final batch = _firestore.batch();
 
       for (final action in actions) {
@@ -78,8 +87,9 @@ class ActionLogger {
   Stream<List<RecentAction>> streamCompanyActions(
     String companyId, {
     int limit = 5,
+        required bool isAuthority ,
   }) {
-    final actionsRef = _getCompanyActionsRef(companyId);
+    final actionsRef = _getCompanyActionsRef(companyId,isAuthority: isAuthority);
 
     return actionsRef
         .orderBy('timestamp', descending: true)
@@ -96,9 +106,10 @@ class ActionLogger {
       String companyId, {
         int pageSize = 20,
         DocumentSnapshot? lastDocument,
+        required bool isAuthority,
       }) {
     try {
-      final actionsRef = _getCompanyActionsRef(companyId);
+      final actionsRef = _getCompanyActionsRef(companyId,isAuthority: isAuthority);
 
       Query query = actionsRef
           .orderBy('timestamp', descending: true)
@@ -125,8 +136,9 @@ class ActionLogger {
     String companyId,
     String userId, {
     int limit = 50,
+        required bool isAuthority ,
   }) {
-    final actionsRef = _getCompanyActionsRef(companyId);
+    final actionsRef = _getCompanyActionsRef(companyId,isAuthority:isAuthority);
 
     return actionsRef
         .where('userId', isEqualTo: userId)
@@ -145,8 +157,9 @@ class ActionLogger {
     String companyId,
     String entityType, {
     int limit = 50,
+        required bool isAuthority
   }) {
-    final actionsRef = _getCompanyActionsRef(companyId);
+    final actionsRef = _getCompanyActionsRef(companyId,isAuthority:isAuthority);
 
     return actionsRef
         .where('entityType', isEqualTo: entityType)
@@ -165,8 +178,9 @@ class ActionLogger {
     String companyId,
     String actionType, {
     int limit = 50,
+        required bool isAuthority
   }) {
-    final actionsRef = _getCompanyActionsRef(companyId);
+    final actionsRef = _getCompanyActionsRef(companyId,isAuthority:isAuthority);
 
     return actionsRef
         .where('actionType', isEqualTo: actionType)
@@ -181,8 +195,8 @@ class ActionLogger {
   }
 
   // Get today's actions for a company
-  Stream<List<RecentAction>> streamTodayCompanyActions(String companyId) {
-    final actionsRef = _getCompanyActionsRef(companyId);
+  Stream<List<RecentAction>> streamTodayCompanyActions(String companyId,{required isAuthority}) {
+    final actionsRef = _getCompanyActionsRef(companyId,isAuthority: isAuthority);
     final startOfDay = DateTime(
       DateTime.now().year,
       DateTime.now().month,
@@ -208,9 +222,10 @@ class ActionLogger {
     String companyId, {
     DateTime? startDate,
     DateTime? endDate,
+        required bool isAuthority
   }) async {
     try {
-      final actionsRef = _getCompanyActionsRef(companyId);
+      final actionsRef = _getCompanyActionsRef(companyId,isAuthority: isAuthority);
       Query query = actionsRef;
 
       if (startDate != null) {
@@ -236,9 +251,9 @@ class ActionLogger {
   }
 
   // Clear old actions for a specific company (older than 30 days)
-  Future<void> cleanupCompanyOldActions(String companyId) async {
+  Future<void> cleanupCompanyOldActions(String companyId,{required bool isAuthority}) async {
     try {
-      final actionsRef = _getCompanyActionsRef(companyId);
+      final actionsRef = _getCompanyActionsRef(companyId,isAuthority:isAuthority);
       final monthAgo = DateTime.now().subtract(const Duration(days: 30));
       final timestamp = Timestamp.fromDate(monthAgo);
 
@@ -267,6 +282,7 @@ class ActionLogger {
     String companyId, {
     DateTime? startDate,
     DateTime? endDate,
+        required bool isAuthority
   }) async {
     try {
       final actionsRef = _getCompanyActionsRef(companyId);
@@ -332,7 +348,7 @@ class ActionLogger {
         'userRoleCounts': userRoleCounts,
         'userActionCounts': userActionCounts,
         'dailyCounts': dailyCounts,
-        'mostActiveUser': _getMostActiveUser(actions),
+        'mostActiveUser': _getMostActiveUser(actions,isAuthority:isAuthority),
         'mostCommonAction': _getMostCommonAction(actionTypeCounts),
         'mostCommonEntity': _getMostCommonEntity(entityTypeCounts),
         'period': {
@@ -349,6 +365,7 @@ class ActionLogger {
   // Get activity summary for dashboard
   Future<Map<String, dynamic>> getCompanyActivitySummary(
     String companyId,
+  {required bool isAuthority}
   ) async {
     try {
       final now = DateTime.now();
@@ -356,21 +373,22 @@ class ActionLogger {
       final weekAgo = today.subtract(const Duration(days: 7));
       final monthAgo = today.subtract(const Duration(days: 30));
 
-      final totalCount = await getCompanyActionCount(companyId);
+      final totalCount = await getCompanyActionCount(companyId,isAuthority: isAuthority);
       final todayCount = await getCompanyActionCount(
+        isAuthority: isAuthority,
         companyId,
         startDate: today,
       );
-      final weekCount = await getCompanyActionCount(
+      final weekCount = await getCompanyActionCount( isAuthority: isAuthority,
         companyId,
         startDate: weekAgo,
       );
-      final monthCount = await getCompanyActionCount(
+      final monthCount = await getCompanyActionCount( isAuthority: isAuthority,
         companyId,
         startDate: monthAgo,
       );
 
-      final stats = await getCompanyActionStatistics(
+    final stats = await getCompanyActionStatistics( isAuthority: isAuthority,
         companyId,
         startDate: monthAgo,
       );
@@ -418,9 +436,9 @@ class ActionLogger {
   }
 
   // Delete all actions for a company (use with caution!)
-  Future<void> deleteAllCompanyActions(String companyId) async {
+  Future<void> deleteAllCompanyActions(String companyId,{required bool isAuthority}) async {
     try {
-      final actionsRef = _getCompanyActionsRef(companyId);
+      final actionsRef = _getCompanyActionsRef(companyId,isAuthority: isAuthority);
       final snapshot = await actionsRef.get();
 
       if (snapshot.docs.isNotEmpty) {
@@ -444,9 +462,10 @@ class ActionLogger {
     String companyId,
     String actionId,
     Map<String, dynamic> updates,
+      {required bool isAuthority}
   ) async {
     try {
-      final actionsRef = _getCompanyActionsRef(companyId);
+      final actionsRef = _getCompanyActionsRef(companyId,isAuthority: isAuthority);
       await actionsRef.doc(actionId).update(updates);
       print('📝 Updated action $actionId for company $companyId');
     } catch (e) {
@@ -456,7 +475,7 @@ class ActionLogger {
   }
 
   // Helper methods (keep from original)
-  String _getMostActiveUser(List<RecentAction> actions) {
+  String _getMostActiveUser(List<RecentAction> actions,{required bool isAuthority}) {
     final userCounts = <String, int>{};
     for (final action in actions) {
       userCounts[action.userName] = (userCounts[action.userName] ?? 0) + 1;

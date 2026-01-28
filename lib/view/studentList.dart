@@ -15,7 +15,8 @@ import 'home/industrailTraining/applications/studentApplicationsPage.dart';
 
 class StudentListPage extends StatefulWidget {
   final Company company;
-  const StudentListPage({Key? key, required this.company}) : super(key: key);
+  final bool isAuthority;
+  const StudentListPage({Key? key, required this.company,required this.isAuthority}) : super(key: key);
 
   @override
   State<StudentListPage> createState() => _StudentListPageState();
@@ -268,6 +269,7 @@ class _StudentListPageState extends State<StudentListPage>
       debugPrint("application title ${application.internship.title}");
 
       final success = await _traineeService.updateApplicationStatusWithTraineeSync(
+        isAuthority: widget.isAuthority,
         companyId: trainee.companyId,
         internshipId: application.internship.id!,
         studentId: trainee.studentId,
@@ -410,7 +412,7 @@ class _StudentListPageState extends State<StudentListPage>
         return TraineeCard(
           onDoubleTab: ()
           {
-            GeneralMethods.navigateTo(context, SpecificStudentApplicationsPage(companyId: trainee.companyId,studentUid: trainee.studentId,));
+            GeneralMethods.navigateTo(context, SpecificStudentApplicationsPage(companyId: trainee.companyId,studentUid: trainee.studentId,isAuthority: widget.isAuthority,));
           },
           trainee: trainee,
           isDark: isDark,
@@ -624,7 +626,7 @@ const PopupMenuItem(
         _isLoading = true;
         _error = '';
       });
-      await _traineeService.syncTraineesFromApplications(widget.company.id);
+      await _traineeService.syncTraineesFromApplications(widget.company.id,widget.isAuthority);
     setState(() {
       _loadTrainees();
     });

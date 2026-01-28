@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
@@ -28,7 +30,7 @@ class Company_Cloud {
   final FirebaseUploader _cloudStorage = FirebaseUploader();
   final FireStoreNotification fireStoreNotification = FireStoreNotification();
 
-  Future<void> postInternship(IndustrialTraining internship) async {
+  Future<void> postInternship(IndustrialTraining internship,{required bool isAuthority}) async {
     // Verify the user is a company
     final company = await _itcFirebaseLogic.getCompany(internship.company.id);
     if (company == null) throw Exception("Current user is not a company");
@@ -64,6 +66,7 @@ class Company_Cloud {
       await actionLogger.logAction(
         recentAction,
         companyId: FirebaseAuth.instance.currentUser!.uid,
+        isAuthority: isAuthority
       );
     } catch (e, s) {
       debugPrint(s.toString());
@@ -72,7 +75,7 @@ class Company_Cloud {
 
   // In your Company_Cloud class, modify the stream method
 
-  Future<void> updateInternship(IndustrialTraining internship) async {
+  Future<void> updateInternship(IndustrialTraining internship,{required bool isAuthority}) async {
     try {
       // Verify the user is a company
       final company = await _itcFirebaseLogic.getCompany(internship.company.id);
@@ -128,6 +131,7 @@ class Company_Cloud {
       );
 
       await actionLogger.logAction(
+        isAuthority:isAuthority,
         recentAction,
         companyId: FirebaseAuth.instance.currentUser!.uid,
       );
@@ -143,6 +147,7 @@ class Company_Cloud {
   Future<void> incrementInternshipApplicationCount(
     String companyId,
     String internshipId,
+      {required bool isAuthority}
   ) async {
     try {
       // Check if IDs are provided
@@ -186,7 +191,7 @@ class Company_Cloud {
           timestamp: DateTime.now(),
         );
 
-        await actionLogger.logAction(recentAction, companyId: companyId);
+        await actionLogger.logAction(recentAction, companyId: companyId,isAuthority: isAuthority);
       }
 
       debugPrint("Application count incremented for internship: $internshipId");
@@ -200,6 +205,7 @@ class Company_Cloud {
   Future<void> updateInternshipStatus(
     IndustrialTraining internship,
     String status,
+      {required bool isAuthority}
   ) async {
     try {
       // Validate input parameters
@@ -253,6 +259,7 @@ class Company_Cloud {
       await actionLogger.logAction(
         recentAction,
         companyId: FirebaseAuth.instance.currentUser!.uid,
+        isAuthority: isAuthority
       );
 
       debugPrint("Internship status updated to '$status': ${internshipRef.id}");
@@ -326,65 +333,153 @@ class Company_Cloud {
   }
 
   Stream<List<IndustrialTraining>> getCurrentCompanyInternships(
-    String companyId,
-  ) {
+      String companyId,
+      {
+        bool isAuthority = false,
+        List<String>? companyIds
+      }
+      ) {
     try {
-      return _firebaseFirestore
-          .collection("users")
-          .doc('companies')
-          .collection('companies')
-          .doc(companyId) // Current user's company ID
-          .collection('IT')
-          .orderBy('postedAt', descending: true)
-          .snapshots()
-          .asyncMap((snapshot) async {
-            List<IndustrialTraining> internships = [];
-            for (var doc in snapshot.docs) {
-              try {
-                final data = doc.data() as Map<String, dynamic>;
+      // Determine which company IDs to use
+      List<String> idsToQuery;
 
-                // Get current company data
-                final companyDoc = await _firebaseFirestore
-                    .collection("users")
-                    .doc("companies")
-                    .collection('companies')
-                    .doc(companyId)
-                    .get();
+      if (isAuthority && companyIds != null && companyIds.isNotEmpty) {
+        // Authority user with multiple company IDs - use all company IDs
+        idsToQuery = companyIds;
+      } else {
+        // Non-authority user OR companyIds is null/empty - use single companyId
+        idsToQuery = [companyId];
+      }
 
-                if (companyDoc.exists) {
-                  final company = Company.fromMap(
-                    companyDoc.data() as Map<String, dynamic>,
-                  );
+      // Create streams for each company
+      final streams = idsToQuery.map((currentCompanyId) {
+        return _firebaseFirestore
+            .collection("users")
+            .doc('companies')
+            .collection('companies')
+            .doc(currentCompanyId)
+            .collection('IT')
+            .orderBy('postedAt', descending: true)
+            .snapshots()
+            .asyncMap((snapshot) async {
+          List<IndustrialTraining> internships = [];
 
-                  // Create the IndustrialTraining object
-                  IndustrialTraining it = IndustrialTraining.fromMap(
-                    data,
-                    doc.id,
-                  );
-                  it.company = company;
-                  it.applicationsCount = await getApplicationsCount(
-                    it.company.id,
-                    doc.id,
-                  );
-                  internships.add(it);
-                }
-              } catch (e, stackTrace) {
-                debugPrint('Error processing internship ${doc.id}: $e');
-                continue;
+          for (var doc in snapshot.docs) {
+            try {
+              final data = doc.data() as Map<String, dynamic>;
+
+              // Get company data
+              final companyDoc = await _firebaseFirestore
+                  .collection("users")
+                  .doc("companies")
+                  .collection('companies')
+                  .doc(currentCompanyId)
+                  .get();
+
+              if (companyDoc.exists) {
+                final company = Company.fromMap(
+                  companyDoc.data() as Map<String, dynamic>,
+                );
+
+                // Create the IndustrialTraining object
+                IndustrialTraining it = IndustrialTraining.fromMap(
+                  data,
+                  doc.id,
+                );
+                it.company = company;
+                it.applicationsCount = await getApplicationsCount(
+                  currentCompanyId,
+                  doc.id,
+                );
+                internships.add(it);
               }
+            } catch (e, stackTrace) {
+              debugPrint('Error processing internship ${doc.id} for company $currentCompanyId: $e');
+              debugPrint('Stack Trace: $stackTrace');
+              continue;
             }
-            return internships;
-          })
-          .handleError((error, stackTrace) {
-            debugPrint('Firestore Stream Error: $error');
-            debugPrint('Stack Trace: $stackTrace');
-            return <IndustrialTraining>[];
-          });
+          }
+          return internships;
+        })
+            .handleError((error, stackTrace) {
+          debugPrint('Firestore Stream Error for company $currentCompanyId: $error');
+          debugPrint('Stack Trace: $stackTrace');
+          return <IndustrialTraining>[];
+        });
+      });
+
+      // Handle single vs multiple streams
+      if (idsToQuery.length == 1) {
+        // Single company - return the stream directly
+        return streams.first;
+      } else {
+        // Multiple companies - merge streams without using StreamGroup
+        return _mergeMultipleCompanyStreams(streams.toList());
+      }
     } catch (e, stackTrace) {
       debugPrint('Stream Creation Error: $e');
       debugPrint('Stack Trace: $stackTrace');
       return Stream.value(<IndustrialTraining>[]);
     }
+  }
+
+// Helper method to merge multiple streams without StreamGroup
+  Stream<List<IndustrialTraining>> _mergeMultipleCompanyStreams(
+      List<Stream<List<IndustrialTraining>>> streams
+      ) {
+    // Create a broadcast stream controller
+    final controller = StreamController<List<IndustrialTraining>>.broadcast();
+    final allInternships = <IndustrialTraining>[];
+
+    // Track active subscriptions
+    final subscriptions = <StreamSubscription>[];
+
+    for (var stream in streams) {
+      final subscription = stream.listen(
+            (internships) {
+          // Add new internships to the collection
+          allInternships.addAll(internships);
+
+          // Sort all internships by postedAt in descending order
+          // Handle null postedAt values by putting them at the end
+          allInternships.sort((a, b) {
+            // Handle null cases
+            if (a.postedAt == null && b.postedAt == null) return 0;
+            if (a.postedAt == null) return 1; // Put null at the end
+            if (b.postedAt == null) return -1; // Put null at the end
+
+            // Both are not null, compare normally
+            return b.postedAt!.compareTo(a.postedAt!);
+          });
+
+          // Emit a copy of the sorted list
+          controller.add(List.from(allInternships));
+        },
+        onError: (error) {
+          debugPrint('Error in merged stream: $error');
+          // Still emit current list even if there's an error
+          controller.add(List.from(allInternships));
+        },
+        onDone: () {
+          // When all streams are done, check if we should close
+          final allDone = subscriptions.every((sub) => sub.isPaused);
+          if (allDone) {
+            Future.delayed(Duration.zero, () => controller.close());
+          }
+        },
+      );
+
+      subscriptions.add(subscription);
+    }
+
+    // Clean up subscriptions when controller closes
+    controller.onCancel = () {
+      for (var subscription in subscriptions) {
+        subscription.cancel();
+      }
+    };
+
+    return controller.stream;
   }
 
   Future<List<IndustrialTraining>> getCurrentCompanyInternshipsFuture(
@@ -721,6 +816,7 @@ class Company_Cloud {
     required String studentId,
     required String status, // 'accepted' or 'rejected'
     required StudentApplication application,
+  required bool isAuthority
   }) async {
     status = GeneralMethods.normalizeApplicationStatus(status);
     debugPrint("application id is ${application.id}");
@@ -754,17 +850,18 @@ class Company_Cloud {
     );
     // Log audit trail
     if (status.toLowerCase() == 'accepted' || status.toLowerCase()=='accept') {
-      await incrementInternshipApplicationCount(companyId, internshipId);
+      await incrementInternshipApplicationCount(companyId, internshipId,isAuthority: isAuthority);
     }
     if(status.toLowerCase() == 'accepted' || status.toLowerCase() == 'rejected') {
       await TraineeService().createTraineeFromApplication(
+        isAuthority:isAuthority,
           application: application,
           companyId: companyId,
           companyName: company?.name ?? "",
           fromUpdateStatus: true,
           status: status.toLowerCase());
     }
-    await actionLogger.logAction(action, companyId: companyId);
+    await actionLogger.logAction(action, companyId: companyId,isAuthority:isAuthority);
   }
 
   // In Company_Cloud class - Add this method
@@ -774,6 +871,7 @@ class Company_Cloud {
     required String studentId,
     required String applicationId,
     required String status, // 'accepted' or 'rejected'
+      required bool isAuthority
   }) async {
     try {
       status = GeneralMethods.normalizeApplicationStatus(status);
@@ -834,10 +932,10 @@ class Company_Cloud {
 
       // Log audit trail
       if (status.toLowerCase() == 'accepted') {
-        await incrementInternshipApplicationCount(companyId, internshipId);
+        await incrementInternshipApplicationCount(companyId, internshipId,isAuthority: isAuthority);
       }
 
-      await actionLogger.logAction(action, companyId: companyId);
+      await actionLogger.logAction(action, companyId: companyId,isAuthority:isAuthority);
 
     } catch (e, stackTrace) {
       debugPrint('Error updating application status by IDs: $e');
@@ -1487,6 +1585,7 @@ class Company_Cloud {
     required String studentId,
     required StudentApplication application,
     required String reason,
+  required bool isAuthority
   }) async {
     try {
       // Validate inputs
@@ -1540,7 +1639,7 @@ class Company_Cloud {
         timestamp: DateTime.now(),
       );
       // Log audit trail
-      await actionLogger.logAction(action, companyId: companyId);
+      await actionLogger.logAction(action, companyId: companyId,isAuthority: isAuthority);
       _cloudStorage.deleteFile(application.idCardUrl);
       _cloudStorage.deleteFile(application.itLetterUrl);
       //_cloudStorage.deleteFile(application.attachedFormUrls);
