@@ -1729,15 +1729,33 @@ class Company_Cloud {
   }
 
   /// 🔥 Get total number of new applications (pending applications)
-  Future<int> getTotalNewApplications(String companyId) async {
+  Future<int> getTotalNewApplications(
+      String companyId, {
+        required bool isAuthority,
+        List<String> companyIds = const [],
+      }) async {
     try {
-      final applications = await studentInternshipApplicationsForCompany(
-        companyId,
-      );
+      List<StudentApplication> allApplications = [];
+
+      if (isAuthority && companyIds.isNotEmpty) {
+        // Fetch applications for all company IDs in parallel
+        final futures = companyIds.map((id) => studentInternshipApplicationsForCompany(id));
+        final results = await Future.wait(futures);
+
+        // Flatten all results into single list
+        for (final applications in results) {
+          allApplications.addAll(applications);
+        }
+      } else {
+        // Fetch applications for the single company ID
+        final applications = await studentInternshipApplicationsForCompany(companyId);
+        allApplications.addAll(applications);
+      }
 
       // Filter only pending applications
-      final newApplications = applications.where((app) {
-        return app.applicationStatus.toLowerCase() == 'pending';
+      final newApplications = allApplications.where((app) {
+        return app != null &&
+            app!.applicationStatus.toLowerCase() == 'pending';
       }).toList();
 
       return newApplications.length;
@@ -1748,22 +1766,42 @@ class Company_Cloud {
   }
 
   /// 🔥 Get total number of accepted applications
-  Future<int> getTotalAcceptedApplications(String companyId) async {
+  Future<int> getTotalAcceptedApplications(
+      String companyId, {
+        required bool isAuthority,
+        List<String> companyIds = const [],
+      }) async {
     try {
-      final applications = await studentInternshipApplicationsForCompany(
-        companyId,
-      );
+      if (isAuthority && companyIds.isNotEmpty) {
+        // Fetch applications for all company IDs in parallel
+        final futures = companyIds.map((id) => studentInternshipApplicationsForCompany(id));
+        final results = await Future.wait(futures);
 
-      // Filter only accepted applications
-      final acceptedApplications = applications.where((app) {
-        return app.applicationStatus.toLowerCase() == 'accepted';
-      }).toList();
+        // Flatten all results and filter accepted applications
+        int totalAccepted = 0;
+        for (final applications in results) {
+          final acceptedCount = applications.where((app) {
+            final status = app?.applicationStatus;
+            return status != null && status.toLowerCase() == 'accepted';
+          }).length;
+          totalAccepted += acceptedCount;
+        }
+        return totalAccepted;
+      } else {
+        // Fetch applications for the single company ID
+        final applications = await studentInternshipApplicationsForCompany(companyId);
 
-      return acceptedApplications.length;
+        // Filter only accepted applications with null safety
+        final acceptedApplications = applications.where((app) {
+          final status = app?.applicationStatus;
+          return status != null && status.toLowerCase() == 'accepted';
+        }).toList();
+
+        return acceptedApplications.length;
+      }
     } catch (e, s) {
       debugPrint('Error getting accepted applications: $e');
       debugPrintStack(stackTrace: s);
-
       return 0;
     }
   }

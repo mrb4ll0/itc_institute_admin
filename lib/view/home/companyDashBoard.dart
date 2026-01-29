@@ -80,21 +80,21 @@ class _CompanydashboardState extends State<Companydashboard>
       }
 
       String companyId = currentUser.uid;
+      Authority? authority = await ITCFirebaseLogic().getAuthority(companyId);
 
       // Load all data in parallel for better performance
       final results = await Future.wait([
         ITCFirebaseLogic().getCompany(companyId),
-        ITCFirebaseLogic().getAuthority(companyId),
-        company_cloud.getTotalNewApplications(companyId),
-        company_cloud.getTotalAcceptedApplications(companyId),
-        activeTrainingService.getActiveTraineesCount(companyId),
+        company_cloud.getTotalNewApplications(companyId,isAuthority: widget.isAuthority,companyIds: authority == null?[]:authority.linkedCompanies),
+        company_cloud.getTotalAcceptedApplications(companyId,isAuthority: widget.isAuthority, companyIds:authority == null?[]:authority.linkedCompanies),
+        activeTrainingService.getActiveTraineesCount(companyId,isAuthority: widget.isAuthority,companyIds: authority?.linkedCompanies?? []),
       ]);
 
       setState(() {
         _company = results[0] as Company?;
         if(_company == null)
           {
-            Authority? authority = results[1] as Authority?;
+
              if(authority != null)
                {
                  _company = AuthorityCompanyMapper.createCompanyFromAuthority(
@@ -200,12 +200,16 @@ class _CompanydashboardState extends State<Companydashboard>
                  authority: authority);
            }
          }
-      int newApps = await company_cloud.getTotalNewApplications(companyId);
+      int newApps = await company_cloud.getTotalNewApplications(companyId, isAuthority: widget.isAuthority,companyIds: company?.originalAuthority?.linkedCompanies??[]);
       int acceptedApps = await company_cloud.getTotalAcceptedApplications(
         companyId,
+        isAuthority: widget.isAuthority,
+        companyIds: company?.originalAuthority?.linkedCompanies??[]
       );
       int currentStudents = await activeTrainingService.getActiveTraineesCount(
         companyId,
+        isAuthority: widget.isAuthority,
+          companyIds: company?.originalAuthority?.linkedCompanies??[]
       );
 
       totalCompany = 1;

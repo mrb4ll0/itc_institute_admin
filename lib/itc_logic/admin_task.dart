@@ -17,35 +17,183 @@ class AdminCloud {
 
   // ─── USERS ────────────────────────────────────────────────────────────────
 
-  /// Fetch **all** students under users/students/students
   Future<List<Student>> getAllStudents({Company? company}) async {
-    debugPrint("potential trainee ${company?.potentialtrainee.toString()}");
-    final snap = await _firestore
-        .collection('users')
-        .doc('students')
-        .collection('students')
-        .get();
+    try {
+      if (company == null) {
+        debugPrint("No company provided, cannot fetch potential trainees");
+        return [];
+      }
 
-    return snap.docs
-        .map((d) => Student.fromFirestore(d.data()!, d.id))
-        .toList();
+      debugPrint("Processing company: ${company.id}");
+
+      // Check if this is an authority company
+      if (_isAuthorityCompany(company)) {
+        return await _getPotentialTraineesFromAuthorityCompany(company);
+      } else {
+        return await _getPotentialTraineesFromSingleCompany(company);
+      }
+    } catch (e, s) {
+      debugPrint('Error getting potential trainees: $e');
+      debugPrintStack(stackTrace: s);
+      return [];
+    }
   }
 
+  bool _isAuthorityCompany(Company company) {
+    return company.originalAuthority?.linkedCompanies != null &&
+        company.originalAuthority!.linkedCompanies!.isNotEmpty;
+  }
+
+  Future<List<Student>> _getPotentialTraineesFromAuthorityCompany(Company company) async {
+    debugPrint("Authority company detected: ${company.id}");
+
+    // Get all student IDs from linked companies
+    final studentIds = await _collectPotentialTraineeIdsFromLinkedCompanies(company);
+
+    if (studentIds.isEmpty) {
+      debugPrint("No potential trainees found in linked companies");
+      return [];
+    }
+
+    debugPrint("Fetching ${studentIds.length} potential trainees from linked companies");
+    return await _fetchStudentsByIds(studentIds);
+  }
+
+  Future<List<Student>> _getPotentialTraineesFromSingleCompany(Company company) async {
+    debugPrint("Fetching potential trainees for single company: ${company.id}");
+
+    // Check if company has potential trainees
+    if (company.potentialtrainee == null || company.potentialtrainee!.isEmpty) {
+      debugPrint("No potential trainees found for company: ${company.id}");
+      return [];
+    }
+
+    // Get the potential trainee IDs from this company
+    final traineeIds = List<String>.from(company.potentialtrainee!);
+    debugPrint("Found ${traineeIds.length} potential trainees for company: ${company.id}");
+
+    return await _fetchStudentsByIds(traineeIds);
+  }
+
+  Future<List<String>> _collectPotentialTraineeIdsFromLinkedCompanies(Company company) async {
+    final List<String> allIds = [];
+
+    // Check if the company has an originalAuthority
+    if (company.originalAuthority == null) {
+      debugPrint("Company has no originalAuthority, cannot collect from linked companies");
+      return allIds;
+    }
+
+    // Check if linkedCompanies exists and is not empty
+    if (company.originalAuthority!.linkedCompanies == null ||
+        company.originalAuthority!.linkedCompanies!.isEmpty) {
+      debugPrint("No linked companies found for company");
+      return allIds;
+    }
+
+    debugPrint("Collecting potential trainee IDs from ${company.originalAuthority!.linkedCompanies!.length} linked companies");
+
+    // Get linked companies
+    final linkedCompanies = await Future.wait(
+        company.originalAuthority!.linkedCompanies!.map((id) => itcFirebaseLogic.getCompany(id))
+    );
+
+    // Collect potential trainee IDs
+    for (final linkedCompany in linkedCompanies) {
+      if (linkedCompany != null && linkedCompany.potentialtrainee != null) {
+        // Safely convert to List<String>
+        final traineeIds = List<String>.from(linkedCompany.potentialtrainee!);
+        allIds.addAll(traineeIds);
+        debugPrint("Added ${traineeIds.length} potential trainee IDs from company: ${linkedCompany.id}");
+      }
+    }
+
+    // Return unique IDs
+    final uniqueIds = allIds.toSet().toList();
+    debugPrint("Total unique potential trainee IDs collected: ${uniqueIds.length}");
+    return uniqueIds;
+  }
+
+  Future<List<Student>> _fetchStudentsByIds(List<String> studentIds) async {
+    if (studentIds.isEmpty) return [];
+
+    debugPrint("Fetching ${studentIds.length} students by ID");
+
+    final studentFutures = studentIds.map((id) => itcFirebaseLogic.getStudent(id));
+    final studentsList = await Future.wait(studentFutures);
+
+    final students = studentsList.whereType<Student>().toList();
+    debugPrint("Successfully fetched ${students.length} students");
+    return students;
+  }
   ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic();
 
-  Future<List<Student>> getPotentialStudents({ Company? company}) async {
-    if(company == null) return [];
-    debugPrint("potential trainee ${company?.potentialtrainee.toString()}");
-      List<Student> students = [];
-       for(String studentId in company.potentialtrainee)
-         {
-            Student? student =  await itcFirebaseLogic.getStudent(studentId);
-            if(student == null)continue;
-            students.add(student);
-         }
-       return students;
-  }
+  Future<List<Student>> getPotentialStudents({Company? company}) async {
+    debugPrint("get potenetial students ");
+    if (company == null) return [];
 
+    try {
+      List<String> allPotentialTraineeIds = [];
+
+      if (company.originalAuthority != null) {
+        debugPrint("Processing company with original authority: ${company.originalAuthority!.id}");
+
+        // This company has an authority company linked
+        debugPrint("Processing company with linked authority: ${company.originalAuthority!.linkedCompanies}");
+
+        // Use the authority company object directly - it already has linkedCompanies
+        final authorityCompany = company.originalAuthority!;
+
+        // Get all linked companies in parallel
+        final linkedCompanies = await Future.wait(
+            (authorityCompany.linkedCompanies ?? []).map((id) => itcFirebaseLogic.getCompany(id))
+        );
+
+        // Collect potential trainee IDs from all linked companies
+        for (final linkedCompany in linkedCompanies) {
+          if (linkedCompany != null && linkedCompany.potentialtrainee != null) {
+            // Cast each item to String before adding
+            final traineeIds = linkedCompany.potentialtrainee!
+                .where((id) => id != null)
+                .map((id) => id.toString())
+                .toList();
+            allPotentialTraineeIds.addAll(traineeIds);
+          }
+        }
+      } else {
+// This is a regular company, just use its own potential trainees
+        debugPrint("Processing regular company: ${company.id}");
+        if (company.potentialtrainee != null) {
+          // Cast each item to String before adding
+          final traineeIds = company.potentialtrainee!
+              .where((id) => id != null)
+              .map((id) => id.toString())
+              .toList();
+          allPotentialTraineeIds.addAll(traineeIds);
+        }
+      }
+
+      // Remove duplicates (in case same student is in multiple companies)
+      allPotentialTraineeIds = allPotentialTraineeIds.toSet().toList();
+
+      debugPrint("Total unique potential trainees to fetch: ${allPotentialTraineeIds.length.toString()}");
+
+      // Fetch all student objects in parallel
+      final studentFutures = allPotentialTraineeIds.map((studentId) => itcFirebaseLogic.getStudent(studentId));
+      final studentsList = await Future.wait(studentFutures);
+
+      // Filter out nulls and get the list
+      final students = studentsList.whereType<Student>().toList();
+
+      debugPrint("Successfully fetched ${students.length} potential students");
+      return students;
+
+    } catch (e, s) {
+      debugPrint('Error getting potential students: $e');
+      debugPrintStack(stackTrace: s);
+      return [];
+    }
+  }
   /// Fetch **all** companies under users/companies/companies
   Future<List<Company>> getAllCompanies() async {
     final snap = await _firestore

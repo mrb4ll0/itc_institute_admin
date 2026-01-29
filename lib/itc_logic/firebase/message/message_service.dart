@@ -235,12 +235,13 @@ class ChatService extends ChangeNotifier {
   }
 
   Stream<List<Message>> getAllMessagesForCurrentUser() {
+    debugPrint("getAllMessagesForCurrentUser called");
     final String? currentUserId = _firebaseAuth.currentUser?.uid;
     if (currentUserId == null) {
       throw Exception("User not logged in.");
     }
 
-    return _firebaseFirestore
+    var message =  _firebaseFirestore
         .collection('chat_rooms')
         .where('participants', arrayContains: currentUserId)
         .orderBy('lastUpdated', descending: true)
@@ -260,6 +261,8 @@ class ChatService extends ChangeNotifier {
               .whereType<Message>()
               .toList();
         });
+    debugPrint("message size ${message.length}");
+    return message;
   }
 
   // Inside ChatService

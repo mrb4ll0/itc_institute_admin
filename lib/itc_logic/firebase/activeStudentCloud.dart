@@ -1060,14 +1060,35 @@ class ActiveTrainingService {
   }
 
   // In ActiveTrainingService class
-  Future<int> getActiveTraineesCount(String companyId) async {
+  Future<int> getActiveTraineesCount(
+      String companyId, {
+        required bool isAuthority,
+        List<String> companyIds = const [],
+      }) async {
     try {
-      final query = _companyTraineesRef(
-        companyId,
-      ).where('trainingStatus', isEqualTo: 'active');
+      if (isAuthority && companyIds.isNotEmpty) {
+        // Create count queries for all company IDs
+        final futures = companyIds.map((id) async {
+          final query = _companyTraineesRef(id).where('trainingStatus', isEqualTo: 'active');
+          final snapshot = await query.count().get();
+          return snapshot.count ?? 0;
+        }).toList();
 
-      final snapshot = await query.count().get();
-      return snapshot.count ?? 0;
+        // Wait for all counts to complete
+        final counts = await Future.wait(futures);
+
+        // Sum all counts - counts is now List<int>
+        int total = 0;
+        for (final count in counts) {
+          total += count;
+        }
+      } else {
+        // Count active trainees for the single company ID
+        final query = _companyTraineesRef(companyId).where('trainingStatus', isEqualTo: 'active');
+        final snapshot = await query.count().get();
+        return snapshot.count ?? 0;
+      }
+      return 0;
     } catch (e) {
       print('Error getting active trainees count: $e');
       return 0;

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:itc_institute_admin/model/admin.dart';
+import 'package:itc_institute_admin/model/authorityCompanyMapper.dart';
 import 'package:itc_institute_admin/model/userProfile.dart';
 import 'package:itc_institute_admin/view/home/chat/chartPage.dart';
 import 'package:provider/provider.dart';
@@ -17,6 +18,7 @@ import '../../itc_logic/firebase/general_cloud.dart';
 import '../../itc_logic/firebase/message/message_service.dart';
 import '../../itc_logic/firebase/provider/groupChatProvider.dart';
 import '../../itc_logic/service/ConverterUserService.dart';
+import '../../model/authority.dart';
 import '../../model/company.dart';
 import '../../model/message.dart';
 import '../../model/student.dart';
@@ -64,6 +66,11 @@ Company? company;
     company = await _itcFirebaseLogic.getCompany(FirebaseAuth.instance.currentUser!.uid);
      if(company == null)
        {
+         Authority? authority = await _itcFirebaseLogic.getAuthority(FirebaseAuth.instance.currentUser!.uid);
+         if(authority != null)
+           {
+             company = AuthorityCompanyMapper.createCompanyFromAuthority(authority: authority);
+           }
          debugPrint("company is null");
          setState(() {
            _isLoading = false;
@@ -451,7 +458,7 @@ Company? company;
                     if (messages.isEmpty) {
                       // Show all students (except current user) in Messenger style (vertical list)
                       return FutureBuilder<List<Student>>(
-                        future: _adminCloud.getAllStudents(),
+                        future: _adminCloud.getAllStudents(company: company),
                         builder: (context, studentSnap) {
                           if (!studentSnap.hasData) {
                             return const Center(
