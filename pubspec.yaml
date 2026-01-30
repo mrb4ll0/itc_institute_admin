@@ -70,6 +70,7 @@ dependencies:
   firestore_lazy_loading_totalxsoftware: ^1.0.3
   flutter_file_dialog: ^3.0.3
   open_file: ^3.5.11
+  fl_chart: ^1.1.1
 
 dev_dependencies:
   flutter_test:

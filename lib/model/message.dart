@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/cupertino.dart';
 
 class Message {
   final String? id; // 🔥 Add this
@@ -27,6 +28,7 @@ class Message {
 
   factory Message.fromMap(Map<String, dynamic> map, String documentId) {
     // Handle both single image and multiple images
+    debugPrint("messageMap is ${map.toString()}");
     List<String>? imageUrls;
 
     if (map['imageUrls'] != null) {

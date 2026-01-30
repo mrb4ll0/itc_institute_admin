@@ -623,7 +623,7 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
                       if (isMe) ...[
                         const SizedBox(width: 4),
                         Icon(
-                          message.isRead ? Icons.done_all : Icons.done,
+                          Icons.done_all ,
                           size: 12,
                           color: message.isRead
                               ? theme.colorScheme.primary
@@ -1122,6 +1122,7 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
 
                 }
 
+
                 // Create a list with date headers
                 final List<Widget> messageWidgets = [];
 
@@ -1136,6 +1137,7 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
                 for (int i = 0; i < messages.length; i++) {
                   final message = messages[i];
                   final messageDate = message.timestamp.toDate();
+                  debugPrint("message read ? ${message.isRead}");
                   final currentDate = DateTime(
                     messageDate.year,
                     messageDate.month,

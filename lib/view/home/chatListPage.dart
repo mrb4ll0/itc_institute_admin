@@ -75,7 +75,11 @@ Company? company;
          setState(() {
            _isLoading = false;
          });
-         return;
+         if(company == null)
+           {
+             return;
+           }
+
        }
     _messageStream = _chatService.getAllMessagesForCurrentUser();
     _groupStream = _chatService.getUserGroups(company!.id);

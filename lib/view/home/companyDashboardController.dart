@@ -5,8 +5,10 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:itc_institute_admin/auth/login_view.dart';
 import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
 import 'package:itc_institute_admin/itc_logic/help_support/help.dart';
+import 'package:itc_institute_admin/model/AuthorityRule.dart';
 import 'package:itc_institute_admin/model/authorityCompanyMapper.dart';
 import 'package:itc_institute_admin/notification/view/NotificationPage.dart';
+import 'package:itc_institute_admin/view/authorityRule/authorityRule.dart';
 import 'package:itc_institute_admin/view/company/myProfile.dart';
 import 'package:itc_institute_admin/view/home/LinkedCompaniesScreen.dart';
 import 'package:itc_institute_admin/view/home/chatListPage.dart';
@@ -15,12 +17,15 @@ import 'package:itc_institute_admin/view/home/studentApplicationPage.dart';
 import 'package:itc_institute_admin/view/home/themePage.dart';
 import 'package:itc_institute_admin/view/home/tweet_view.dart';
 import 'package:itc_institute_admin/view/studentList.dart';
+import 'package:provider/provider.dart';
 
 import '../../itc_logic/firebase/authority_cloud.dart';
 import '../../itc_logic/firebase/general_cloud.dart';
 import '../../model/authority.dart';
 import '../../model/company.dart';
 import '../CompanyAuthoritySpecificationDialog.dart';
+import '../authorityRule/service/ruleService.dart';
+import '../authorityRule/views/authoriityViewModel.dart';
 import '../company/companyEdit.dart';
 import 'dialog/pendingCompanyDialog.dart';
 import 'iTList.dart';
@@ -223,6 +228,20 @@ class _CompanyDashboardControllerState
               {
 
               }));
+            },
+          ),_buildDrawerItem(
+            icon: Icons.rule,
+            text: 'Set Rule',
+            onTap: () {
+              GeneralMethods.navigateTo(
+                context,
+                ChangeNotifierProvider(
+                  create: (context) => AuthorityViewModel(
+                    ruleService: MockRuleService(), // Create instance directly
+                  ),
+                  child: AuthorityRulesPage(authorityId: company.id),
+                ),
+              );
             },
           ),
           _buildDrawerItem(
