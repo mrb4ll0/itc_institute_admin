@@ -36,6 +36,10 @@ class _RuleFormState extends State<RuleForm> with SingleTickerProviderStateMixin
   late PermissionType _permissionType;
   late ComplianceCheck _complianceCheck;
   late EnforcementAction _enforcementAction;
+  PlacementLimitRule? _placementLimit;
+  AuthorityOverrideRule? _authorityOverrideRule;
+  ResponseTimeRule? _responseTimeRule;
+
 
   DateTime? _effectiveDate;
   DateTime? _expiryDate;
@@ -104,7 +108,13 @@ class _RuleFormState extends State<RuleForm> with SingleTickerProviderStateMixin
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.initialRule == null ? 'Create Rule' : 'Edit Rule'),
+        toolbarHeight: 100,
+        title:  Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Text(
+            widget.initialRule == null ? 'Create Rule' : 'Edit Rule',
+          ),
+        ),
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
@@ -194,6 +204,7 @@ class _RuleFormState extends State<RuleForm> with SingleTickerProviderStateMixin
             children: [
               Expanded(
                 child: DropdownButtonFormField<RuleCategory>(
+                  isExpanded: true,
                   value: _category,
                   decoration: const InputDecoration(
                     labelText: 'Category',
@@ -215,6 +226,7 @@ class _RuleFormState extends State<RuleForm> with SingleTickerProviderStateMixin
               const SizedBox(width: 16),
               Expanded(
                 child: DropdownButtonFormField<RuleType>(
+                  isExpanded:true,
                   value: _type,
                   decoration: const InputDecoration(
                     labelText: 'Rule Type',
@@ -820,28 +832,35 @@ class _RuleFormState extends State<RuleForm> with SingleTickerProviderStateMixin
   Widget _buildQuickTemplates() {
     final templates = [
       {
-        'title': 'Annual Reporting',
+        'title': 'Student Acceptance Rule',
+        'category': RuleCategory.STUDENT_MANAGEMENT,
+        'icon': Icons.school,
+      },
+      {
+        'title': 'Approval Workflow',
+        'category': RuleCategory.APPROVAL_FLOW,
+        'icon': Icons.approval,
+      },
+      {
+        'title': 'Placement Limit Policy',
+        'category': RuleCategory.OPERATIONAL,
+        'icon': Icons.groups,
+      },
+      {
+        'title': 'Compliance Requirement',
+        'category': RuleCategory.COMPLIANCE,
+        'icon': Icons.verified,
+      },
+      {
+        'title': 'Reporting Obligation',
         'category': RuleCategory.REPORTING,
         'icon': Icons.description,
       },
-      {
-        'title': 'Safety Compliance',
-        'category': RuleCategory.SAFETY,
-        'icon': Icons.security,
-      },
-      {
-        'title': 'Financial Audit',
-        'category': RuleCategory.FINANCIAL,
-        'icon': Icons.account_balance,
-      },
-      {
-        'title': 'Expansion Permission',
-        'category': RuleCategory.EXPANSION,
-        'icon': Icons.business,
-      },
     ];
 
-    return Column(
+
+
+  return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
@@ -974,38 +993,64 @@ class _RuleFormState extends State<RuleForm> with SingleTickerProviderStateMixin
     setState(() {
       _category = category;
 
-      // Pre-fill based on category
       switch (category) {
-        case RuleCategory.REPORTING:
-          _type = RuleType.PERMISSION_BASED;
-          _complianceCheck = ComplianceCheck.DOCUMENT_SUBMISSION;
-          _requiredProofs.addAll(['annual_report.pdf', 'financial_statements.pdf']);
-          break;
-        case RuleCategory.SAFETY:
-          _type = RuleType.MANDATORY;
-          _isMandatory = true;
-          _complianceCheck = ComplianceCheck.SITE_INSPECTION;
-          break;
-        case RuleCategory.FINANCIAL:
+        case RuleCategory.STUDENT_MANAGEMENT:
           _type = RuleType.CONDITIONAL;
-          _requiresPermission = true;
+          _permissionType = PermissionType.AUTO_APPROVAL_IF_CONDITIONS_MET;
           _conditions.add(PermissionCondition(
-            field: 'annualRevenue',
-            value: 1000000,
-            operator: ConditionOperator.GREATER_THAN,
-            description: 'Annual revenue must exceed \$1,000,000',
+            field: 'studentGPA',
+            value: 3.0,
+            operator: ConditionOperator.GREATER_THAN_OR_EQUAL,
+            description: 'Student GPA must be at least 3.0',
           ));
+          _placementLimit = PlacementLimitRule(
+            maxStudentsPerCompany: 5,
+            maxStudentsPerCycle: 10,
+            allowExceedWithApproval: true,
+          );
           break;
-        case RuleCategory.EXPANSION:
+
+        case RuleCategory.APPROVAL_FLOW:
           _type = RuleType.PERMISSION_BASED;
           _permissionType = PermissionType.MANUAL_APPROVAL;
-          _requiredProofs.addAll(['business_plan.pdf', 'market_analysis.pdf']);
+          _authorityOverrideRule = AuthorityOverrideRule(
+            authorityCanOverrideCompanyDecision: true,
+            reasonRequired: 'Override reason must be documented',
+          );
           break;
+
+        case RuleCategory.OPERATIONAL:
+          _type = RuleType.MANDATORY;
+          _responseTimeRule = ResponseTimeRule(
+            maxDays: 3,
+            autoApproveIfNoResponse: true,
+            autoRejectIfNoResponse: false,
+          );
+          break;
+
+        case RuleCategory.COMPLIANCE:
+          _type = RuleType.MANDATORY;
+          _complianceCheck = ComplianceCheck.DOCUMENT_SUBMISSION;
+          _requiredProofs.addAll([
+            'company_verification.pdf',
+            'student_eligibility_docs.pdf',
+          ]);
+          break;
+
+        case RuleCategory.REPORTING:
+          _type = RuleType.PERMISSION_BASED;
+          _complianceCheck = ComplianceCheck.AUTOMATED_VALIDATION;
+          _requiredProofs.addAll([
+            'placement_report.xlsx',
+            'student_summary.pdf',
+          ]);
+          break;
+
         default:
           break;
       }
 
-      _tabController.animateTo(1); // Jump to settings tab
+      _tabController.animateTo(1);
     });
   }
 

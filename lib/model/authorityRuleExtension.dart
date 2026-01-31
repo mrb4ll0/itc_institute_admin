@@ -1,55 +1,28 @@
 // What type of rule is this?
 enum RuleCategory {
-  // RELATIONSHIP RULES
-  COMPANY_RELATIONSHIP, // Can company accept authority? Can they leave?
-  HIERARCHY, // Sub-authorities, parent-child relationships
-
-  // OPERATIONAL RULES
-  OPERATIONAL, // Day-to-day operations
-  FINANCIAL, // Financial transactions, fees, payments
-  REPORTING, // Reports, disclosures
-  COMPLIANCE, // Regulatory compliance
-
-  // SPECIFIC PERMISSIONS
-  EXPANSION, // Opening new branches, expanding operations
-  PERSONNEL, // Hiring key personnel, CEO changes
-  ASSETS, // Buying/selling major assets
-  CONTRACTS, // Entering major contracts
-  INVESTMENT, // Major investments, loans
-  TECHNOLOGY, // Adopting new technologies
-  MARKETING, // Advertising, promotions
-
-  // SAFETY & QUALITY
-  SAFETY, // Safety standards, certifications
-  QUALITY, // Quality control, standards
-  ENVIRONMENTAL, // Environmental compliance
-
-  // DATA & PRIVACY
-  DATA_PRIVACY, // Data handling, GDPR
-  CYBER_SECURITY, // Security measures
-
-  // EMERGENCY
-  EMERGENCY, // Emergency procedures
-  CONTINGENCY, // Contingency plans
+  STUDENT_MANAGEMENT, // Accept / reject students
+  APPROVAL_FLOW,      // Who approves what
+  OPERATIONAL,        // Day-to-day placement operations
+  COMPLIANCE,         // School / IT policy compliance
+  REPORTING,          // Reporting to authority
 }
 
 // How is the rule enforced?
 enum RuleType {
-  PERMISSION_BASED, // Requires explicit permission
-  NOTIFICATION_BASED, // Just notify authority
-  AUTO_APPROVED, // Automatically allowed if conditions met
-  PROHIBITED, // Completely forbidden
-  CONDITIONAL, // Allowed with conditions
-  QUOTA_BASED, MANDATORY, // Limited number allowed
+  PERMISSION_BASED,        // Company must request approval
+  AUTO_APPROVED,           // Allowed automatically
+  PROHIBITED,              // Not allowed at all
+  CONDITIONAL,             // Allowed if conditions are met
+  QUOTA_BASED,             // Limited number of students
+  MANDATORY,               // Must follow (e.g. must respond in 7 days)
 }
 
 // How permission is granted
 enum PermissionType {
-  MANUAL_APPROVAL, // Authority must manually approve
-  AUTO_APPROVAL_IF_CONDITIONS_MET, // Auto-approved if conditions met
-  DELEGATED_TO_SUPERVISOR, // Supervisor can approve
-  TIME_BASED_AUTO_APPROVAL, // Auto-approved after X days if no objection
-  TIERED_APPROVAL, // Multiple levels of approval needed
+  MANUAL_APPROVAL,                  // Authority approves acceptance
+  AUTO_APPROVAL_IF_CONDITIONS_MET,  // GPA, department match, etc.
+  TIME_BASED_AUTO_APPROVAL,         // Auto-approve after X days
+  TIERED_APPROVAL,                  // Authority + School approval
 }
 
 // How compliance is checked
@@ -64,13 +37,40 @@ enum ComplianceCheck {
 
 // What happens if violated
 enum EnforcementAction {
-  BLOCK_ACTION, // Prevent the action
-  REQUIRE_REMEDIATION, // Allow but require fix
-  ISSUE_WARNING, // Just issue warning
-  IMPOSE_PENALTY, // Apply penalty
-  SUSPEND_OPERATIONS, // Suspend operations
-  TERMINATE_RELATIONSHIP, // Remove from authority
-  ESCALATE_TO_HIGHER_AUTHORITY, // Escalate to parent authority
+  BLOCK_ACTION,           // Block acceptance/rejection
+  ISSUE_WARNING,          // Warn company
+  SUSPEND_OPERATIONS,     // Temporarily stop placements
+  TERMINATE_RELATIONSHIP, // Remove company from authority
+}
+
+enum StudentDecisionPolicy {
+  COMPANY_DECIDES,
+  AUTHORITY_DECIDES,
+  JOINT_DECISION,
+  AUTO_MATCH_SYSTEM,
+}
+
+class ResponseTimeRule {
+  final int maxDays;
+  final bool autoApproveIfNoResponse;
+  final bool autoRejectIfNoResponse;
+
+  ResponseTimeRule({required this.maxDays,required this.autoApproveIfNoResponse,required this.autoRejectIfNoResponse});
+}
+
+class PlacementLimitRule {
+  final int maxStudentsPerCompany;
+  final int maxStudentsPerCycle;
+  final bool allowExceedWithApproval;
+
+  PlacementLimitRule({required this.maxStudentsPerCompany, required this.maxStudentsPerCycle,required this.allowExceedWithApproval});
+}
+
+class AuthorityOverrideRule {
+  final bool authorityCanOverrideCompanyDecision;
+  final String reasonRequired;
+
+  AuthorityOverrideRule({required this.authorityCanOverrideCompanyDecision, required this.reasonRequired});
 }
 
 // Conditions for auto-permission
@@ -170,11 +170,8 @@ class Penalty {
 
 enum PenaltyType {
   WARNING,
-  FINE,
   SUSPENSION,
-  DEMOTION, // Lower authority level
   BLACKLIST, // Cannot apply again for X time
-  LEGAL_ACTION,
 }
 
 // Track rule amendments

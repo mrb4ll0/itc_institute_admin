@@ -198,20 +198,21 @@ class RuleCard extends StatelessWidget {
 
   IconData _getCategoryIcon(RuleCategory category) {
     switch (category) {
-      case RuleCategory.FINANCIAL:
-        return Icons.account_balance;
+      case RuleCategory.STUDENT_MANAGEMENT:
+        return Icons.school; // students & placements
+
+      case RuleCategory.APPROVAL_FLOW:
+        return Icons.approval; // approvals & decisions
+
+      case RuleCategory.OPERATIONAL:
+        return Icons.settings; // day-to-day operations
+
+      case RuleCategory.COMPLIANCE:
+        return Icons.verified; // rules & compliance
+
       case RuleCategory.REPORTING:
-        return Icons.description;
-      case RuleCategory.SAFETY:
-        return Icons.security;
-      case RuleCategory.ENVIRONMENTAL:
-        return Icons.eco;
-      case RuleCategory.DATA_PRIVACY:
-        return Icons.privacy_tip;
-      case RuleCategory.EXPANSION:
-        return Icons.expand;
-      case RuleCategory.COMPANY_RELATIONSHIP:
-        return Icons.handshake;
+        return Icons.description; // reports
+
       default:
         return Icons.rule;
     }
@@ -219,22 +220,25 @@ class RuleCard extends StatelessWidget {
 
   Color _getCategoryColor(RuleCategory category) {
     switch (category) {
-      case RuleCategory.FINANCIAL:
-        return Colors.green;
+      case RuleCategory.STUDENT_MANAGEMENT:
+        return Colors.blue; // education-focused
+
+      case RuleCategory.APPROVAL_FLOW:
+        return Colors.deepPurple; // authority & control
+
+      case RuleCategory.OPERATIONAL:
+        return Colors.orange; // processes
+
+      case RuleCategory.COMPLIANCE:
+        return Colors.green; // valid / approved
+
       case RuleCategory.REPORTING:
-        return Colors.blue;
-      case RuleCategory.SAFETY:
-        return Colors.red;
-      case RuleCategory.ENVIRONMENTAL:
-        return Colors.teal;
-      case RuleCategory.DATA_PRIVACY:
-        return Colors.purple;
-      case RuleCategory.EXPANSION:
-        return Colors.orange;
-      case RuleCategory.COMPANY_RELATIONSHIP:
-        return Colors.indigo;
+        return Colors.teal; // insights & analytics
+
       default:
         return Colors.grey;
     }
   }
+
+
 }

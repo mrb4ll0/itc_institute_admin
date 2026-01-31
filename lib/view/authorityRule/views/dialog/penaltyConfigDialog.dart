@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
+import '../../../../extensions/extensions.dart';
 import '../../../../model/authorityRuleExtension.dart';
 
 class PenaltyConfigDialog extends StatefulWidget {
@@ -38,7 +39,7 @@ class _PenaltyConfigDialogState extends State<PenaltyConfigDialog> {
       _recurrenceDays = widget.initialPenalty!.recurrenceDays;
       _descriptionController.text = widget.initialPenalty!.description;
     } else {
-      _type = PenaltyType.FINE;
+      _type = PenaltyType.WARNING;
     }
   }
 
@@ -106,31 +107,6 @@ class _PenaltyConfigDialogState extends State<PenaltyConfigDialog> {
                 ),
                 const SizedBox(height: 16),
 
-                // Amount (for FINE type)
-                if (_type == PenaltyType.FINE)
-                  TextFormField(
-                    initialValue: _amount?.toStringAsFixed(2) ?? '',
-                    decoration: const InputDecoration(
-                      labelText: 'Amount (\$) *',
-                      hintText: '0.00',
-                      border: OutlineInputBorder(),
-                      prefixText: '\$',
-                    ),
-                    keyboardType: TextInputType.number,
-                    validator: _type == PenaltyType.FINE ? (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter an amount';
-                      }
-                      final amount = double.tryParse(value);
-                      if (amount == null || amount <= 0) {
-                        return 'Please enter a valid amount';
-                      }
-                      return null;
-                    } : null,
-                    onChanged: (value) {
-                      _amount = double.tryParse(value) ?? 0;
-                    },
-                  ),
 
                 // Suspension Days (for SUSPENSION type)
                 if (_type == PenaltyType.SUSPENSION)
@@ -276,24 +252,21 @@ class _PenaltyConfigDialogState extends State<PenaltyConfigDialog> {
     switch (type) {
       case PenaltyType.WARNING:
         return 'Warning (Notification Only)';
-      case PenaltyType.FINE:
-        return 'Fine (Monetary Penalty)';
       case PenaltyType.SUSPENSION:
         return 'Suspension (Temporary Ban)';
-      case PenaltyType.DEMOTION:
-        return 'Demotion (Lower Authority Level)';
       case PenaltyType.BLACKLIST:
         return 'Blacklist (Cannot Reapply)';
-      case PenaltyType.LEGAL_ACTION:
-        return 'Legal Action (Escalate to Legal)';
       default:
-        return type.name.replaceAll('_', ' ');
+      // fallback for any new enum values added later
+        return type.name.replaceAll('_', ' ').toTitleCase();
     }
   }
 
-  bool _isValidPenalty() {
+
+
+
+bool _isValidPenalty() {
     return _descriptionController.text.isNotEmpty &&
-        (_type != PenaltyType.FINE || (_amount != null && _amount! > 0)) &&
         (_type != PenaltyType.SUSPENSION || (_suspensionDays != null && _suspensionDays! > 0)) &&
         (_type != PenaltyType.BLACKLIST || (_suspensionDays != null && _suspensionDays! > 0)) &&
         (!_isRecurring || (_recurrenceDays != null && _recurrenceDays! > 0));
@@ -302,9 +275,7 @@ class _PenaltyConfigDialogState extends State<PenaltyConfigDialog> {
   String _generatePenaltyDescription() {
     final List<String> parts = [_descriptionController.text];
 
-    if (_type == PenaltyType.FINE && _amount != null) {
-      parts.add('Amount: \$${_amount!.toStringAsFixed(2)}');
-    }
+
 
     if (_type == PenaltyType.SUSPENSION && _suspensionDays != null) {
       parts.add('Suspension: $_suspensionDays days');
@@ -325,7 +296,6 @@ class _PenaltyConfigDialogState extends State<PenaltyConfigDialog> {
     if (_formKey.currentState!.validate()) {
       final penalty = Penalty(
         type: _type,
-        amount: _type == PenaltyType.FINE ? _amount : null,
         suspensionDays: (_type == PenaltyType.SUSPENSION || _type == PenaltyType.BLACKLIST)
             ? _suspensionDays
             : null,
