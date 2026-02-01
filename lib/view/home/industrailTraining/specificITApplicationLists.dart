@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/ActionLogger.dart';
+import 'package:itc_institute_admin/itc_logic/firebase/AuthorityRulesHelper.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/company_cloud.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/general_cloud.dart';
 import 'package:itc_institute_admin/itc_logic/notification/fireStoreNotification.dart';
@@ -10,6 +11,7 @@ import 'package:itc_institute_admin/model/studentApplication.dart';
 import 'package:itc_institute_admin/view/home/studentApplications/studentApplicationDetail.dart';
 
 import '../../../extensions/extensions.dart';
+import '../../../model/authority.dart';
 import '../../../model/student.dart';
 
 class SpecificITStudentApplicationsPage extends StatefulWidget {
@@ -47,6 +49,7 @@ class _SpecificITStudentApplicationsPageState
   final GlobalKey _statusFilterKey = GlobalKey();
   final GlobalKey _periodFilterKey = GlobalKey();
   final GlobalKey _supervisorFilterKey = GlobalKey();
+  bool canAcceptOrReject = false;
 
   // Add these after your existing state variables
   bool _showFilters = false;
@@ -70,10 +73,14 @@ class _SpecificITStudentApplicationsPageState
   @override
   initState() {
     super.initState();
+    canAcceptOrReject = widget.isAuthority?true:AuthorityRulesHelper.canAcceptStudents(FirebaseAuth.instance.currentUser!.uid);
+    debugPrint("canAcceptOrReject: $canAcceptOrReject");
     _loadSupervisors();
     _loadInitialData();
     setState(() {});
   }
+
+  Authority? authority;
 
   Future<void> _loadInitialData() async {
     try {
@@ -81,10 +88,11 @@ class _SpecificITStudentApplicationsPageState
       if (currentUser == null) return;
 
       String companyId = currentUser.uid;
+       authority = await _itcFirebaseLogic.getAuthority(companyId);
 
       // Get initial data without showing loading indicator
       final applicationsStream = company_cloud
-          .studentInternshipApplicationsForSpecificITStream(companyId, widget.itId);
+          .studentInternshipApplicationsForSpecificITStream(companyId: companyId, itId:widget.itId,isAuthority: widget.isAuthority, companyIds: authority?.linkedCompanies??[]);
 
       final applications = await applicationsStream.first;
 
@@ -141,8 +149,12 @@ class _SpecificITStudentApplicationsPageState
       String companyId = currentUser.uid;
 
       // Get the stream first
-      final applicationsStream = company_cloud
-          .studentInternshipApplicationsForSpecificITStream(companyId,widget.itId);
+      final applicationsStream = company_cloud.
+      studentInternshipApplicationsForSpecificITStream(
+        companyId:currentUser.uid, itId:widget.itId,
+        isAuthority: widget.isAuthority,
+        companyIds: authority?.linkedCompanies??[],
+      );
 
       // Extract the data from the stream ONCE to populate _allApplications
       final applications = await applicationsStream.first;
@@ -1065,7 +1077,9 @@ class _SpecificITStudentApplicationsPageState
 
     return StreamBuilder<List<StudentApplication>?>(
       stream: company_cloud.studentInternshipApplicationsForSpecificITStream(
-        currentUser.uid, widget.itId
+        companyId:currentUser.uid, itId:widget.itId,
+        isAuthority: widget.isAuthority,
+        companyIds: authority?.linkedCompanies??[],
       ),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -1437,7 +1451,7 @@ class _SpecificITStudentApplicationsPageState
                       ),
                     ),
                   ), // Delete  Button
-                  OutlinedButton.icon(
+                  if(widget.isAuthority?true:canAcceptOrReject)OutlinedButton.icon(
                     onPressed: () {
                       _deleteApplication(context, application);
                     },
@@ -1905,8 +1919,15 @@ class _SpecificITStudentApplicationsPageState
     BuildContext context,
     StudentApplication application,
     String action,
-  ) {
+  )async {
+
+    bool isCompany = !widget.isAuthority;
+    canAcceptOrReject = widget.isAuthority?true:AuthorityRulesHelper.canAcceptStudents(FirebaseAuth.instance.currentUser!.uid);
     // Implement your action logic here
+    if(!canAcceptOrReject && isCompany) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("You are not authorized to perform this action")));
+          return ;
+    }
     showDialog(
       context: context,
       builder: (context) => AlertDialog(

@@ -74,7 +74,7 @@ class _PenaltyConfigDialogState extends State<PenaltyConfigDialog> {
                   items: PenaltyType.values.map((type) {
                     return DropdownMenuItem(
                       value: type,
-                      child: Text(_formatPenaltyType(type)),
+                      child: Text(formatPenaltyType(type)),
                     );
                   }).toList(),
                   onChanged: (value) {
@@ -248,7 +248,7 @@ class _PenaltyConfigDialogState extends State<PenaltyConfigDialog> {
     );
   }
 
-  String _formatPenaltyType(PenaltyType type) {
+  String formatPenaltyType(PenaltyType type) {
     switch (type) {
       case PenaltyType.WARNING:
         return 'Warning (Notification Only)';
@@ -256,16 +256,14 @@ class _PenaltyConfigDialogState extends State<PenaltyConfigDialog> {
         return 'Suspension (Temporary Ban)';
       case PenaltyType.BLACKLIST:
         return 'Blacklist (Cannot Reapply)';
-      default:
-      // fallback for any new enum values added later
-        return type.name.replaceAll('_', ' ').toTitleCase();
     }
   }
 
 
 
 
-bool _isValidPenalty() {
+
+  bool _isValidPenalty() {
     return _descriptionController.text.isNotEmpty &&
         (_type != PenaltyType.SUSPENSION || (_suspensionDays != null && _suspensionDays! > 0)) &&
         (_type != PenaltyType.BLACKLIST || (_suspensionDays != null && _suspensionDays! > 0)) &&

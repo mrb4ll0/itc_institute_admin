@@ -104,20 +104,28 @@ class _StudentListPageState extends State<StudentListPage>
 
       // Load all trainee categories
       _pendingTrainees = await _traineeService.getTraineesByStatus(
-          companyId,
-          TraineeStatus.pending
+          companyId: companyId,
+          status:TraineeStatus.pending,
+        isAuthority: widget.isAuthority,
+        companyIds: widget.company.originalAuthority?.linkedCompanies??[]
       );
 
 
-      _currentTrainees = await _traineeService.getCurrentTrainees(companyId);
-      _upcomingTrainees = await _traineeService.getUpcomingTrainees(companyId);
+      _currentTrainees = await _traineeService.getCurrentTrainees(companyId: companyId,isAuthority: widget.isAuthority,
+          companyIds: widget.company.originalAuthority?.linkedCompanies??[]);
+      _upcomingTrainees = await _traineeService.getUpcomingTrainees(companyId: companyId,isAuthority: widget.isAuthority,
+          companyIds: widget.company.originalAuthority?.linkedCompanies??[]);
       _rejectedTrainees = await _traineeService.getTraineesByStatus(
-          companyId,
-          TraineeStatus.rejected
+          companyId: companyId,
+          status:TraineeStatus.rejected,
+          isAuthority: widget.isAuthority,
+          companyIds: widget.company.originalAuthority?.linkedCompanies??[]
       );
       _completedTrainees = await _traineeService.getTraineesByStatus(
-          companyId,
-          TraineeStatus.completed
+          companyId:  companyId,
+          status:TraineeStatus.completed,
+          isAuthority: widget.isAuthority,
+          companyIds: widget.company.originalAuthority?.linkedCompanies??[]
       );
 
       debugPrint("Loaded: ${_pendingTrainees.length} pending, "
@@ -412,7 +420,7 @@ class _StudentListPageState extends State<StudentListPage>
         return TraineeCard(
           onDoubleTab: ()
           {
-            GeneralMethods.navigateTo(context, SpecificStudentApplicationsPage(companyId: trainee.companyId,studentUid: trainee.studentId,isAuthority: widget.isAuthority,));
+            GeneralMethods.navigateTo(context, SpecificStudentApplicationsPage(companyId: trainee.companyId,studentUid: trainee.studentId,isAuthority: widget.isAuthority,companyIds: widget.company.originalAuthority?.linkedCompanies??[]));
           },
           trainee: trainee,
           isDark: isDark,

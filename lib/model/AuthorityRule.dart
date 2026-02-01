@@ -4,7 +4,7 @@ import 'authorityRuleExtension.dart';
 
 class AuthorityRule {
   final String id;
-  final String authorityId;
+   String authorityId;
   final String title;
   final String description;
   final RuleCategory category;
@@ -36,6 +36,7 @@ class AuthorityRule {
   final List<String> applicableIndustries; // e.g., ["MANUFACTURING", "CONSTRUCTION"]
   final List<String> applicableCompanySizes; // e.g., ["SMALL", "MEDIUM", "LARGE"]
   final bool applyToAllCompanies; // Overrides above filters if true
+  final List<String> applicableCompanyIds; // Specific company IDs
 
   // TRACKING
   final DateTime createdAt;
@@ -55,7 +56,7 @@ class AuthorityRule {
     this.isMandatory = false,
     required this.effectiveDate,
     this.expiryDate,
-
+    required this.applicableCompanyIds,
     // Permission defaults
     this.requiresExplicitPermission = true,
     this.permissionType = PermissionType.MANUAL_APPROVAL,
@@ -89,10 +90,14 @@ class AuthorityRule {
 
   // Check if rule applies to a specific company
   bool appliesToCompany({
+    required String companyId,
     required String companyType,
     required String industry,
     required String companySize,
   }) {
+    if (applicableCompanyIds.isNotEmpty) {
+      return applicableCompanyIds.contains(companyId);
+    }
     if (applyToAllCompanies) return true;
 
     if (applicableCompanyTypes.isNotEmpty &&
@@ -158,6 +163,7 @@ class AuthorityRule {
     String? createdBy,
     int? version,
     List<RuleAmendment>? amendments,
+    List<String>? applicableCompanyIds
   }) {
     return AuthorityRule(
       id: id ?? this.id,
@@ -190,6 +196,7 @@ class AuthorityRule {
       createdBy: createdBy ?? this.createdBy,
       version: version != null ? this.version + 1 : this.version,
       amendments: amendments ?? this.amendments,
+      applicableCompanyIds: applicableCompanyIds ?? this.applicableCompanyIds,
     );
   }
 
@@ -225,6 +232,7 @@ class AuthorityRule {
       'createdBy': createdBy,
       'version': version,
       'amendments': amendments.map((a) => a.toMap()).toList(),
+      'applicableCompanyIds': applicableCompanyIds,
     };
   }
 
@@ -283,6 +291,7 @@ class AuthorityRule {
       amendments: (map['amendments'] as List? ?? [])
           .map((a) => RuleAmendment.fromMap(a))
           .toList(),
+      applicableCompanyIds: List<String>.from(map['applicableCompanyIds'] ?? []),
     );
   }
 

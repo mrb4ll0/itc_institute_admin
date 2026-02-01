@@ -31,6 +31,7 @@ class _SavedPostsPageState extends State<SavedPostsPage> {
   String _searchQuery = '';
   final ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic();
   final UserService userService = UserService();
+  final TweetService tweetService = TweetService();
 
   @override
   void initState() {
@@ -172,11 +173,12 @@ class _SavedPostsPageState extends State<SavedPostsPage> {
     );
   }
 
+
   Future<void> _onUnsavePost(String tweetId, int index) async {
     if (_currentUserId == null || !mounted) return;
 
     try {
-      final tweetService = Provider.of<TweetService>(context, listen: false);
+
       await tweetService.removeSavedTweetByUserAndTweetId(
         _currentUserId!,
         tweetId,
@@ -205,7 +207,8 @@ class _SavedPostsPageState extends State<SavedPostsPage> {
           ),
         );
       }
-    } catch (e) {
+    } catch (e,s) {
+      debugPrintStack(stackTrace: s);
       _showErrorSnackbar('Failed to unsave post');
     }
   }

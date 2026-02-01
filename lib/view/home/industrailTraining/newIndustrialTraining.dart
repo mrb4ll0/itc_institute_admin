@@ -64,6 +64,7 @@ class _CreateIndustrialTrainingPageState
   final List<String> _formUsageOptions = [
     'Use existing categorized form',
     'Upload new form',
+    'Form Not Applicable'
   ];
 
   @override
@@ -244,6 +245,12 @@ class _CreateIndustrialTrainingPageState
       return;
     }
 
+    if(widget.isAuthority)
+      {
+        _showError("This feature is not available for Authorities");
+        return;
+      }
+
     setState(() {
       _isLoading = true;
     });
@@ -251,7 +258,8 @@ class _CreateIndustrialTrainingPageState
     try {
       // Prepare files based on form usage selection
       List<String> attachmentUrls = [];
-
+      if(_formUsage != _formUsageOptions[2])
+        {
       if (_formUsage == _formUsageOptions[0]) {
         // Use existing categorized form
         if (_selectedForm == null && _existingFormFiles.isEmpty) {
@@ -272,10 +280,13 @@ class _CreateIndustrialTrainingPageState
         // Upload new form
         if (_selectedFiles.isEmpty) {
           _showError('Please upload at least one file for the new form');
-          setState(() { _isLoading = false; });
+          setState(() {
+            _isLoading = false;
+          });
           return;
         }
         attachmentUrls = await _uploadFiles();
+
 
         // Save the new form as a categorized form for future use
         if (attachmentUrls.isNotEmpty) {
@@ -296,7 +307,7 @@ class _CreateIndustrialTrainingPageState
           attachmentUrls = await _uploadFiles();
         }
       }
-
+        }
       Company? company = await _itcFirebaseLogic.getCompany(
         FirebaseAuth.instance.currentUser!.uid,
       );
@@ -1178,6 +1189,7 @@ class _CreateIndustrialTrainingPageState
                                                         ? 'Use Existing Categorized Form'
                                                         : option == _formUsageOptions[1]
                                                         ? 'Upload New Form (Will be saved for future use)'
+                                                        : option == _formUsageOptions[2]? "Not Applicable"
                                                         : 'Universal Template',
                                                     style: theme
                                                         .textTheme
@@ -1193,6 +1205,7 @@ class _CreateIndustrialTrainingPageState
                                                         ? 'Select from your previously uploaded forms categorized by department'
                                                         : option == _formUsageOptions[1]
                                                         ? 'Upload new files. These will be saved as a categorized form for future use'
+                                                        : option == _formUsageOptions[2]?'No Form Usage '
                                                         : 'Save this form as a universal template for future postings',
                                                     style: theme
                                                         .textTheme

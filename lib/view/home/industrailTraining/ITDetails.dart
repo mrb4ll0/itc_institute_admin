@@ -303,6 +303,13 @@ class _InternshipDetailsPageState extends State<InternshipDetailsPage> {
 
   Widget _buildStatsCard() {
     final theme = Theme.of(context);
+    double fillRate = 0.0;
+
+    if (_internship.intake > 0) {
+      fillRate = _internship.applicationsCount / _internship.intake;
+    }
+
+    fillRate = fillRate.clamp(0.0, 1.0);
 
     return Card(
       elevation: 2,
@@ -342,7 +349,7 @@ class _InternshipDetailsPageState extends State<InternshipDetailsPage> {
             ),
             const SizedBox(height: 12),
             LinearProgressIndicator(
-              value: _internship.applicationsCount / _internship.intake,
+              value: fillRate,
               backgroundColor: theme.colorScheme.surfaceVariant,
               color: theme.colorScheme.primary,
               minHeight: 8,

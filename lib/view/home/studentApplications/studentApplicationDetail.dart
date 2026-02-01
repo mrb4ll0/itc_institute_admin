@@ -1,14 +1,21 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:itc_institute_admin/itc_logic/firebase/general_cloud.dart';
 import 'package:itc_institute_admin/itc_logic/notification/fireStoreNotification.dart';
+import 'package:itc_institute_admin/model/authorityCompanyMapper.dart';
+import 'package:itc_institute_admin/model/userProfile.dart';
+import 'package:itc_institute_admin/view/company/companyDetailPage.dart';
 import 'package:itc_institute_admin/view/home/student/studentDetails.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../extensions/extensions.dart';
 import '../../../generalmethods/GeneralMethods.dart';
+import '../../../itc_logic/firebase/AuthorityRulesHelper.dart';
 import '../../../itc_logic/firebase/company_cloud.dart';
 import '../../../itc_logic/notification/notitification_service.dart';
+import '../../../model/authority.dart';
+import '../../../model/company.dart';
 import '../../../model/student.dart';
 import '../../../model/studentApplication.dart';
 import '../industrailTraining/fileDetails.dart';
@@ -16,6 +23,7 @@ import '../industrailTraining/fileDetails.dart';
 class StudentApplicationDetailsPage extends StatefulWidget {
   final StudentApplication application;
   final bool isAuthority;
+
 
   const StudentApplicationDetailsPage({super.key, required this.application,required this.isAuthority});
 
@@ -31,7 +39,14 @@ class _StudentApplicationDetailsPageState
   final Company_Cloud company_cloud = Company_Cloud();
   final NotificationService notificationService = NotificationService();
   final FireStoreNotification fireStoreNotification = FireStoreNotification();
-
+  bool canAcceptOrReject = false;
+  @override
+  void initState() {
+    // TODO: implement initState
+    super.initState();
+    canAcceptOrReject = widget.isAuthority?true:AuthorityRulesHelper.canAcceptStudents(FirebaseAuth.instance.currentUser!.uid);
+    debugPrint("canAcceptOrReject application is ${canAcceptOrReject}");
+  }
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -45,7 +60,7 @@ class _StudentApplicationDetailsPageState
         title: const Text('Application Details'),
         actions: [
           // Status change actions
-          if (application.applicationStatus.toLowerCase() == 'pending') ...[
+          if (application.applicationStatus.toLowerCase() == 'pending' && (widget.isAuthority? true:canAcceptOrReject ) ) ...[
             PopupMenuButton<String>(
               onSelected: (value) =>
                   _handleApplicationAction(context, application, value),
@@ -153,131 +168,152 @@ class _StudentApplicationDetailsPageState
 
             // Internship Details Section
             _buildSectionTitle('Internship Details'),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Company Info
-                    Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 24,
-                          backgroundImage: internship.company.logoURL.isNotEmpty
-                              ? NetworkImage(internship.company.logoURL)
-                              : null,
-                          backgroundColor: colorScheme.surfaceVariant,
-                          child: internship.company.logoURL.isEmpty
-                              ? const Icon(Icons.business)
-                              : null,
+            InkWell(
+              onTap: ()async
+              {
+                final itcFirebaseAuthority = ITCFirebaseLogic();
+                String uid = FirebaseAuth.instance.currentUser!.uid;
+                Company? company = await itcFirebaseAuthority.getCompany(uid);
+                if(company == null)
+                  {
+                    Authority? authority = await itcFirebaseAuthority.getAuthority(uid);
+                    if(authority != null)
+                      {
+                        company = AuthorityCompanyMapper.createCompanyFromAuthority(authority: authority);
+                      }
+                  }
+                if(company == null || internship.company.id == uid)
+                  {
+                    return;
+                  }
+                GeneralMethods.navigateTo(context, CompanyDetailPage(company: internship.company, user: UserConverter(company)));
+              },
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Company Info
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 24,
+                            backgroundImage: internship.company.logoURL.isNotEmpty
+                                ? NetworkImage(internship.company.logoURL)
+                                : null,
+                            backgroundColor: colorScheme.surfaceVariant,
+                            child: internship.company.logoURL.isEmpty
+                                ? const Icon(Icons.business)
+                                : null,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  internship.company.name,
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                Text(
+                                  internship.title,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Internship Details Grid
+                      GridView.count(
+                        crossAxisCount: 2,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        childAspectRatio: 3,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 8,
+                        children: [
+                          _buildDetailItem(
+                            icon: Icons.work_outline,
+                            label: 'Industry',
+                            value: internship.company.industry,
+                          ),
+                          _buildDetailItem(
+                            icon: Icons.calendar_today,
+                            label: 'Status',
+                            value: internship.status,
+                          ),
+                          if (internship.duration?['selectedDuration'] != null)
+                            _buildDetailItem(
+                              icon: Icons.access_time,
+                              label: 'Duration',
+                              value: internship.duration!['selectedDuration'],
+                            ),
+                          if (internship.stipendAvailable != null)
+                            _buildDetailItem(
+                              icon: Icons.attach_money,
+                              label: 'Stipend',
+                              value: internship.stipend ?? 'Negotiable',
+                            ),
+                          if (internship.startDate != null)
+                            _buildDetailItem(
+                              icon: Icons.date_range,
+                              label: 'Start Date',
+                              value: _dateFormat.format(internship.startDate!),
+                            ),
+                          if (internship.endDate != null)
+                            _buildDetailItem(
+                              icon: Icons.date_range,
+                              label: 'End Date',
+                              value: _dateFormat.format(internship.endDate!),
+                            ),
+                        ],
+                      ),
+
+                      // Description
+                      if (internship.description.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          'Description',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                internship.company.name,
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              Text(
-                                internship.title,
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
+                        const SizedBox(height: 4),
+                        Text(
+                          internship.description,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ],
-                    ),
-                    const SizedBox(height: 16),
 
-                    // Internship Details Grid
-                    GridView.count(
-                      crossAxisCount: 2,
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      childAspectRatio: 3,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 8,
-                      children: [
-                        _buildDetailItem(
-                          icon: Icons.work_outline,
-                          label: 'Industry',
-                          value: internship.company.industry,
+                      // Eligibility Criteria
+                      if (internship.eligibilityCriteria.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          'Eligibility Criteria',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                        _buildDetailItem(
-                          icon: Icons.calendar_today,
-                          label: 'Status',
-                          value: internship.status,
+                        const SizedBox(height: 4),
+                        Text(
+                          internship.eligibilityCriteria,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
                         ),
-                        if (internship.duration?['selectedDuration'] != null)
-                          _buildDetailItem(
-                            icon: Icons.access_time,
-                            label: 'Duration',
-                            value: internship.duration!['selectedDuration'],
-                          ),
-                        if (internship.stipendAvailable != null)
-                          _buildDetailItem(
-                            icon: Icons.attach_money,
-                            label: 'Stipend',
-                            value: internship.stipend ?? 'Negotiable',
-                          ),
-                        if (internship.startDate != null)
-                          _buildDetailItem(
-                            icon: Icons.date_range,
-                            label: 'Start Date',
-                            value: _dateFormat.format(internship.startDate!),
-                          ),
-                        if (internship.endDate != null)
-                          _buildDetailItem(
-                            icon: Icons.date_range,
-                            label: 'End Date',
-                            value: _dateFormat.format(internship.endDate!),
-                          ),
                       ],
-                    ),
-
-                    // Description
-                    if (internship.description.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      Text(
-                        'Description',
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        internship.description,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
                     ],
-
-                    // Eligibility Criteria
-                    if (internship.eligibilityCriteria.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      Text(
-                        'Eligibility Criteria',
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        internship.eligibilityCriteria,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -606,7 +642,7 @@ class _StudentApplicationDetailsPageState
             const SizedBox(height: 32),
 
             // Action Buttons
-            if (application.applicationStatus.toLowerCase() == 'pending')
+            if (application.applicationStatus.toLowerCase() == 'pending' && (widget.isAuthority?true: canAcceptOrReject ))
               Row(
                 children: [
                   Expanded(

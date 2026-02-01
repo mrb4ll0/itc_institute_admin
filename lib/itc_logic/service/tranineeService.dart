@@ -624,22 +624,51 @@ class TraineeService {
   }
 
   // Get trainees by status
-  Future<List<TraineeRecord>> getTraineesByStatus(
-      String companyId,
-      TraineeStatus status
-      ) async {
+  Future<List<TraineeRecord>> getTraineesByStatus({
+    required bool isAuthority,
+    required String companyId,
+    List<String>? companyIds,
+    required TraineeStatus status,
+  }) async {
     try {
-      final query = await _traineesRef
-          .where('companyId', isEqualTo: companyId)
-          .where('status', isEqualTo: status.name)
-          .orderBy('startDate', descending: false)
-          .get();
+      Query query = _traineesRef;
 
-      return query.docs.map((doc) {
-        debugPrint("doc is string ${doc.data() is Map<String,dynamic>}");
-        return TraineeRecord.fromFirestore(doc.data() as Map<String, dynamic>, doc.id);
-      }).toList();
-    } catch (e,s) {
+      if (isAuthority && companyIds != null && companyIds.isNotEmpty) {
+        // Authority: fetch for multiple companies
+        // Firestore allows max 10 items in 'whereIn', so split if needed
+        if (companyIds.length <= 10) {
+          query = query.where('companyId', whereIn: companyIds);
+        } else {
+          // If more than 10, fetch in chunks
+          List<TraineeRecord> results = [];
+          for (int i = 0; i < companyIds.length; i += 10) {
+            final chunk = companyIds.sublist(i, (i + 10).clamp(0, companyIds.length));
+            final chunkQuery = await _traineesRef
+                .where('companyId', whereIn: chunk)
+                .where('status', isEqualTo: status.name)
+                .orderBy('startDate', descending: false)
+                .get();
+
+            results.addAll(chunkQuery.docs.map((doc) =>
+                TraineeRecord.fromFirestore(doc.data() as Map<String, dynamic>, doc.id)));
+          }
+          return results;
+        }
+      } else {
+        // Single company
+        query = query.where('companyId', isEqualTo: companyId);
+      }
+
+      // Common filter: status
+      query = query.where('status', isEqualTo: status.name)
+          .orderBy('startDate', descending: false);
+
+      final snapshot = await query.get();
+
+      return snapshot.docs.map((doc) =>
+          TraineeRecord.fromFirestore(doc.data() as Map<String, dynamic>, doc.id)
+      ).toList();
+    } catch (e, s) {
       debugPrintStack(stackTrace: s);
       debugPrint('Error getting trainees by status: $e');
       return [];
@@ -647,13 +676,13 @@ class TraineeService {
   }
 
   // Add to TraineeService class
-  Future<List<dynamic>> getAllPendingApplications(String companyId) async {
+  Future<List<dynamic>> getAllPendingApplications({required String companyId,required bool isAuthority,required List<String> companyIds}) async {
     try {
       // Get pending applications from Company_Cloud
       final companyApplications = await _companyCloud.getPendingApplications(companyId);
 
       // Get pending trainees from TraineeService
-      final pendingTrainees = await getTraineesByStatus(companyId, TraineeStatus.pending);
+      final pendingTrainees = await getTraineesByStatus(companyId: companyId,status: TraineeStatus.pending,isAuthority: isAuthority,companyIds: companyIds, );
 
       // Combine both lists
       final allPending = <dynamic>[];
@@ -735,18 +764,18 @@ class TraineeService {
 
 
   // Get current active trainees
-  Future<List<TraineeRecord>> getCurrentTrainees(String companyId) async {
-    return getTraineesByStatus(companyId, TraineeStatus.active);
+  Future<List<TraineeRecord>> getCurrentTrainees({required String companyId,required bool isAuthority,required List<String> companyIds}) async {
+    return getTraineesByStatus(companyId:companyId,status: TraineeStatus.active,isAuthority: isAuthority,companyIds: companyIds, );
   }
 
   // Get upcoming trainees (accepted but not started)
-  Future<List<TraineeRecord>> getUpcomingTrainees(String companyId) async {
-    return getTraineesByStatus(companyId, TraineeStatus.accepted);
+  Future<List<TraineeRecord>> getUpcomingTrainees({required String companyId,required bool isAuthority,required List<String> companyIds}) async {
+    return getTraineesByStatus(companyId: companyId, status:TraineeStatus.accepted,isAuthority: isAuthority,companyIds: companyIds, );
   }
 
   // Get pending trainees (applications not yet accepted)
-  Future<List<TraineeRecord>> getPendingTrainees(String companyId) async {
-    return getTraineesByStatus(companyId, TraineeStatus.pending);
+  Future<List<TraineeRecord>> getPendingTrainees({required String companyId,required bool isAuthority,required List<String> companyIds}) async {
+    return getTraineesByStatus(companyId: companyId, status:TraineeStatus.pending,isAuthority: isAuthority,companyIds: companyIds, );
   }
 
   // Start a trainee's training

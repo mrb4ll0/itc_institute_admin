@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
@@ -7,6 +8,7 @@ import 'package:itc_institute_admin/itc_logic/firebase/general_cloud.dart';
 import 'package:itc_institute_admin/view/home/studentApplications/studentApplicationDetail.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../itc_logic/firebase/AuthorityRulesHelper.dart';
 import '../../../../itc_logic/notification/fireStoreNotification.dart';
 import '../../../../itc_logic/notification/notitification_service.dart';
 import '../../../../model/student.dart';
@@ -18,6 +20,7 @@ class SpecificStudentApplicationsPage extends StatefulWidget {
   final String studentName;
   final int totalApplications;
   final bool isAuthority;
+  final List<String> companyIds;
 
   const SpecificStudentApplicationsPage({
     Key? key,
@@ -26,6 +29,7 @@ class SpecificStudentApplicationsPage extends StatefulWidget {
     this.studentName = '',
     this.totalApplications = 0,
     required this.isAuthority,
+    required this.companyIds,
   }) : super(key: key);
 
   @override
@@ -53,6 +57,9 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
   DateTime? _startDate;
   DateTime? _endDate;
 
+
+
+  bool canAcceptOrReject = false;
   // Filter options
   final List<String> _statusOptions = [
     'All',
@@ -80,6 +87,8 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
   void initState() {
     super.initState();
     _applicationService = Company_Cloud();
+    canAcceptOrReject = widget.isAuthority?true:AuthorityRulesHelper.canAcceptStudents(FirebaseAuth.instance.currentUser!.uid);
+    debugPrint("canAcceptOrReject is $canAcceptOrReject and isAuthority is ${widget.isAuthority}");
     _loadApplications();
   }
 
@@ -93,11 +102,10 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
       final applications = await _applicationService.getAllApplicationsForStudent(
         widget.companyId,
         widget.studentUid,
-      );
+        isAuthority:widget.isAuthority,
+        companiesIds: widget.companyIds
 
-      for (var application in applications) {
-        debugPrint("application id ${application.id}");
-      }
+      );
 
 
       setState(() {
@@ -200,6 +208,14 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
       String newStatus,
       ) async {
     try {
+
+      bool isCompany = !widget.isAuthority;
+      bool canAcceptOrReject = AuthorityRulesHelper.canAcceptStudents(FirebaseAuth.instance.currentUser!.uid);
+      // Implement your action logic here
+      if(!canAcceptOrReject && isCompany) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("You are not authorized to perform this action")));
+        return ;
+      }
       // Create updated application
       final updatedApplication = application.copyWith(
         applicationStatus: newStatus,
@@ -689,7 +705,6 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
   }
 
   Widget _buildApplicationCard(StudentApplication application) {
-    debugPrint("in _buildApplicationCard appid is${application.id} ");
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
@@ -829,7 +844,7 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
                     ),
                   ),
                   SizedBox(width: 12),
-                  if (application.applicationStatus.toLowerCase() == 'pending')
+                  if (application.applicationStatus.toLowerCase() == 'pending' && (widget.isAuthority?true: canAcceptOrReject ))
                     _buildActionButtons(application),
                 ],
               ),

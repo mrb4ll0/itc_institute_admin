@@ -171,6 +171,8 @@ class _IndustrialTrainingPostsPageState
                       _internshipsStream = companyCloud
                           .getCurrentCompanyInternships(
                             FirebaseAuth.instance.currentUser!.uid,
+                          isAuthority: widget.isAuthority,
+                          companyIds: widget.companyIds
                           );
                     });
                   },

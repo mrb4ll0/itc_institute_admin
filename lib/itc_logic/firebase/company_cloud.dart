@@ -10,7 +10,7 @@ import 'package:itc_institute_admin/itc_logic/firebase/ActionLogger.dart';
 import 'package:itc_institute_admin/itc_logic/notification/fireStoreNotification.dart' hide NotificationType;
 import 'package:itc_institute_admin/itc_logic/service/tranineeService.dart';
 import 'package:rxdart/rxdart.dart';
-
+import 'package:async/async.dart';
 import '../../model/RecentActions.dart';
 import '../../model/company.dart';
 import '../../model/companyForm.dart';
@@ -1365,44 +1365,60 @@ class Company_Cloud {
 
 
   Stream<List<StudentApplication>> studentInternshipApplicationsForSpecificITStream(
-      String companyId,
-      String itId,  // Add this parameter for specific IT
-          {
+      {
+        required bool isAuthority,
+        required String companyId,
+        required String itId,
+        List<String>? companyIds,
         bool sortAscending = false,
-      }) {
-    debugPrint("specific method is being called");
-    return _firebaseFirestore
-        .collection(usersCollection)
-        .doc('companies')
-        .collection('companies')
-        .doc(companyId)
-        .collection('IT')
-        .doc(itId)  // Get specific IT document
-        .snapshots()
-        .asyncMap((internshipSnapshot) async {
-      // Check if the specific IT exists
-      if (!internshipSnapshot.exists) {
-        debugPrint('IT with ID $itId not found for company $companyId');
-        return [];
       }
+      ) {
+    debugPrint("specific IT stream method is being called");
 
-      // Process the single internship
-      final internship = await _processInternship(internshipSnapshot);
-      if (internship == null) {
-        debugPrint('Failed to process internship $itId');
-        return [];
-      }
+    // Decide which companies to query
+    final List<String> targetCompanyIds =
+    (isAuthority && companyIds != null && companyIds.isNotEmpty)
+        ? companyIds
+        : [companyId];
+debugPrint("targetCompanyIds ${targetCompanyIds.toString()}");
+    // Create a stream per company, then merge them
+    final streams = targetCompanyIds.map((cid) {
+      return _firebaseFirestore
+          .collection(usersCollection)
+          .doc('companies')
+          .collection('companies')
+          .doc(cid)
+          .collection('IT')
+          .doc(itId)
+          .snapshots()
+          .asyncMap((internshipSnapshot) async {
+        if (!internshipSnapshot.exists) {
+          debugPrint('IT $itId not found for company $cid');
+          return <StudentApplication>[];
+        }
 
-      // Get applications for this specific internship
-      final applications = await _getApplicationsForInternship(
-        internshipSnapshot.reference,
-        internship,
-      );
+        final internship = await _processInternship(internshipSnapshot);
+        if (internship == null) {
+          debugPrint('Failed to process internship $itId for company $cid');
+          return <StudentApplication>[];
+        }
 
-      // Sort applications
-      return _sortApplications(applications, ascending: sortAscending);
+        final applications = await _getApplicationsForInternship(
+          internshipSnapshot.reference,
+          internship,
+        );
+
+        return applications;
+      });
+    }).toList();
+
+    // Merge all company streams into one
+    return StreamZip<List<StudentApplication>>(streams).map((listOfLists) {
+      final merged = listOfLists.expand((e) => e).toList();
+      return _sortApplications(merged, ascending: sortAscending);
     });
   }
+
   List<StudentApplication> _sortApplications(
       List<StudentApplication> applications, {
         bool ascending = true,
@@ -3389,7 +3405,6 @@ class Company_Cloud {
                     }
 
                     studentApplications.add(application);
-                    debugPrint('      Added application: ${appDoc.id} from company: $currentCompanyId');
                   } catch (e) {
                     debugPrint('Error parsing application ${appDoc.id}: $e');
                   }

@@ -82,6 +82,7 @@ class _ConditionFormDialogState extends State<ConditionFormDialog> {
                   border: OutlineInputBorder(),
                 ),
                 items: [
+                  'studentGPA',
                   'annualRevenue',
                   'employeeCount',
                   'companyType',

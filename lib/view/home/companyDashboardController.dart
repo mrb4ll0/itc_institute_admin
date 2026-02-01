@@ -18,7 +18,8 @@ import 'package:itc_institute_admin/view/home/themePage.dart';
 import 'package:itc_institute_admin/view/home/tweet_view.dart';
 import 'package:itc_institute_admin/view/studentList.dart';
 import 'package:provider/provider.dart';
-
+import '../../itc_logic/firebase/AuthorityRulesHelper.dart';
+import '../../itc_logic/firebase/StudentAcceptanceRepository.dart';
 import '../../itc_logic/firebase/authority_cloud.dart';
 import '../../itc_logic/firebase/general_cloud.dart';
 import '../../model/authority.dart';
@@ -27,6 +28,7 @@ import '../CompanyAuthoritySpecificationDialog.dart';
 import '../authorityRule/service/ruleService.dart';
 import '../authorityRule/views/authoriityViewModel.dart';
 import '../company/companyEdit.dart';
+import '../minimalStudentAcceptanceRule/studentAcceptanceRule.dart';
 import 'dialog/pendingCompanyDialog.dart';
 import 'iTList.dart';
 
@@ -65,22 +67,42 @@ class _CompanyDashboardControllerState
       WidgetsBinding.instance.addPostFrameCallback(
             (_) async {
 
-              if(widget.tweetCompany.originalAuthority != null) showPendingCompaniesDialog(context, widget.tweetCompany.originalAuthority!);
+              if(widget.tweetCompany.originalAuthority != null)
+              {
+                showPendingCompaniesDialog(context, widget.tweetCompany.originalAuthority!);
+
+              }
+              await loadAuthorityRules();
               await _loadCompany();
-              debugPrint("widget.tweetCompany.originalAuthority != null ${widget.tweetCompany.originalAuthority}");
-              debugPrint("_company == null ? ${_company == null}");
+
               if (_company != null && widget.tweetCompany.originalAuthority == null ) {
-                debugPrint("condition meet , dialog should be shown");
                 checkAndShowAuthoritySpecificationDialog(
                   context: context,
                   company: _company!,
                   firebaseLogic: ITCFirebaseLogic(),
                 );
               }
+
+
             }
 
       );
 
+  }
+
+  loadAuthorityRules()async
+  {
+    final repo = StudentAcceptanceRepository();
+
+// Fetch rule first
+    AuthorityRule? rule = await repo.fetchRule(widget.tweetCompany.originalAuthority != null?widget.tweetCompany.id:widget.tweetCompany.authorityId??"");
+    debugPrint("authorityRule ${rule?.toMap()}");
+    if (rule != null) {
+      AuthorityRulesHelper.initRule(rule);
+
+      // Preload all companies under this authority
+      await AuthorityRulesHelper.preloadCompanies(rule.authorityId!);
+    }
   }
 
   Future<void> _loadCompany() async {
@@ -229,7 +251,7 @@ class _CompanyDashboardControllerState
 
               }));
             },
-          ),_buildDrawerItem(
+          ),if(false)_buildDrawerItem(
             icon: Icons.rule,
             text: 'Set Rule',
             onTap: () {
@@ -244,6 +266,29 @@ class _CompanyDashboardControllerState
               );
             },
           ),
+          ?widget.tweetCompany.originalAuthority!=null? _buildDrawerItem(
+            icon: Icons.rule,
+            text: 'Set Rule',
+            onTap: () {
+
+
+              if(widget.tweetCompany.originalAuthority == null)
+                {
+                  Fluttertoast.showToast(msg: "Authority not found , kindly logout and login ");
+                  return;
+                }
+              GeneralMethods.navigateTo(
+                context,
+                ChangeNotifierProvider(
+                  create: (_) => StudentAcceptanceViewModel(),
+                  child: StudentAcceptanceControlPage(
+                    authorityId: widget.tweetCompany.id,
+                    companies: widget.tweetCompany.originalAuthority?.linkedCompanies??[],
+                  ),
+                ),
+              );
+            },
+          ):Container(),
           _buildDrawerItem(
             icon: Icons.help_outline,
             text: 'Help & Support',

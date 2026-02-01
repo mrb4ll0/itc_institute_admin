@@ -4,7 +4,7 @@ enum RuleCategory {
   APPROVAL_FLOW,      // Who approves what
   OPERATIONAL,        // Day-to-day placement operations
   COMPLIANCE,         // School / IT policy compliance
-  REPORTING,          // Reporting to authority
+  REPORTING, COMPANY_RELATIONSHIP,          // Reporting to authority
 }
 
 // How is the rule enforced?

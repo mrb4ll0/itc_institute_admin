@@ -1100,7 +1100,7 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
 
   void _navigateToStudentApplications(StudentWithLatestApplication student) {
     // Navigate to page showing all applications for this student
-    GeneralMethods.navigateTo(context, SpecificStudentApplicationsPage(isAuthority: widget.isAuthority,companyId: student.latestApplication?.internship.company.id??"", studentUid: student.student.uid));
+    GeneralMethods.navigateTo(context, SpecificStudentApplicationsPage(isAuthority: widget.isAuthority,companyId: student.latestApplication?.internship.company.id??"", studentUid: student.student.uid,companyIds: widget.companyIds,));
   }
 
   void _showApplicationDetails(

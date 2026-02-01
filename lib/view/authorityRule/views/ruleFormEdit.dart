@@ -1063,6 +1063,7 @@ class _RuleFormState extends State<RuleForm> with SingleTickerProviderStateMixin
       _formKey.currentState!.save();
 
       final rule = AuthorityRule(
+        applicableCompanyIds: [],
         id: widget.initialRule?.id ?? 'rule_${DateTime.now().millisecondsSinceEpoch}',
         authorityId: widget.authorityId,
         title: _title,
@@ -1106,6 +1107,7 @@ class _RuleFormState extends State<RuleForm> with SingleTickerProviderStateMixin
       _formKey.currentState!.save();
 
       final rule = AuthorityRule(
+        applicableCompanyIds: [],
         id: widget.initialRule?.id ?? 'rule_${DateTime.now().millisecondsSinceEpoch}',
         authorityId: widget.authorityId,
         title: _title,
