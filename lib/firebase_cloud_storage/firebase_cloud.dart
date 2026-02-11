@@ -33,10 +33,10 @@ class FirebaseUploader {
   /// This method runs all uploads in parallel for better performance.
   /// Returns a list of download URLs for successfully uploaded files.
   Future<List<String>> uploadMultipleFiles(
-    List<File> files,
-    String userId,
-    String category,
-  ) async {
+      List<File> files,
+      String userId,
+      String category,
+      ) async {
     try {
       // Map each file to an upload task (a Future)
       final uploadTasks = files
@@ -69,9 +69,9 @@ class FirebaseUploader {
   /// Returns a map with the same category keys, but with values being a list
   /// of the download URLs for the uploaded files.
   Future<Map<String, List<String>>> uploadCategorizedFiles(
-    String userId,
-    Map<String, List<File>> filesByCategory,
-  ) async {
+      String userId,
+      Map<String, List<File>> filesByCategory,
+      ) async {
     final Map<String, List<String>> uploadedUrls = {};
 
     try {

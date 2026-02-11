@@ -17,7 +17,12 @@ class StudentAcceptanceRepository {
 
   /// Fetch rule for a specific authority
   Future<AuthorityRule?> fetchRule(String authorityId) async {
+
     debugPrint("authorityid $authorityId");
+    if(authorityId == null || authorityId.trim().isEmpty)
+      {
+        return null;
+      }
     final snapshot = await _firestore
         .collection('authorityRules')
         .where(FieldPath.documentId, isGreaterThanOrEqualTo: authorityId)

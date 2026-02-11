@@ -14,6 +14,7 @@ import '../../../generalmethods/GeneralMethods.dart';
 import '../../../itc_logic/firebase/AuthorityRulesHelper.dart';
 import '../../../itc_logic/firebase/company_cloud.dart';
 import '../../../itc_logic/notification/notitification_service.dart';
+import '../../../letterGenerator/GenerateAcceptanceLetter.dart';
 import '../../../model/authority.dart';
 import '../../../model/company.dart';
 import '../../../model/student.dart';
@@ -45,7 +46,13 @@ class _StudentApplicationDetailsPageState
     // TODO: implement initState
     super.initState();
     canAcceptOrReject = widget.isAuthority?true:AuthorityRulesHelper.canAcceptStudents(FirebaseAuth.instance.currentUser!.uid);
-    debugPrint("canAcceptOrReject application is ${canAcceptOrReject}");
+    loadAuthority();
+  }
+  
+  Authority? authority;
+  loadAuthority()async
+  {
+    authority = await ITCFirebaseLogic().getAuthority(FirebaseAuth.instance.currentUser!.uid);
   }
   @override
   Widget build(BuildContext context) {
@@ -847,13 +854,8 @@ class _StudentApplicationDetailsPageState
                 message: "Updating application status",
               );
 
-              debugPrint("student data ${application.student.toMap()}");
-              debugPrint("internshipId ${application.internship.id}");
-              debugPrint("studentId ${application.student.uid}");
-              debugPrint("action is $action");
-              debugPrint(
-                "companyId data ${FirebaseAuth.instance.currentUser?.uid}",
-              );
+              
+              
               await company_cloud.updateApplicationStatus(
                 isAuthority: widget.isAuthority,
                 companyId: FirebaseAuth.instance.currentUser!.uid,
@@ -863,6 +865,40 @@ class _StudentApplicationDetailsPageState
                 application: application,
               );
               Student student = application.student;
+              var pdfUrl = '';
+
+              if(widget.isAuthority) {
+                AcceptanceLetterData acceptanceLetterData = AcceptanceLetterData(
+                    id: application.id,
+                    studentName: student.fullName,
+                    studentId: student.uid,
+                    institutionName: student.institution,
+                    institutionAddress: "",
+                    institutionPhone: "",
+                    institutionEmail: "",
+                    authorityName: authority?.name ?? "",
+                    companyName: application.internship.company.name,
+                    companyAddress: application.internship.company.address,
+                    startDate: application.durationDetails['startDate'],
+                    endDate: application.durationDetails['endDate'],
+                    authorizedSignatoryName: authority?.name ?? "",
+                    acceptedAt: DateTime.now(),
+                    authorizedSignatoryPosition: "");
+                pdfUrl =
+                await runPdfGeneration(acceptanceLetterData, userId: student.uid,);
+
+                await Company_Cloud().storeAcceptanceLetter(
+                    studentId: application.student.uid,
+                    acceptanceLetterData: acceptanceLetterData,
+                    internshipId: application.internship.id!,
+                    internshipTitle: application.internship.title,
+                    companyId: application.internship.company.id,
+                    applicationId: application.id,
+                    pdfFileUrl: pdfUrl,
+                    isAuthority: widget.isAuthority);
+
+              }
+              
               bool
               notificationSent = await notificationService.sendNotificationToUser(
                 fcmToken: student.fcmToken ?? "",
@@ -874,6 +910,7 @@ class _StudentApplicationDetailsPageState
               await fireStoreNotification.sendNotificationToStudent(
                 studentUid: student.uid,
                 title: application.internship.company.name,
+                imageUrl: pdfUrl,
                 body:
                     "Your application for ${application.internship.title} is ${GeneralMethods.normalizeApplicationStatus(action).toUpperCase()}",
               );

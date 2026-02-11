@@ -295,7 +295,7 @@ class ITCFirebaseLogic {
           .collection('authorities')
           .doc(uid)
           .get();
-
+         debugPrint("authority exists ${doc.exists} and uid is $uid" );
       if (doc.exists) {
         debugPrint("Authority exists in users collection");
         return Authority.fromMap(doc.data()!);

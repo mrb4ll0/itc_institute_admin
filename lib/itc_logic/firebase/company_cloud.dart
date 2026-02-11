@@ -9,9 +9,12 @@ import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/ActionLogger.dart';
 import 'package:itc_institute_admin/itc_logic/notification/fireStoreNotification.dart' hide NotificationType;
 import 'package:itc_institute_admin/itc_logic/service/tranineeService.dart';
+import 'package:itc_institute_admin/model/authorityCompanyMapper.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:async/async.dart';
+import '../../letterGenerator/GenerateAcceptanceLetter.dart';
 import '../../model/RecentActions.dart';
+import '../../model/authority.dart';
 import '../../model/company.dart';
 import '../../model/companyForm.dart';
 import '../../model/internship_model.dart';
@@ -1812,6 +1815,7 @@ debugPrint("targetCompanyIds ${targetCompanyIds.toString()}");
           final status = app?.applicationStatus;
           return status != null && status.toLowerCase() == 'accepted';
         }).toList();
+
 
         return acceptedApplications.length;
       }
@@ -3635,4 +3639,456 @@ debugPrint("targetCompanyIds ${targetCompanyIds.toString()}");
       return {for (var id in applicationIds) id: null};
     }
   }
+
+
+
+
+  Future<String> storeAcceptanceLetter({
+  required AcceptanceLetterData acceptanceLetterData,
+  required String internshipId,
+  required String internshipTitle,
+  required String companyId,
+  required String applicationId,
+  String? pdfFileUrl, // Optional: URL if PDF already generated
+  required bool isAuthority,
+    required String studentId
+  }) async {
+  try {
+
+    debugPrint("company id is $companyId");
+  // Verify the user is a company
+  Company? company = await _itcFirebaseLogic.getCompany(companyId);
+
+  if(company == null)
+    {
+      Authority? authority = await _itcFirebaseLogic.getAuthority(companyId);
+
+      if(authority != null)
+        {
+          company = AuthorityCompanyMapper.createCompanyFromAuthority(authority: authority);
+        }
+    }
+
+  debugPrint("companyName ${company?.toMap()} and company id is $companyId");
+
+  // Get student info
+  final student = await _itcFirebaseLogic.getStudent(studentId);
+  if (student == null) throw Exception("Student not found");
+
+  // Create acceptance letter ID if not provided or use the one from data
+  final acceptanceLetterId = acceptanceLetterData.id.isNotEmpty
+  ? acceptanceLetterData.id
+      : "AL-${DateTime.now().millisecondsSinceEpoch}-$applicationId";
+
+  // Add PDF URL if provided
+  final acceptanceLetterWithUrl = acceptanceLetterData.fileUrl == null && pdfFileUrl != null
+  ? AcceptanceLetterData(
+  id: acceptanceLetterId,
+  studentName: acceptanceLetterData.studentName,
+  studentId: acceptanceLetterData.studentId,
+  institutionName: acceptanceLetterData.institutionName,
+  institutionAddress: acceptanceLetterData.institutionAddress,
+  institutionPhone: acceptanceLetterData.institutionPhone,
+  institutionEmail: acceptanceLetterData.institutionEmail,
+  authorityName: acceptanceLetterData.authorityName,
+  companyName: acceptanceLetterData.companyName,
+  companyAddress: acceptanceLetterData.companyAddress,
+  startDate: acceptanceLetterData.startDate,
+  endDate: acceptanceLetterData.endDate,
+  authorizedSignatoryName: acceptanceLetterData.authorizedSignatoryName,
+  authorizedSignatoryPosition: acceptanceLetterData.authorizedSignatoryPosition,
+  fileUrl: pdfFileUrl,
+  createdAt: DateTime.now(),
+  )
+      : acceptanceLetterData;
+
+  // Store in company's acceptance letters collection
+  final companyAcceptanceRef = _firebaseFirestore
+      .collection(usersCollection)
+      .doc('companies')
+      .collection('companies')
+      .doc(companyId)
+      .collection('acceptanceLetters')
+      .doc(acceptanceLetterId);
+
+  // Also store in student's acceptance letters collection
+  final studentAcceptanceRef = _firebaseFirestore
+      .collection(usersCollection)
+      .doc('students')
+      .collection('students')
+      .doc(acceptanceLetterData.studentId)
+      .collection('acceptanceLetters')
+      .doc(acceptanceLetterId);
+
+  // Also store in applications for reference
+  final applicationAcceptanceRef = _firebaseFirestore
+      .collection(usersCollection)
+      .doc('companies')
+      .collection('companies')
+      .doc(companyId)
+      .collection('IT')
+      .doc(internshipId)
+      .collection('applications')
+      .doc(applicationId)
+      .collection('acceptanceLetters')
+      .doc(acceptanceLetterId);
+
+  final acceptanceLetterMap = acceptanceLetterWithUrl.toMap();
+  // Add additional fields for better querying
+  acceptanceLetterMap.addAll({
+  'internshipId': internshipId,
+  'internshipTitle': internshipTitle,
+  'companyId': companyId,
+  'applicationId': applicationId,
+  'status': 'sent',
+  'sentAt': FieldValue.serverTimestamp(),
+  'updatedAt': FieldValue.serverTimestamp(),
+  });
+
+  // Store in all three locations
+  await Future.wait([
+  companyAcceptanceRef.set(acceptanceLetterMap),
+  studentAcceptanceRef.set(acceptanceLetterMap),
+  applicationAcceptanceRef.set(acceptanceLetterMap),
+  ]);
+
+  // Update application status to "accepted"
+  await _updateApplicationStatus(
+  companyId: companyId,
+  internshipId: internshipId,
+  studentId: acceptanceLetterData.studentId,
+  status: 'accepted',
+  isAuthority: isAuthority,
+  );
+
+  // Log the action
+  final recentAction = RecentAction(
+  id: "",
+  userId: FirebaseAuth.instance.currentUser!.uid,
+  userName: company?.name??"",
+  userEmail: company?.email??"",
+  userRole: company?.role ?? "",
+  actionType: "Creation",
+  entityType: "Acceptance Letter",
+  entityId: acceptanceLetterId,
+  entityName: "Acceptance Letter for ${acceptanceLetterData.studentName}",
+  description: "Acceptance letter generated for ${acceptanceLetterData.studentName}",
+  timestamp: DateTime.now(),
+  );
+
+  await actionLogger.logAction(
+  recentAction,
+  companyId: companyId,
+  isAuthority: isAuthority,
+  );
+  return acceptanceLetterId;
+  } catch (e, s) {
+  debugPrint("Error storing acceptance letter: $e");
+  debugPrint("Stack trace: $s");
+  rethrow;
+  }
+  }
+
+  // Method to get acceptance letter by ID
+  Future<AcceptanceLetterData?> getAcceptanceLetterById({
+  required String acceptanceLetterId,
+  required String companyId,
+  }) async {
+  try {
+  final doc = await _firebaseFirestore
+      .collection(usersCollection)
+      .doc('companies')
+      .collection('companies')
+      .doc(companyId)
+      .collection('acceptanceLetters')
+      .doc(acceptanceLetterId)
+      .get();
+
+  if (doc.exists) {
+  return AcceptanceLetterData.fromMap(doc.data()!);
+  }
+  return null;
+  } catch (e) {
+  debugPrint("Error getting acceptance letter: $e");
+  return null;
+  }
+  }
+
+// Stream for company acceptance letters
+  Stream<List<AcceptanceLetterData>> getCompanyAcceptanceLetters(List<String> companyIds) {
+    if (companyIds.isEmpty) {
+      debugPrint("No company IDs provided, returning empty stream");
+      return Stream.value([]);
+    }
+
+    debugPrint("Fetching acceptance letters for company IDs: $companyIds");
+
+    // Create a broadcast stream controller
+    final controller = StreamController<List<AcceptanceLetterData>>.broadcast();
+    bool isStreamInitialized = false;
+    final List<StreamSubscription> subscriptions = [];
+
+    void _initializeStream() {
+      if (isStreamInitialized) return;
+      isStreamInitialized = true;
+
+      try {
+        // Single company - simple case
+        if (companyIds.length == 1) {
+          debugPrint("Single company mode for ID: ${companyIds.first}");
+
+          final subscription = _firebaseFirestore
+              .collection(usersCollection)
+              .doc('companies')
+              .collection('companies')
+              .doc(companyIds.first)
+              .collection('acceptanceLetters')
+              .orderBy('sentAt', descending: true)
+              .snapshots()
+              .listen((snapshot) {
+            debugPrint("Single company snapshot: ${snapshot.docs.length} documents");
+
+            final letters = snapshot.docs.map((doc) {
+              try {
+                final data = doc.data();
+                data['id'] = doc.id;
+                data['companyId'] = companyIds.first;
+                return AcceptanceLetterData.fromMap(data);
+              } catch (e) {
+                debugPrint("Error parsing document ${doc.id}: $e");
+                return null;
+              }
+            }).where((letter) => letter != null).cast<AcceptanceLetterData>().toList();
+
+            debugPrint("Parsed ${letters.length} letters for single company");
+            controller.add(letters);
+          }, onError: (error) {
+            debugPrint("Error in single company stream: $error");
+            controller.addError(error);
+          });
+
+          subscriptions.add(subscription);
+        }
+        // Multiple companies - need to merge
+        else {
+          debugPrint("Multiple companies mode (${companyIds.length} companies)");
+
+          // Map to track letters by company
+          final lettersByCompany = <String, List<AcceptanceLetterData>>{};
+
+          for (final companyId in companyIds) {
+            final subscription = _firebaseFirestore
+                .collection(usersCollection)
+                .doc('companies')
+                .collection('companies')
+                .doc(companyId)
+                .collection('acceptanceLetters')
+                .orderBy('sentAt', descending: true)
+                .snapshots()
+                .listen((snapshot) {
+              debugPrint("Company $companyId snapshot: ${snapshot.docs.length} documents");
+
+              final companyLetters = snapshot.docs.map((doc) {
+                try {
+                  final data = doc.data();
+                  data['id'] = doc.id;
+                  data['companyId'] = companyId;
+                  return AcceptanceLetterData.fromMap(data);
+                } catch (e) {
+                  debugPrint("Error parsing document ${doc.id}: $e");
+                  return null;
+                }
+              }).where((letter) => letter != null).cast<AcceptanceLetterData>().toList();
+
+              // Update this company's letters
+              lettersByCompany[companyId] = companyLetters;
+
+              // Combine all letters from all companies
+              final allLetters = <AcceptanceLetterData>[];
+              for (final companyLetterList in lettersByCompany.values) {
+                allLetters.addAll(companyLetterList);
+              }
+
+              // Sort by sentAt (newest first)
+              allLetters.sort((a, b) {
+                final aSentAt = a.sentAt ?? a.createdAt;
+                final bSentAt = b.sentAt ?? b.createdAt;
+                return bSentAt.compareTo(aSentAt);
+              });
+
+              debugPrint("Total letters after merge: ${allLetters.length}");
+              controller.add(allLetters);
+            }, onError: (error) {
+              debugPrint("Error in company $companyId stream: $error");
+              controller.addError(error);
+            });
+
+            subscriptions.add(subscription);
+          }
+        }
+
+        debugPrint("Stream initialized with ${subscriptions.length} subscriptions");
+      } catch (e, s) {
+        debugPrint("Error initializing stream: $e");
+        debugPrint("Stack trace: $s");
+        controller.addError(e);
+      }
+    }
+
+    // Setup cleanup
+    controller.onCancel = () {
+      debugPrint("Stream cancelled, cleaning up ${subscriptions.length} subscriptions");
+      for (final subscription in subscriptions) {
+        subscription.cancel();
+      }
+      subscriptions.clear();
+      isStreamInitialized = false;
+    };
+
+    // Return a stream that initializes on first listen
+    return controller.stream.distinct().doOnListen(_initializeStream);
+  }
+
+
+  // Stream for student acceptance letters
+  Stream<List<AcceptanceLetterData>> getStudentAcceptanceLetters(String studentId) {
+  return _firebaseFirestore
+      .collection(usersCollection)
+      .doc('students')
+      .collection('students')
+      .doc(studentId)
+      .collection('acceptanceLetters')
+      .orderBy('sentAt', descending: true)
+      .snapshots()
+      .map((snapshot) => snapshot.docs
+      .map((doc) => AcceptanceLetterData.fromMap(doc.data()))
+      .toList());
+  }
+
+  // // Method to update acceptance letter status (when student accepts/rejects)
+  // Future<void> updateAcceptanceLetterStatus({
+  // required String acceptanceLetterId,
+  // required String companyId,
+  // required String studentId,
+  // required String status, // 'accepted', 'rejected', 'withdrawn'
+  // String? reason, // Optional reason for rejection/withdrawal
+  // required bool isAuthority,
+  // }) async {
+  // try {
+  // final updateData = {
+  // 'status': status,
+  // 'updatedAt': FieldValue.serverTimestamp(),
+  // };
+  //
+  // if (reason != null && reason.isNotEmpty) {
+  // updateData['reason'] = reason;
+  // }
+  //
+  // if (status == 'accepted') {
+  // updateData['acceptedAt'] = FieldValue.serverTimestamp();
+  // } else if (status == 'rejected') {
+  // updateData['rejectedAt'] = FieldValue.serverTimestamp();
+  // }
+  //
+  // // Update in all three locations
+  // await Future.wait([
+  // // Company collection
+  // _firebaseFirestore
+  //     .collection(usersCollection)
+  //     .doc('companies')
+  //     .collection('companies')
+  //     .doc(companyId)
+  //     .collection('acceptanceLetters')
+  //     .doc(acceptanceLetterId)
+  //     .update(updateData),
+  //
+  // // Student collection
+  // _firebaseFirestore
+  //     .collection(usersCollection)
+  //     .doc('students')
+  //     .collection('students')
+  //     .doc(studentId)
+  //     .collection('acceptanceLetters')
+  //     .doc(acceptanceLetterId)
+  //     .update(updateData),
+  //
+  // // Application collection
+  // _firebaseFirestore
+  //     .collection(usersCollection)
+  //     .doc('companies')
+  //     .collection('companies')
+  //     .doc(companyId)
+  //     .collection('IT')
+  //     .doc(internshipId)
+  //     .collection('applications')
+  //     .doc(applicationId)
+  //     .collection('acceptanceLetters')
+  //     .doc(acceptanceLetterId)
+  //     .update(updateData),
+  // ]);
+  //
+  // // Log the action
+  // final student = await _itcFirebaseLogic.getStudent(studentId);
+  // if (student != null) {
+  // final recentAction = RecentAction(
+  // id: "",
+  // userId: studentId,
+  // userName: student.fullName,
+  // userEmail: student.email,
+  // userRole: student.role,
+  // actionType: status == 'accepted' ? "Acceptance" : "Rejection",
+  // entityType: "Acceptance Letter",
+  // entityId: acceptanceLetterId,
+  // entityName: "Acceptance Letter Status Update",
+  // description: "Student ${status == 'accepted' ? 'accepted' : 'rejected'} the acceptance letter",
+  // timestamp: DateTime.now(),
+  // );
+  //
+  // await actionLogger.logAction(
+  // recentAction,
+  // companyId: companyId,
+  // isAuthority: isAuthority,
+  // );
+  // }
+  //
+  // debugPrint("Acceptance letter status updated to: $status");
+  // } catch (e, s) {
+  // debugPrint("Error updating acceptance letter status: $e");
+  // debugPrint("Stack trace: $s");
+  // rethrow;
+  // }
+  // }
+
+  // Helper method to update application status (already in your code)
+  Future<void> _updateApplicationStatus({
+  required String companyId,
+  required String internshipId,
+  required String studentId,
+  required String status,
+  required bool isAuthority,
+  }) async {
+  try {
+  final applicationsSnapshot = await _firebaseFirestore
+      .collection(usersCollection)
+      .doc('companies')
+      .collection('companies')
+      .doc(companyId)
+      .collection('IT')
+      .doc(internshipId)
+      .collection('applications')
+      .where('studentId', isEqualTo: studentId)
+      .get();
+
+  if (applicationsSnapshot.docs.isNotEmpty) {
+  final applicationDoc = applicationsSnapshot.docs.first;
+  await applicationDoc.reference.update({
+  'status': status,
+  'updatedAt': FieldValue.serverTimestamp(),
+  });
+  }
+  } catch (e) {
+  debugPrint("Error updating application status: $e");
+  }
+  }
+
 }

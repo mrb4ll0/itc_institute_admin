@@ -11,6 +11,8 @@ import 'package:intl/intl.dart';
 import '../../../../itc_logic/firebase/AuthorityRulesHelper.dart';
 import '../../../../itc_logic/notification/fireStoreNotification.dart';
 import '../../../../itc_logic/notification/notitification_service.dart';
+import '../../../../letterGenerator/GenerateAcceptanceLetter.dart';
+import '../../../../model/authority.dart';
 import '../../../../model/student.dart';
 import '../../../../model/studentApplication.dart';
 
@@ -83,12 +85,13 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
     'Internship Title (A-Z)',
   ];
 
+  Authority? authority;
   @override
   void initState() {
     super.initState();
     _applicationService = Company_Cloud();
     canAcceptOrReject = widget.isAuthority?true:AuthorityRulesHelper.canAcceptStudents(FirebaseAuth.instance.currentUser!.uid);
-    debugPrint("canAcceptOrReject is $canAcceptOrReject and isAuthority is ${widget.isAuthority}");
+
     _loadApplications();
   }
 
@@ -106,7 +109,7 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
         companiesIds: widget.companyIds
 
       );
-
+      authority = await ITCFirebaseLogic().getAuthority(FirebaseAuth.instance.currentUser!.uid);
 
       setState(() {
         _applications = applications;
@@ -209,13 +212,7 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
       ) async {
     try {
 
-      bool isCompany = !widget.isAuthority;
-      bool canAcceptOrReject = AuthorityRulesHelper.canAcceptStudents(FirebaseAuth.instance.currentUser!.uid);
-      // Implement your action logic here
-      if(!canAcceptOrReject && isCompany) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("You are not authorized to perform this action")));
-        return ;
-      }
+
       // Create updated application
       final updatedApplication = application.copyWith(
         applicationStatus: newStatus,
@@ -224,9 +221,10 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
 
       GeneralMethods.showLoading(context);
 
+
       await _applicationService.updateApplicationStatus(
         isAuthority: widget.isAuthority,
-        companyId: widget.companyId,
+        companyId: application.internship.company.id,
         internshipId: application.internship.id??"",
         studentId: application.student.uid,
         status: newStatus,
@@ -234,16 +232,54 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
       );
 
       // Send notification
+
+
+      var pdfUrl =  '';
       Student student = application.student;
+
+      if(widget.isAuthority) {
+
+        AcceptanceLetterData acceptanceLetterData = AcceptanceLetterData(
+            id: application.id,
+            studentName: student.fullName,
+            studentId: student.matricNumber,
+            institutionName: student.institution,
+            institutionAddress: "",
+            institutionPhone: "",
+            institutionEmail: "",
+            authorityName: authority?.name ?? "",
+            companyName: application.internship.company.name,
+            companyAddress: application.internship.company.address,
+            startDate: DateTime.parse(application.durationDetails['startDate']),
+            endDate: DateTime.parse(application.durationDetails['endDate']),
+            authorizedSignatoryName: authority?.name ?? "",
+            acceptedAt: DateTime.now(),
+            authorizedSignatoryPosition: "");
+        pdfUrl =
+        await runPdfGeneration(acceptanceLetterData, userId: student.uid,);
+
+        await Company_Cloud().storeAcceptanceLetter(
+            studentId: application.student.uid,
+            acceptanceLetterData: acceptanceLetterData,
+            internshipId: application.internship.id!,
+            internshipTitle: application.internship.title,
+            companyId: application.internship.company.id,
+            applicationId: application.id,
+            pdfFileUrl: pdfUrl,
+            isAuthority: widget.isAuthority);
+      }
       bool notificationSent = await notificationService.sendNotificationToUser(
         fcmToken: student.fcmToken ?? "",
         title: application.internship.company.name,
         body: "Your application for ${application.internship.title} is ${GeneralMethods.normalizeApplicationStatus(newStatus).toUpperCase()}",
       );
 
+      debugPrint("pdf url is $pdfUrl");
+
       await fireStoreNotification.sendNotificationToStudent(
         studentUid: student.uid,
         title: application.internship.company.name,
+        imageUrl: pdfUrl,
         body: "Your application for ${application.internship.title} is ${GeneralMethods.normalizeApplicationStatus(newStatus).toUpperCase()}",
       );
 
@@ -265,9 +301,9 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
           behavior: SnackBarBehavior.floating,
         ),
       );
-    } catch (e) {
+    } catch (e,s) {
       GeneralMethods.hideLoading(context);
-
+      debugPrintStack(stackTrace: s);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to update: $e'),

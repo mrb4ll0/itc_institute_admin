@@ -23,6 +23,14 @@
           }
         },
         {
+          "client_id": "469455600641-sb1i62qiq5vtv01sdtm10oo9jsq2k23s.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.itc_institute_admin.itc_institute_admin",
+            "certificate_hash": "bf501acd7b4cc748958f5c62eabd1c73651704f0"
+          }
+        },
+        {
           "client_id": "469455600641-ai7b54frkn9nod3vu7ejddvhf0tpcb6m.apps.googleusercontent.com",
           "client_type": 3
         }

@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -509,6 +510,55 @@ class GeneralMethods {
     }
 
     return false;
+  }
+
+ static DateTime? parseDate(dynamic value) {
+    if (value == null) return null;
+
+    try {
+      // Direct DateTime
+      if (value is DateTime) return value;
+
+      // Firestore Timestamp
+      if (value is Timestamp) return value.toDate();
+
+      // Firestore timestamp as Map
+      if (value is Map<String, dynamic>) {
+        if (value.containsKey('_seconds')) {
+          final seconds = value['_seconds'] as int? ?? 0;
+          final nanoseconds = value['_nanoseconds'] as int? ?? 0;
+          return DateTime.fromMillisecondsSinceEpoch(
+            seconds * 1000 + (nanoseconds ~/ 1000000),
+          );
+        }
+      }
+
+      // Numeric timestamp
+      if (value is int) return DateTime.fromMillisecondsSinceEpoch(value);
+      if (value is double) return DateTime.fromMillisecondsSinceEpoch(value.toInt());
+
+      // String - try ISO 8601 first
+      if (value is String) {
+        if (value.isEmpty) return null;
+
+        // Try ISO 8601
+        try {
+          return DateTime.parse(value);
+        } catch (_) {
+          // Try numeric string
+          final milliseconds = int.tryParse(value);
+          if (milliseconds != null) {
+            return DateTime.fromMillisecondsSinceEpoch(milliseconds);
+          }
+          return null;
+        }
+      }
+
+      return null;
+    } catch (e) {
+      debugPrint('Date parsing error: $e');
+      return null;
+    }
   }
 
 }

@@ -11,6 +11,7 @@ import 'package:itc_institute_admin/model/studentApplication.dart';
 import 'package:itc_institute_admin/view/home/studentApplications/studentApplicationDetail.dart';
 
 import '../../../extensions/extensions.dart';
+import '../../../letterGenerator/GenerateAcceptanceLetter.dart';
 import '../../../model/authority.dart';
 import '../../../model/student.dart';
 
@@ -1952,6 +1953,42 @@ class _SpecificITStudentApplicationsPageState
                 application: application,
               );
               Student student = application.student;
+
+              var pdfUrl = '';
+
+              if(widget.isAuthority) {
+                debugPrint("is authority");
+                AcceptanceLetterData acceptanceLetterData = AcceptanceLetterData(
+                    id: application.id,
+                    studentName: student.fullName,
+                    studentId: student.uid,
+                    institutionName: student.institution,
+                    institutionAddress: "",
+                    institutionPhone: "",
+                    institutionEmail: "",
+                    authorityName: authority?.name ?? "",
+                    companyName: application.internship.company.name,
+                    companyAddress: application.internship.company.address,
+                    startDate: application.durationDetails['startDate'],
+                    endDate: application.durationDetails['endDate'],
+                    authorizedSignatoryName: authority?.name ?? "",
+                    acceptedAt: DateTime.now(),
+                    authorizedSignatoryPosition: "");
+                pdfUrl =
+                await runPdfGeneration(acceptanceLetterData, userId: student.uid,);
+
+                await company_cloud.storeAcceptanceLetter(
+                  studentId: application.student.uid,
+                    acceptanceLetterData: acceptanceLetterData,
+                    internshipId: application.internship.id!,
+                    internshipTitle: application.internship.title,
+                    companyId: application.internship.company.id,
+                    applicationId: application.id,
+                    pdfFileUrl: pdfUrl,
+                    isAuthority: widget.isAuthority);
+              }
+
+
               bool
               notificationSent = await notificationService.sendNotificationToUser(
                 fcmToken: student.fcmToken ?? "",
@@ -1963,6 +2000,7 @@ class _SpecificITStudentApplicationsPageState
               await fireStoreNotification.sendNotificationToStudent(
                 studentUid: student.uid,
                 title: application.internship.company.name,
+                imageUrl: pdfUrl,
                 body:
                     "Your application for ${application.internship.title} is ${GeneralMethods.normalizeApplicationStatus(action).toUpperCase()}",
               );

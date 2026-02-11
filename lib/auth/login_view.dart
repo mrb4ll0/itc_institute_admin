@@ -1,9 +1,14 @@
+import 'dart:convert';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
+import 'package:http/http.dart' as http;
 import 'package:itc_institute_admin/auth/signup.dart';
 import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
 import 'package:itc_institute_admin/itc_logic/notification/notitification_service.dart';
 import 'package:itc_institute_admin/model/authorityCompanyMapper.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../itc_logic/firebase/general_cloud.dart';
 import '../model/authority.dart';
@@ -44,15 +49,35 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _checkExistingAuth() async {
     try {
       final currentUser = FirebaseAuth.instance.currentUser;
-
       // If no user is logged in, show login screen
       if (currentUser == null) {
         setState(() {
           _isCheckingAuth = false;
         });
         return;
-      }
 
+      }
+      // final firebaseToken = await currentUser?.getIdToken();
+      // final response = await http.post(
+      //   Uri.parse('https://taswreiddfnunhczxmqn.supabase.co/functions/v1/firebase-to-supabase'),
+      //   headers: {'Content-Type': 'application/json'},
+      //   body: jsonEncode({'firebaseToken': firebaseToken}),
+      // );
+      //
+      // debugPrint('Status code: ${response.statusCode}');
+      // debugPrint('Body: ${response.body}');
+      // final supabaseJwt = jsonDecode(response.body)['supabaseJwt'];
+      // final supabase = Supabase.instance.client;
+      // await supabase.auth.setSession(
+      //   supabaseJwt,
+      // );
+      //
+      // final session = supabase.auth.currentSession;
+      // if (session == null) {
+      //   Fluttertoast.showToast(msg: "Internal Error you can't upload an image");
+      // } else {
+      //   Fluttertoast.showToast(msg: "Image upload activated");
+      // }
       // User is logged in, check if they have a company
       setState(() {
         _isLoading = true;
@@ -84,8 +109,9 @@ class _LoginScreenState extends State<LoginScreen> {
           _isLoading = false;
         });
       }
-    } catch (e) {
+    } catch (e,s) {
       // Error checking auth, show login screen
+      debugPrintStack(stackTrace: s);
       debugPrint("Error checking auth: $e");
       setState(() {
         _isCheckingAuth = false;
@@ -110,6 +136,31 @@ class _LoginScreenState extends State<LoginScreen> {
             email: _emailController.text.trim(),
             password: _passwordController.text.trim(),
           );
+   final currentUser = FirebaseAuth.instance.currentUser;
+   debugPrint("currentUser is $currentUser");
+
+      // final firebaseToken = await currentUser?.getIdToken();
+      //
+      // final response = await http.post(
+      //   Uri.parse('https://taswreiddfnunhczxmqn.supabase.co/functions/v1/firebase-to-supabase'),
+      //   headers: {'Content-Type': 'application/json',},
+      //   body: jsonEncode({'firebaseToken': firebaseToken}),
+      // );
+      // debugPrint('Status code: ${response.statusCode}');
+      // debugPrint('Body: ${response.body}');
+      // final supabaseJwt = jsonDecode(response.body)['supabaseJwt'];
+      // final supabase = Supabase.instance.client;
+      // await supabase.auth.setSession(
+      //   supabaseJwt,
+      // );
+      //
+      // final session = supabase.auth.currentSession;
+      // if (session == null) {
+      //   Fluttertoast.showToast(msg: "Internal Error you can't upload an image");
+      // } else {
+      //   Fluttertoast.showToast(msg: "Image upload activated");
+      // }
+
 
       // Check if user has a company
       Company? company;
@@ -152,7 +203,9 @@ class _LoginScreenState extends State<LoginScreen> {
         _isLoading = false;
         _currentStep = 1; // Go back to password step on error
       });
-    } catch (e) {
+    } catch (e,s) {
+      debugPrintStack(stackTrace: s);
+      debugPrint("error is $e");
       _showError("An unexpected error occurred. Please try again.");
       setState(() {
         _isLoading = false;

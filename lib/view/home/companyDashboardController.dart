@@ -8,6 +8,7 @@ import 'package:itc_institute_admin/itc_logic/help_support/help.dart';
 import 'package:itc_institute_admin/model/AuthorityRule.dart';
 import 'package:itc_institute_admin/model/authorityCompanyMapper.dart';
 import 'package:itc_institute_admin/notification/view/NotificationPage.dart';
+import 'package:itc_institute_admin/view/acceptanceLetter.dart';
 import 'package:itc_institute_admin/view/authorityRule/authorityRule.dart';
 import 'package:itc_institute_admin/view/company/myProfile.dart';
 import 'package:itc_institute_admin/view/home/LinkedCompaniesScreen.dart';
@@ -228,6 +229,17 @@ class _CompanyDashboardControllerState
                    return;
                  }
               GeneralMethods.navigateTo(context, StudentListPage(company: _company!,isAuthority: widget.tweetCompany.originalAuthority != null));
+            },
+          ),_buildDrawerItem(
+            icon: Icons.people,
+            text: 'Acceptance Letters',
+            onTap: () {
+               if(_company == null)
+                 {
+                   Fluttertoast.showToast(msg: "Company not found , kindly logout and login ");
+                   return;
+                 }
+              GeneralMethods.navigateTo(context, AcceptanceLettersPage(userRole: widget.tweetCompany.role, companyId: widget.tweetCompany.originalAuthority?.linkedCompanies??[widget.tweetCompany.id],));
             },
           ),
           ?widget.tweetCompany.originalAuthority!=null? _buildDrawerItem(

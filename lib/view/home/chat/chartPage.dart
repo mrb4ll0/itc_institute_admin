@@ -1137,7 +1137,6 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
                 for (int i = 0; i < messages.length; i++) {
                   final message = messages[i];
                   final messageDate = message.timestamp.toDate();
-                  debugPrint("message read ? ${message.isRead}");
                   final currentDate = DateTime(
                     messageDate.year,
                     messageDate.month,

@@ -90,20 +90,30 @@ class _CompanydashboardState extends State<Companydashboard>
         activeTrainingService.getActiveTraineesCount(companyId,isAuthority: widget.isAuthority,companyIds: authority?.linkedCompanies?? []),
       ]);
 
-      setState(() {
-        _company = results[0] as Company?;
-        if(_company == null)
-          {
+      _company = results[0] as Company?;
+      if(_company == null)
+      {
 
-             if(authority != null)
-               {
-                 _company = AuthorityCompanyMapper.createCompanyFromAuthority(
-                     authority: authority);
-               }
-          }
+        if(authority != null)
+        {
+          _company = AuthorityCompanyMapper.createCompanyFromAuthority(
+              authority: authority);
+        }
+      }
+
+      int totalApplication = await company_cloud.getTotalAcceptedApplications(
+          companyId,
+          isAuthority: widget.isAuthority,
+          companyIds: _company?.originalAuthority?.linkedCompanies??[]
+      );
+
+      setState(() {
+
         newApplicationCounts = results[2] as int;
-        acceptedApplicationCount = results[3] as int;
-        activeApplicationsCounts = results[4] as int;
+        acceptedApplicationCount = results[3] as int == 0? totalApplication:results[3] as int;
+
+          activeApplicationsCounts = 0;
+
         supervisorCount = 0;
         _isRefreshing = false;
         _error = '';
@@ -113,7 +123,9 @@ class _CompanydashboardState extends State<Companydashboard>
 
       // Show success feedback
       _showRefreshSuccess();
-    } catch (e) {
+    } catch (e,s) {
+      debugPrint("error is $e");
+      debugPrintStack(stackTrace: s);
       setState(() {
         _error = 'Failed to refresh: $e';
         _isRefreshing = false;
