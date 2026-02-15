@@ -1157,6 +1157,156 @@ class Company_Cloud {
     );
   }
 
+  // version
+  Future<List<StudentWithLatestApplication>> getStudentsWithLatestApplications({
+    required String companyId,
+    int limit = 100,
+    bool sortByRecent = true,
+    bool isAuthority = false,
+    List<String>? companyIds,
+  }) async {
+    try {
+      // Determine which company IDs to use
+      final targetCompanyIds = (isAuthority && companyIds != null && companyIds.isNotEmpty)
+          ? companyIds
+          : [companyId];
+
+      // Fetch results from all companies
+      final List<List<StudentWithLatestApplication>> allCompanyResults = [];
+
+      for (final singleCompanyId in targetCompanyIds) {
+        final companyResults = await _fetchCompanyApplications(
+            singleCompanyId,
+            limit,
+            sortByRecent
+        );
+        allCompanyResults.add(companyResults);
+      }
+
+      // Merge all results from different companies
+      final studentIdMap = <String, StudentWithLatestApplication>{};
+
+      for (final companyResults in allCompanyResults) {
+        for (final studentApp in companyResults) {
+          final studentId = studentApp.student.uid;
+
+          if (studentIdMap.containsKey(studentId)) {
+            // Student already exists, check if this application is more recent
+            final existing = studentIdMap[studentId]!;
+            final existingDate = existing.lastApplicationDate ?? DateTime(1900);
+            final newDate = studentApp.lastApplicationDate ?? DateTime(1900);
+
+            if (newDate.isAfter(existingDate)) {
+              // New application is more recent, update
+              studentIdMap[studentId] = studentApp.copyWith(
+                totalApplications: existing.totalApplications + studentApp.totalApplications,
+              );
+            } else {
+              // Existing application is more recent, just update total count
+              studentIdMap[studentId] = existing.copyWith(
+                totalApplications: existing.totalApplications + studentApp.totalApplications,
+              );
+            }
+          } else {
+            // New student, add to map
+            studentIdMap[studentId] = studentApp;
+          }
+        }
+      }
+
+      // Convert map to list
+      List<StudentWithLatestApplication> mergedResults = studentIdMap.values.toList();
+
+      // Sort the merged results
+      mergedResults.sort((a, b) {
+        if (sortByRecent) {
+          final dateA = a.lastApplicationDate ?? DateTime(1900);
+          final dateB = b.lastApplicationDate ?? DateTime(1900);
+          return dateB.compareTo(dateA); // Newest first
+        } else {
+          return a.studentName.compareTo(b.studentName); // Alphabetical
+        }
+      });
+
+      // Apply limit if needed
+      if (limit > 0 && mergedResults.length > limit) {
+        mergedResults = mergedResults.sublist(0, limit);
+      }
+
+      return mergedResults;
+    } catch (e, s) {
+      debugPrint('Error getting students with latest applications: $e');
+      debugPrintStack(stackTrace: s);
+      return [];
+    }
+  }
+
+// Helper method to fetch applications for a single company
+  Future<List<StudentWithLatestApplication>> _fetchCompanyApplications(
+      String companyId,
+      int limit,
+      bool sortByRecent
+      ) async {
+    try {
+      // Get all applications for this company
+      final applications = await getStudentInternshipApplicationsForCompany(companyId);
+
+      // Group applications by student
+      final Map<String, List<StudentApplication>> studentApplications = {};
+
+      for (final app in applications) {
+        final studentId = app.student.uid;
+        if (!studentApplications.containsKey(studentId)) {
+          studentApplications[studentId] = [];
+        }
+        studentApplications[studentId]!.add(app);
+      }
+
+      // Create StudentWithLatestApplication for each student
+      final List<StudentWithLatestApplication> results = [];
+
+      for (final entry in studentApplications.entries) {
+        final apps = entry.value;
+
+        // Sort applications by date (newest first)
+        apps.sort((a, b) => b.applicationDate.compareTo(a.applicationDate));
+
+        final latestApp = apps.first;
+
+        results.add(
+          StudentWithLatestApplication(
+            student: latestApp.student,
+            latestApplication: latestApp,
+            totalApplications: apps.length,
+            lastApplicationDate: latestApp.applicationDate,
+          ),
+        );
+      }
+
+      // Sort results
+      results.sort((a, b) {
+        if (sortByRecent) {
+          final dateA = a.lastApplicationDate ?? DateTime(1900);
+          final dateB = b.lastApplicationDate ?? DateTime(1900);
+          return dateB.compareTo(dateA);
+        } else {
+          return a.studentName.compareTo(b.studentName);
+        }
+      });
+
+      // Apply limit
+      if (limit > 0 && results.length > limit) {
+        return results.sublist(0, limit);
+      }
+
+      return results;
+    } catch (e) {
+      debugPrint('Error fetching company applications for $companyId: $e');
+      return [];
+    }
+  }
+
+
 // Helper method to create stream for a single company
   Stream<List<StudentWithLatestApplication>> _createCompanyStream(
       String companyId,

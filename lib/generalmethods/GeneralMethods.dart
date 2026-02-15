@@ -75,6 +75,8 @@ class GeneralMethods {
     String? imageUrl,
     double radius = 30,
   }) {
+
+    debugPrint("imageUrl is $imageUrl");
     // If image URL is provided, try to load it
     if (imageUrl != null && imageUrl.isNotEmpty) {
       return CircleAvatar(

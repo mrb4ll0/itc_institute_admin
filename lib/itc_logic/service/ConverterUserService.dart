@@ -1,9 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:itc_institute_admin/model/authorityCompanyMapper.dart';
 import 'package:rxdart/rxdart.dart';
 
 import '../../model/admin.dart';
+import '../../model/authority.dart';
 import '../../model/company.dart';
 import '../../model/student.dart';
 import '../../model/userProfile.dart';
@@ -29,6 +31,22 @@ class UserService {
           ...companyData,
           'id': companyDoc.id, // Ensure ID is included
         });
+        return UserConverter(company);
+      }
+final authorityDoc = await _firestore
+          .collection('users')
+          .doc('authorities')
+          .collection('authorities')
+          .doc(userId)
+          .get();
+
+      if (authorityDoc.exists) {
+        final companyData = authorityDoc.data()!;
+        final authority = Authority.fromMap({
+          ...companyData,
+        });
+
+        final company = AuthorityCompanyMapper.createCompanyFromAuthority(authority: authority);
         return UserConverter(company);
       }
 
@@ -58,6 +76,7 @@ class UserService {
       }
 
       // User not found
+
 
       return null;
     } catch (e,s) {
