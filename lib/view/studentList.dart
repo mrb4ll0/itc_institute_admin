@@ -93,8 +93,18 @@ class _StudentListPageState extends State<StudentListPage>
     super.initState();
     _traineeService = TraineeService(FirebaseAuth.instance.currentUser!.uid);
     _tabController = TabController(length: 5, vsync: this); // Changed to 5
+    _tabController.addListener(() {
+      if (_tabController.indexIsChanging) {
+        // Update the stats and search bar for the new tab
+        setState(() {
+        });
+
+      }
+    });
     _loadTrainees();
   }
+
+
 
   @override
   void dispose() {
@@ -890,193 +900,389 @@ class TraineeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color statusColor = trainee.status.color;
-    final String statusText = trainee.status.displayName;
-    final IconData statusIcon = trainee.status.icon;
+    final theme = Theme.of(context);
+    final statusColor = trainee.status.color;
+    final statusText = trainee.status.displayName;
+    final statusIcon = trainee.status.icon;
 
     return Card(
-      elevation: 2,
+      elevation: 4,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: InkWell(
         onTap: onTap,
         onDoubleTap: onDoubleTab,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Profile Image with status badge
-                  Stack(
-                    children: [
-                      Container(
-                        width: 60,
-                        height: 60,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.blue.shade100,
-                        ),
-                        child: GeneralMethods.generateUserAvatar(
-                          username: trainee.studentName,
-                          imageUrl: trainee.imageUrl,
-                        ),
-                      ),
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: statusColor,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
-                          ),
-                          child: Icon(
-                            statusIcon,
-                            size: 12,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(width: 16),
-
-                  // Trainee Info
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: isDark
+                  ? [
+                theme.colorScheme.surface.withOpacity(0.8),
+                theme.colorScheme.surface,
+              ]
+                  : [
+                Colors.white,
+                theme.colorScheme.primaryContainer.withOpacity(0.3),
+              ],
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Top Row - Profile and Company Badge
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Profile Image with status badge
+                    Stack(
+                      clipBehavior: Clip.none,
                       children: [
-                        // Name and Status
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                trainee.studentName,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                        Container(
+                          width: 70,
+                          height: 70,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: statusColor,
+                              width: 3,
                             ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
+                            boxShadow: [
+                              BoxShadow(
+                                color: statusColor.withOpacity(0.3),
+                                blurRadius: 8,
+                                spreadRadius: 2,
                               ),
-                              decoration: BoxDecoration(
-                                color: statusColor.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(color: statusColor.withOpacity(0.3)),
-                              ),
-                              child: Text(
-                                statusText,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: statusColor,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 4),
-
-                        // Department and Role
-                        if (trainee.department.isNotEmpty || trainee.role.isNotEmpty)
-                          Text(
-                            '${trainee.department}${trainee.role.isNotEmpty ? ' • ${trainee.role}' : ''}',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey.shade600,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                            ],
                           ),
-
-                        const SizedBox(height: 8),
-
-                        // Dates and Progress
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            if (trainee.startDate != null)
-                              _buildInfoChip(
-                                'Starts: ${DateFormat('MMM dd, yyyy').format(trainee.startDate!)}',
-                                Icons.calendar_today,
-                                Colors.blue,
-                              ),
-                            if (trainee.endDate != null)
-                              _buildInfoChip(
-                                'Ends: ${DateFormat('MMM dd, yyyy').format(trainee.endDate!)}',
-                                Icons.calendar_today_outlined,
-                                Colors.blue,
-                              ),
-                            if (trainee.progress > 0)
-                              _buildInfoChip(
-                                'Progress: ${trainee.progress.toStringAsFixed(0)}%',
-                                Icons.timeline,
-                                _getProgressColor(trainee.progress),
-                              ),
-                            if (trainee.daysRemaining != null && trainee.isActive)
-                              _buildInfoChip(
-                                '${trainee.daysRemaining} days left',
-                                Icons.timer,
-                                Colors.orange,
-                              ),
-                          ],
+                          child: ClipOval(
+                            child: GeneralMethods.generateUserAvatar(
+                              username: trainee.studentName,
+                              imageUrl: trainee.imageUrl,
+                            ),
+                          ),
                         ),
+                        Positioned(
+                          bottom: -2,
+                          right: -2,
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: statusColor,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: theme.colorScheme.surface,
+                                width: 2,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: statusColor.withOpacity(0.5),
+                                  blurRadius: 4,
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              statusIcon,
+                              size: 14,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
 
-                        const SizedBox(height: 8),
+                    const SizedBox(width: 16),
 
-                        // Supervisors
-                        if (trainee.supervisorIds.isNotEmpty)
-                          Wrap(
-                            spacing: 6,
-                            runSpacing: 6,
+                    // Trainee Info
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Name and Status Row
+                          Row(
                             children: [
-                              const Icon(Icons.supervisor_account, size: 12, color: Colors.grey),
-                              const SizedBox(width: 4),
-                              Text(
-                                '${trainee.supervisorIds.length} supervisor${trainee.supervisorIds.length > 1 ? 's' : ''}',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.grey,
+                              Expanded(
+                                child: Text(
+                                  trainee.studentName,
+                                  style: theme.textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: isDark ? Colors.white : theme.colorScheme.onSurface,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: statusColor.withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(30),
+                                  border: Border.all(
+                                    color: statusColor.withOpacity(0.5),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      statusIcon,
+                                      size: 14,
+                                      color: statusColor,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      statusText,
+                                      style: theme.textTheme.labelMedium?.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                        color: statusColor,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
                           ),
+
+                          const SizedBox(height: 8),
+
+                          // Company Badge
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.business,
+                                  size: 14,
+                                  color: theme.colorScheme.primary,
+                                ),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    trainee.companyName,
+                                    style: theme.textTheme.labelMedium?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                      color: theme.colorScheme.primary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 8),
+
+                          // Department and Role
+                          if (trainee.department.isNotEmpty || trainee.role.isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.secondary.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(30),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.work_outline,
+                                    size: 14,
+                                    color: theme.colorScheme.secondary,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Flexible(
+                                    child: Text(
+                                      '${trainee.department}${trainee.role.isNotEmpty ? ' • ${trainee.role}' : ''}',
+                                      style: theme.textTheme.labelMedium?.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                        color: theme.colorScheme.secondary,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
+
+                // Progress Bar (if progress > 0)
+                if (trainee.progress > 0) ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: LinearProgressIndicator(
+                            value: trainee.progress / 100,
+                            backgroundColor: theme.colorScheme.surfaceVariant,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              _getProgressColor(trainee.progress),
+                            ),
+                            minHeight: 8,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${trainee.progress.toStringAsFixed(0)}%',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: _getProgressColor(trainee.progress),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                ],
+
+                // Info Chips Grid
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    // Date Range Chip
+                    if (trainee.startDate != null && trainee.endDate != null)
+                      _buildInfoChip(
+                        context,
+                        icon: Icons.date_range,
+                        label:
+                        '${DateFormat('MMM dd').format(trainee.startDate!)} - ${DateFormat('MMM dd, yyyy').format(trainee.endDate!)}',
+                        color: theme.colorScheme.primary,
+                      ),
+
+                    // Duration Chip
+                    if (trainee.durationInDays != null)
+                      _buildInfoChip(
+                        context,
+                        icon: Icons.timelapse,
+                        label: '${trainee.durationInDays} days',
+                        color: theme.colorScheme.secondary,
+                      ),
+
+                    // Days Remaining Chip
+                    if (trainee.daysRemaining != null && trainee.isActive)
+                      _buildInfoChip(
+                        context,
+                        icon: Icons.hourglass_bottom,
+                        label: '${trainee.daysRemaining} days left',
+                        color: trainee.daysRemaining! < 7
+                            ? Colors.orange
+                            : Colors.green,
+                      ),
+
+                    // Days Elapsed Chip
+                    if (trainee.daysElapsed != null && trainee.isActive)
+                      _buildInfoChip(
+                        context,
+                        icon: Icons.timer,
+                        label: '${trainee.daysElapsed} days active',
+                        color: Colors.blue,
+                      ),
+
+                    // Supervisors Chip
+                    if (trainee.supervisorIds.isNotEmpty)
+                      _buildInfoChip(
+                        context,
+                        icon: Icons.supervisor_account,
+                        label:
+                        '${trainee.supervisorIds.length} supervisor${trainee.supervisorIds.length > 1 ? 's' : ''}',
+                        color: Colors.purple,
+                      ),
+
+                    // Status Description Chip
+                    _buildInfoChip(
+                      context,
+                      icon: trainee.needsStatusUpdate
+                          ? Icons.warning_amber
+                          : Icons.info_outline,
+                      label: trainee.statusDescription,
+                      color: trainee.needsStatusUpdate
+                          ? Colors.orange
+                          : Colors.grey,
+                    ),
+                  ],
+                ),
+
+                // Action Buttons
+                if (_getActionButtons().isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Row(
+                    children: _getActionButtons().map((button) {
+                      return Expanded(
+                        child: button,
+                      );
+                    }).toList(),
+                  ),
+                ],
+
+                // Notes Indicator (if there are notes)
+                if (trainee.notes.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: theme.colorScheme.outline.withOpacity(0.2),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.note_alt_outlined,
+                          size: 16,
+                          color: theme.colorScheme.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '${trainee.notes.length} note${trainee.notes.length > 1 ? 's' : ''}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
                 ],
-              ),
-
-              // Action buttons based on tab
-              if (tabIndex == 0 || tabIndex == 2 || tabIndex == 1)
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: Row(
-                    children: [],
-                  ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
-
   List<Widget> _getActionButtons() {
     switch (tabIndex) {
       case 0: // Pending
@@ -1150,30 +1356,39 @@ class TraineeCard extends StatelessWidget {
     }
   }
 
-  Widget _buildInfoChip(String text, IconData icon, Color color) {
+  Widget _buildInfoChip(
+      BuildContext context, {
+        required IconData icon,
+        required String label,
+        required Color color,
+      }) {
+    final theme = Theme.of(context);
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color.withOpacity(0.3)),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: color.withOpacity(0.3),
+          width: 1,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
             icon,
-            size: 12,
+            size: 14,
             color: color,
           ),
           const SizedBox(width: 4),
           Flexible(
             child: Text(
-              text,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
+              label,
+              style: theme.textTheme.labelSmall?.copyWith(
                 color: color,
+                fontWeight: FontWeight.w500,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -1189,6 +1404,48 @@ class TraineeCard extends StatelessWidget {
     if (progress >= 50) return Colors.blue;
     if (progress >= 25) return Colors.orange;
     return Colors.red;
+  }
+
+
+
+
+  Widget _buildActionButton({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required VoidCallback? onPressed,
+    bool isOutlined = false,
+  }) {
+    if (isOutlined) {
+      return OutlinedButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon, size: 18),
+        label: Text(label),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: color,
+          side: BorderSide(color: color),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(30),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+        ),
+      );
+    }
+
+    return ElevatedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 18),
+      label: Text(label),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(30),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        elevation: 2,
+      ),
+    );
   }
 }
 
@@ -1212,262 +1469,1134 @@ class TraineeDetailDialog extends StatefulWidget {
 
 class _TraineeDetailDialogState extends State<TraineeDetailDialog> {
   Student? _student;
+  Company? _company;
   bool _loadingStudent = true;
+  bool _loadingCompany = true;
 
   @override
   void initState() {
     super.initState();
     _loadStudentDetails();
+    _loadCompanyDetails();
   }
 
   Future<void> _loadStudentDetails() async {
     try {
-      final student = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid).getStudent(widget.trainee.studentId);
-      setState(() {
-        _student = student;
-        _loadingStudent = false;
-      });
+      final student = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid)
+          .getStudent(widget.trainee.studentId);
+      if (mounted) {
+        setState(() {
+          _student = student;
+          _loadingStudent = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _loadingStudent = false;
-      });
+      if (mounted) {
+        setState(() {
+          _loadingStudent = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadCompanyDetails() async {
+    try {
+      final company = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid)
+          .getCompany(widget.trainee.companyId);
+      if (mounted) {
+        setState(() {
+          _company = company;
+          _loadingCompany = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loadingCompany = false;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final trainee = widget.trainee;
     final statusColor = trainee.status.color;
 
     return Dialog(
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(24),
       ),
+      elevation: 8,
       child: Container(
-        constraints: const BoxConstraints(maxHeight: 600),
+        constraints: const BoxConstraints(maxHeight: 700, maxWidth: 500),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              theme.colorScheme.surface,
+              theme.colorScheme.surfaceVariant.withOpacity(0.3),
+            ],
+          ),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Header with status
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: statusColor,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(16),
-                  topRight: Radius.circular(16),
-                ),
-              ),
-              child: Row(
-                children: [
-                  // Profile Image
-                  Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white,
-                    ),
-                    child: GeneralMethods.generateUserAvatar(username: trainee.studentName,imageUrl:trainee.imageUrl),
-                  ),
-
-                  const SizedBox(width: 16),
-
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          trainee.studentName,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        if (_student?.email != null)
-                          Text(
-                            _student!.email,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Colors.white70,
-                            ),
-                          ),
-                        const SizedBox(height: 4),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            trainee.status.displayName,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
+            // Header with gradient overlay
+            Stack(
+              children: [
+                Container(
+                  height: 180,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        statusColor,
+                        statusColor.withOpacity(0.7),
                       ],
                     ),
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(24),
+                      topRight: Radius.circular(24),
+                    ),
                   ),
-                ],
-              ),
+                ),
+
+                // Profile Section
+                Positioned(
+                  left: 16,
+                  right: 16,
+                  bottom: 20,
+                  child: Row(
+                    children: [
+                      // Profile Image with border
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white,
+                            width: 4,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.2),
+                              blurRadius: 10,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: ClipOval(
+                          child: GeneralMethods.generateUserAvatar(
+                            username: trainee.studentName,
+                            imageUrl: trainee.imageUrl,
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(width: 16),
+
+                      // Name and Status
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              trainee.studentName,
+                              style: theme.textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                shadows: [
+                                  Shadow(
+                                    color: Colors.black.withOpacity(0.3),
+                                    offset: const Offset(0, 2),
+                                    blurRadius: 4,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            if (_loadingStudent)
+                              Container(
+                                width: 120,
+                                height: 16,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.3),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const ShimmerLoading(
+                                  child: SizedBox.expand(),
+                                ),
+                              )
+                            else if (_student?.email != null)
+                              Text(
+                                _student!.email,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: Colors.white70,
+                                ),
+                              ),
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(30),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.3),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    trainee.status.icon,
+                                    size: 16,
+                                    color: Colors.white,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    trainee.status.displayName,
+                                    style: theme.textTheme.labelMedium?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
 
             // Content
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Training Information
+                    // Company Information Card with Loading State
                     _buildSection(
-                      title: 'Training Information',
-                      icon: Icons.work_history,
+                      context,
+                      title: 'Company Information',
+                      icon: Icons.business,
                       children: [
-                        if (trainee.department.isNotEmpty)
-                          _buildInfoRow('Department', trainee.department),
-                        if (trainee.role.isNotEmpty)
-                          _buildInfoRow('Role', trainee.role),
-                        if (trainee.startDate != null)
-                          _buildInfoRow(
-                            'Start Date',
-                            DateFormat('MMM dd, yyyy').format(trainee.startDate!),
+                        if (_loadingCompany)
+                          _buildLoadingCompanyCard(context)
+                        else if (_company != null)
+                          _buildCompanyCard(context, _company!)
+                        else
+                          _buildErrorCard(
+                            context,
+                            'Failed to load company information',
                           ),
-                        if (trainee.endDate != null)
-                          _buildInfoRow(
-                            'End Date',
-                            DateFormat('MMM dd, yyyy').format(trainee.endDate!),
-                          ),
-                        if (trainee.actualStartDate != null)
-                          _buildInfoRow(
-                            'Actual Start',
-                            DateFormat('MMM dd, yyyy').format(trainee.actualStartDate!),
-                          ),
-                        if (trainee.actualEndDate != null)
-                          _buildInfoRow(
-                            'Actual End',
-                            DateFormat('MMM dd, yyyy').format(trainee.actualEndDate!),
-                          ),
-                        if (trainee.durationInDays != null)
-                          _buildInfoRow('Duration', '${trainee.durationInDays} days'),
-                        if (trainee.progress > 0)
-                          _buildInfoRow('Progress', '${trainee.progress.toStringAsFixed(0)}%'),
                       ],
                     ),
 
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
 
-                    // Student Information
-                    if (_student != null)
-                      _buildSection(
-                        title: 'Student Information',
-                        icon: Icons.school,
-                        children: [
-                          _buildInfoRow('Name', _student!.fullName),
-                          _buildInfoRow('Email', _student!.email),
-                          if (_student!.phoneNumber.isNotEmpty)
-                            _buildInfoRow('Phone', _student!.phoneNumber),
-                          if (_student!.institution.isNotEmpty)
-                            _buildInfoRow('Institution', _student!.institution),
-                          if (_student!.courseOfStudy.isNotEmpty)
-                            _buildInfoRow('Course', _student!.courseOfStudy),
-                          if (_student!.level.isNotEmpty)
-                            _buildInfoRow('Level', '${_student!.level} Level'),
-                          if (_student!.cgpa > 0)
-                            _buildInfoRow('CGPA', _student!.cgpa.toStringAsFixed(2)),
+                    // Training Information
+                    _buildSection(
+                      context,
+                      title: 'Training Information',
+                      icon: Icons.work_history,
+                      children: [
+                        _buildInfoGrid(context, [
+                          if (trainee.department.isNotEmpty)
+                            _buildInfoTile(
+                              context,
+                              label: 'Department',
+                              value: trainee.department,
+                              icon: Icons.category,
+                              color: theme.colorScheme.primary,
+                            ),
+                          if (trainee.role.isNotEmpty)
+                            _buildInfoTile(
+                              context,
+                              label: 'Role',
+                              value: trainee.role,
+                              icon: Icons.work,
+                              color: theme.colorScheme.secondary,
+                            ),
+                          if (trainee.startDate != null)
+                            _buildInfoTile(
+                              context,
+                              label: 'Start Date',
+                              value: DateFormat('MMM dd, yyyy').format(trainee.startDate!),
+                              icon: Icons.calendar_today,
+                              color: Colors.green,
+                            ),
+                          if (trainee.endDate != null)
+                            _buildInfoTile(
+                              context,
+                              label: 'End Date',
+                              value: DateFormat('MMM dd, yyyy').format(trainee.endDate!),
+                              icon: Icons.calendar_today_outlined,
+                              color: Colors.orange,
+                            ),
+                          if (trainee.actualStartDate != null)
+                            _buildInfoTile(
+                              context,
+                              label: 'Actual Start',
+                              value: DateFormat('MMM dd, yyyy').format(trainee.actualStartDate!),
+                              icon: Icons.play_circle,
+                              color: Colors.blue,
+                            ),
+                          if (trainee.actualEndDate != null)
+                            _buildInfoTile(
+                              context,
+                              label: 'Actual End',
+                              value: DateFormat('MMM dd, yyyy').format(trainee.actualEndDate!),
+                              icon: Icons.stop_circle,
+                              color: Colors.purple,
+                            ),
+                          if (trainee.durationInDays != null)
+                            _buildInfoTile(
+                              context,
+                              label: 'Duration',
+                              value: '${trainee.durationInDays} days',
+                              icon: Icons.timelapse,
+                              color: Colors.teal,
+                            ),
+                        ]),
+
+                        const SizedBox(height: 16),
+
+                        // Progress Section
+                        if (trainee.progress > 0) ...[
+                          _buildProgressIndicator(context),
+                          const SizedBox(height: 16),
                         ],
-                      ),
 
-                    const SizedBox(height: 16),
+                        // Status Description
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: trainee.needsStatusUpdate
+                                  ? Colors.orange
+                                  : theme.colorScheme.outline.withOpacity(0.2),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                trainee.needsStatusUpdate
+                                    ? Icons.warning_amber
+                                    : Icons.info_outline,
+                                color: trainee.needsStatusUpdate
+                                    ? Colors.orange
+                                    : theme.colorScheme.primary,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Status Info',
+                                      style: theme.textTheme.labelSmall?.copyWith(
+                                        color: theme.colorScheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                    Text(
+                                      trainee.statusDescription,
+                                      style: theme.textTheme.bodyMedium?.copyWith(
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
 
-                    // Supervisors
+                    const SizedBox(height: 20),
+
+                    // Student Information with Loading State
+                    _buildSection(
+                      context,
+                      title: 'Student Information',
+                      icon: Icons.school,
+                      children: [
+                        if (_loadingStudent)
+                          _buildLoadingStudentInfo(context)
+                        else if (_student != null)
+                          _buildInfoGrid(context, [
+                            _buildInfoTile(
+                              context,
+                              label: 'Full Name',
+                              value: _student!.fullName,
+                              icon: Icons.person,
+                              color: Colors.blue,
+                            ),
+                            _buildInfoTile(
+                              context,
+                              label: 'Email',
+                              value: _student!.email,
+                              icon: Icons.email,
+                              color: Colors.red,
+                            ),
+                            if (_student!.phoneNumber.isNotEmpty)
+                              _buildInfoTile(
+                                context,
+                                label: 'Phone',
+                                value: _student!.phoneNumber,
+                                icon: Icons.phone,
+                                color: Colors.green,
+                              ),
+                            if (_student!.institution.isNotEmpty)
+                              _buildInfoTile(
+                                context,
+                                label: 'Institution',
+                                value: _student!.institution,
+                                icon: Icons.school,
+                                color: Colors.purple,
+                              ),
+                            if (_student!.courseOfStudy.isNotEmpty)
+                              _buildInfoTile(
+                                context,
+                                label: 'Course',
+                                value: _student!.courseOfStudy,
+                                icon: Icons.menu_book,
+                                color: Colors.orange,
+                              ),
+                            if (_student!.level.isNotEmpty)
+                              _buildInfoTile(
+                                context,
+                                label: 'Level',
+                                value: '${_student!.level} Level',
+                                icon: Icons.grade,
+                                color: Colors.teal,
+                              ),
+                            if (_student!.cgpa > 0)
+                              _buildInfoTile(
+                                context,
+                                label: 'CGPA',
+                                value: _student!.cgpa.toStringAsFixed(2),
+                                icon: Icons.star,
+                                color: Colors.amber,
+                              ),
+                          ])
+                        else
+                          _buildErrorCard(
+                            context,
+                            'Failed to load student information',
+                          ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // Supervisors Section
                     if (trainee.supervisorIds.isNotEmpty)
                       _buildSection(
+                        context,
                         title: 'Supervisors',
                         icon: Icons.supervisor_account,
                         children: [
-                          for (final supervisorId in trainee.supervisorIds)
-                            ListTile(
-                              leading: CircleAvatar(
-                                child: Text(supervisorId.substring(0, 2).toUpperCase()),
+                          ...trainee.supervisorIds.map((supervisorId) =>
+                              _buildSupervisorTile(context, supervisorId)
+                          ),
+                        ],
+                      ),
+
+                    const SizedBox(height: 20),
+
+                    // Notes Section
+                    if (trainee.notes.isNotEmpty)
+                      _buildSection(
+                        context,
+                        title: 'Notes',
+                        icon: Icons.note_alt,
+                        children: [
+                          ...trainee.notes.entries.map((entry) =>
+                              Container(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      entry.key,
+                                      style: theme.textTheme.labelSmall?.copyWith(
+                                        color: theme.colorScheme.primary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      entry.value.toString(),
+                                      style: theme.textTheme.bodyMedium,
+                                    ),
+                                  ],
+                                ),
                               ),
-                              title: Text('Supervisor ID: $supervisorId'),
-                              subtitle: Text('Click to view details'),
-                              onTap: () {
-                                // Navigate to supervisor details
-                              },
-                            ),
+                          ),
                         ],
                       ),
                   ],
                 ),
               ),
             ),
+
+            // Action Buttons
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(24),
+                  bottomRight: Radius.circular(24),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, -5),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close),
+                      label: const Text('Close'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        // Navigate to edit or take action
+                        Navigator.pop(context);
+                      },
+                      icon: const Icon(Icons.edit),
+                      label: const Text('Take Action'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: statusColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildSection({
-    required String title,
-    required IconData icon,
-    required List<Widget> children,
-  }) {
+  // Loading widget for company card
+  Widget _buildLoadingCompanyCard(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              // Company logo shimmer
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const ShimmerLoading(
+                  child: SizedBox.expand(),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Company name shimmer
+                    Container(
+                      width: double.infinity,
+                      height: 20,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const ShimmerLoading(
+                        child: SizedBox.expand(),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // Industry shimmer
+                    Container(
+                      width: 100,
+                      height: 14,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const ShimmerLoading(
+                        child: SizedBox.expand(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Website shimmer
+          Container(
+            width: double.infinity,
+            height: 16,
+            margin: const EdgeInsets.only(bottom: 8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: const ShimmerLoading(
+              child: SizedBox.expand(),
+            ),
+          ),
+          // Phone shimmer
+          Container(
+            width: double.infinity,
+            height: 16,
+            margin: const EdgeInsets.only(bottom: 8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: const ShimmerLoading(
+              child: SizedBox.expand(),
+            ),
+          ),
+          // Address shimmer
+          Container(
+            width: double.infinity,
+            height: 16,
+            margin: const EdgeInsets.only(bottom: 8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: const ShimmerLoading(
+              child: SizedBox.expand(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Loading widget for student info grid
+  Widget _buildLoadingStudentInfo(BuildContext context) {
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: 2,
+      childAspectRatio: 2.2,
+      crossAxisSpacing: 8,
+      mainAxisSpacing: 8,
+      children: List.generate(6, (index) => _buildLoadingInfoTile(context)),
+    );
+  }
+
+  Widget _buildLoadingInfoTile(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Label shimmer
+          Container(
+            width: 60,
+            height: 12,
+            margin: const EdgeInsets.only(bottom: 6),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: const ShimmerLoading(
+              child: SizedBox.expand(),
+            ),
+          ),
+          // Value shimmer
+          Container(
+            width: 80,
+            height: 14,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: const ShimmerLoading(
+              child: SizedBox.expand(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Error card widget
+  Widget _buildErrorCard(BuildContext context, String message) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.error.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: theme.colorScheme.error.withOpacity(0.3),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.error_outline,
+            color: theme.colorScheme.error,
+            size: 24,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.error,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSection(
+      BuildContext context, {
+        required String title,
+        required IconData icon,
+        required List<Widget> children,
+      }) {
+    final theme = Theme.of(context);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Icon(icon, size: 20, color: Colors.blue),
-            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                icon,
+                size: 18,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+            const SizedBox(width: 12),
             Text(
               title,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         ...children,
       ],
     );
   }
 
-  Widget _buildInfoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildCompanyCard(BuildContext context, Company company) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            theme.colorScheme.primary.withOpacity(0.1),
+            theme.colorScheme.secondary.withOpacity(0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: theme.colorScheme.primary.withOpacity(0.3),
+        ),
+      ),
+      child: Column(
         children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              '$label:',
-              style: const TextStyle(
-                fontWeight: FontWeight.w500,
-                color: Colors.grey,
+          Row(
+            children: [
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Center(
+                  child: Text(
+                    company.name.substring(0, 2).toUpperCase(),
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      company.name,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    if (company.industry.isNotEmpty)
+                      Text(
+                        company.industry,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
           ),
+          const SizedBox(height: 12),
+          if (company.phoneNumber.isNotEmpty)
+            _buildDetailRow(
+              context,
+              icon: Icons.phone,
+              label: company.phoneNumber,
+              color: theme.colorScheme.secondary,
+            ),
+          if (company.address.isNotEmpty)
+            _buildDetailRow(
+              context,
+              icon: Icons.location_on,
+              label: company.address,
+              color: Colors.green,
+            ),
+          if (company.description.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              company.description,
+              style: theme.textTheme.bodySmall,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(
+      BuildContext context, {
+        required IconData icon,
+        required String label,
+        required Color color,
+      }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
-              value,
-              style: const TextStyle(fontWeight: FontWeight.w500),
+              label,
+              style: Theme.of(context).textTheme.bodySmall,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildInfoGrid(BuildContext context, List<Widget> tiles) {
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: 2,
+      childAspectRatio: 2.2,
+      crossAxisSpacing: 8,
+      mainAxisSpacing: 8,
+      children: tiles,
+    );
+  }
+
+  Widget _buildInfoTile(
+      BuildContext context, {
+        required String label,
+        required String value,
+        required IconData icon,
+        required Color color,
+      }) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: color.withOpacity(0.2),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 14, color: color),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  label,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.onSurface,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProgressIndicator(BuildContext context) {
+    final theme = Theme.of(context);
+    final progress = widget.trainee.progress;
+    final color = _getProgressColor(progress);
+
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Training Progress',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            Text(
+              '${progress.toStringAsFixed(0)}%',
+              style: theme.textTheme.bodyLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: LinearProgressIndicator(
+            value: progress / 100,
+            backgroundColor: theme.colorScheme.surfaceVariant,
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+            minHeight: 8,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSupervisorTile(BuildContext context, String supervisorId) {
+    final theme = Theme.of(context);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.colorScheme.outline.withOpacity(0.2),
+        ),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: theme.colorScheme.primary.withOpacity(0.2),
+            child: Text(
+              supervisorId.substring(0, 2).toUpperCase(),
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Supervisor',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                Text(
+                  'ID: $supervisorId',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: Icon(
+              Icons.visibility_outlined,
+              size: 20,
+              color: theme.colorScheme.primary,
+            ),
+            onPressed: () {
+              // Navigate to supervisor details
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _getProgressColor(double progress) {
+    if (progress >= 75) return Colors.green;
+    if (progress >= 50) return Colors.blue;
+    if (progress >= 25) return Colors.orange;
+    return Colors.red;
+  }
+}
+
+
+class ShimmerLoading extends StatefulWidget {
+  final Widget child;
+
+  const ShimmerLoading({Key? key, required this.child}) : super(key: key);
+
+  @override
+  State<ShimmerLoading> createState() => _ShimmerLoadingState();
+}
+
+class _ShimmerLoadingState extends State<ShimmerLoading>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat();
+
+    _animation = Tween<double>(begin: -2, end: 2).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return ShaderMask(
+          shaderCallback: (bounds) {
+            return LinearGradient(
+              begin: Alignment(_animation.value - 1, 0),
+              end: Alignment(_animation.value, 0),
+              colors: [
+                Colors.grey.shade300,
+                Colors.white,
+                Colors.grey.shade300,
+              ],
+              stops: const [0.2, 0.5, 0.8],
+            ).createShader(bounds);
+          },
+          blendMode: BlendMode.srcATop,
+          child: widget.child,
+        );
+      },
     );
   }
 }
