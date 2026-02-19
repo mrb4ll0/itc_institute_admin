@@ -25,7 +25,7 @@ class AcceptanceLettersPage extends StatefulWidget {
 }
 
 class _AcceptanceLettersPageState extends State<AcceptanceLettersPage> {
-  final Company_Cloud _companyCloud = Company_Cloud();
+  final Company_Cloud _companyCloud = Company_Cloud(FirebaseAuth.instance.currentUser!.uid);
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   String _selectedFilter = 'all'; // 'all', 'sent', 'accepted', 'rejected'

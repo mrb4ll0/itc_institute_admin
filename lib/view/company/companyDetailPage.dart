@@ -30,7 +30,7 @@ class CompanyDetailPage extends StatefulWidget {
 
 class _CompanyDetailPageState extends State<CompanyDetailPage>
     with TickerProviderStateMixin {
-  final Company_Cloud _companyCloud = Company_Cloud();
+  final Company_Cloud _companyCloud = Company_Cloud(FirebaseAuth.instance.currentUser!.uid);
   final FirebaseAuth _auth = FirebaseAuth.instance;
   late TabController _tabController;
   double _rating = 0.0;
@@ -767,7 +767,7 @@ class _CompanyDetailPageState extends State<CompanyDetailPage>
 
   Widget _buildReviewCard(CompanyReview review, ThemeData theme) {
     return FutureBuilder<Student?>(
-      future: ITCFirebaseLogic().getStudent(review.studentId),
+      future: ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid).getStudent(review.studentId),
       builder: (context, snapshot) {
         final student = snapshot.data;
         return Container(
@@ -1122,7 +1122,7 @@ class _AddReviewDialogState extends State<_AddReviewDialog> {
                           rating: _rating,
                           createdAt: DateTime.now(),
                         );
-                        await Company_Cloud().addCompanyReview(review);
+                        await Company_Cloud(FirebaseAuth.instance.currentUser!.uid).addCompanyReview(review);
                         widget.onReviewAdded();
                         Navigator.pop(context);
                       }

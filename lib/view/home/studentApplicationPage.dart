@@ -26,19 +26,19 @@ class StudentApplicationsPage extends StatefulWidget {
 class _StudentApplicationsPageState extends State<StudentApplicationsPage>
     with AutomaticKeepAliveClientMixin {
   final TextEditingController _searchController = TextEditingController();
-  final Company_Cloud company_cloud = Company_Cloud();
+  final Company_Cloud company_cloud = Company_Cloud(FirebaseAuth.instance.currentUser!.uid);
   final NotificationService notificationService = NotificationService();
   ActionLogger actionLogger = ActionLogger();
-  final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic();
+  final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
   int applicationCount = 0;
-  final Company_Cloud companyCloud = Company_Cloud();
+  final Company_Cloud companyCloud = Company_Cloud(FirebaseAuth.instance.currentUser!.uid);
   bool _isRefreshing = false;
   bool _isDataLoaded = false;
   DateTime? _lastRefreshTime;
 
   // Updated: Use new model
   final Company_Cloud _companyApplicationsService =
-  Company_Cloud();
+  Company_Cloud(FirebaseAuth.instance.currentUser!.uid);
   List<StudentWithLatestApplication> _allStudents = [];
   List<StudentWithLatestApplication> _filteredStudents = [];
   String _searchQuery = '';

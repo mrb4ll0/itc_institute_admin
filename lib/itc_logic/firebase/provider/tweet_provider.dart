@@ -1,6 +1,4 @@
 import 'dart:async';
-
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:itc_institute_admin/model/company.dart';
 import 'package:itc_institute_admin/model/userProfile.dart';
@@ -46,8 +44,10 @@ class TweetProvider extends ChangeNotifier {
   Map<String, StreamSubscription<List<Comment>>> _tweetCommentsSubscriptions =
       {};
 
-  TweetProvider() {
+  String globalUserId = "";
+  TweetProvider(String userId) {
     _subscribeToTweets();
+    globalUserId = userId;
   }
 
   // Getters
@@ -303,11 +303,11 @@ class TweetProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final userId = FirebaseAuth.instance.currentUser?.uid ?? "";
+      final userId = globalUserId;
 
       // First post the tweet to get the actual Firestore document ID
       final postedTweet = await _tweetService.postTweet(
-        FirebaseAuth.instance.currentUser!.uid,
+        globalUserId,
         text.trim(),
       );
 
@@ -397,7 +397,7 @@ class TweetProvider extends ChangeNotifier {
     int commentIndex,
     bool isCurrentlyLiked,
   ) async {
-    final userId = FirebaseAuth.instance.currentUser?.uid ?? "";
+    final userId = globalUserId;
     if (userId.isEmpty) return;
 
     // Update tweet detail
@@ -437,7 +437,7 @@ class TweetProvider extends ChangeNotifier {
     int replyIndex,
     bool isCurrentlyLiked,
   ) async {
-    final userId = FirebaseAuth.instance.currentUser?.uid ?? "";
+    final userId = globalUserId;
     if (userId.isEmpty) return;
 
     // Update tweet detail
@@ -726,10 +726,18 @@ class TweetProvider extends ChangeNotifier {
 
 class StudentCache {
   static final Map<String, Student> _cache = {};
+  String  globalUserId = "";
+  static late ITCFirebaseLogic itcFirebaseLogic ;
+  StudentCache(String userId)
+  {
+    globalUserId = userId;
+   itcFirebaseLogic = ITCFirebaseLogic(globalUserId);
+  }
+
 
   static Future<Student?> getStudent(String id) async {
     if (_cache.containsKey(id)) return _cache[id];
-    final student = await ITCFirebaseLogic().getStudent(id);
+    final student = await itcFirebaseLogic.getStudent(id);
     if (student != null) {
       _cache[id] = student;
     }

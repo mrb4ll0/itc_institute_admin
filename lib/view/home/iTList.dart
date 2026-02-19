@@ -24,7 +24,7 @@ class _IndustrialTrainingPostsPageState
     with AutomaticKeepAliveClientMixin {
   final TextEditingController _searchController = TextEditingController();
   bool _showSearchBar = false;
-  final Company_Cloud companyCloud = Company_Cloud();
+  final Company_Cloud companyCloud = Company_Cloud(FirebaseAuth.instance.currentUser!.uid);
   late Stream<List<IndustrialTraining>> _internshipsStream;
   late StreamSubscription<List<IndustrialTraining>> _internshipsSubscription;
   int postCount = 0;

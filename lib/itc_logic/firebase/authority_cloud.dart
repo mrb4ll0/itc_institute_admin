@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'package:flutter/cupertino.dart';
 
 import '../../model/authority.dart';
@@ -7,8 +8,13 @@ import 'general_cloud.dart';
 
 class AuthorityService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final ITCFirebaseLogic _firebaseLogic = ITCFirebaseLogic();
-
+  late final ITCFirebaseLogic _firebaseLogic ;
+  String globalUserId = "";
+  AuthorityService(String userId)
+  {
+    globalUserId = userId;
+    _firebaseLogic = ITCFirebaseLogic(globalUserId);
+  }
 
   // Get linked companies (already approved)
   Future<List<Company>> getLinkedCompaniesForAuthority(String authorityId) async {

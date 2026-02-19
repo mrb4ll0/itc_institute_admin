@@ -51,7 +51,7 @@ class _CompanyDashboardControllerState
   bool _isLoading = true;
 
   // Add AuthorityService instance
-  final AuthorityService _authorityService = AuthorityService();
+  final AuthorityService _authorityService = AuthorityService(FirebaseAuth.instance.currentUser!.uid);
 
   @override
   void initState() {
@@ -80,7 +80,7 @@ class _CompanyDashboardControllerState
                 checkAndShowAuthoritySpecificationDialog(
                   context: context,
                   company: _company!,
-                  firebaseLogic: ITCFirebaseLogic(),
+                  firebaseLogic: ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid),
                 );
               }
 
@@ -111,10 +111,10 @@ class _CompanyDashboardControllerState
       final currentUser = FirebaseAuth.instance.currentUser;
       Company? company ;
       if (currentUser != null) {
-         company = await ITCFirebaseLogic().getCompany(currentUser.uid);
+         company = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid).getCompany(currentUser.uid);
          if(company == null)
            {
-             Authority? authority = await ITCFirebaseLogic().getAuthority(currentUser.uid);
+             Authority? authority = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid).getAuthority(currentUser.uid);
               if(authority != null)
                 {
                   company = AuthorityCompanyMapper.createCompanyFromAuthority(authority: authority);
@@ -380,7 +380,7 @@ class _CompanyDashboardControllerState
                 ),
               );
             }
-          }, firebaseLogic: ITCFirebaseLogic(),
+          }, firebaseLogic: ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid),
         ),
       );
     } catch (e, stack) {

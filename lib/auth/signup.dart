@@ -35,7 +35,7 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic();
+  ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
 
   String? _selectedState;
   String? _selectedLocalGovernment;

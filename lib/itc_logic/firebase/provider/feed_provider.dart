@@ -1,12 +1,17 @@
-import 'package:flutter/foundation.dart';
 
+import 'package:flutter/foundation.dart';
 import '../../../model/tweetModel.dart';
 import '../../admin_task.dart';
 import '../tweet/tweet_cloud.dart';
 
 class FeedProvider with ChangeNotifier {
   final TweetService _tweetService = TweetService();
-  final AdminCloud _adminCloud = AdminCloud();
+  late final AdminCloud _adminCloud ;
+  String globalUseId = "";
+  FeedProvider(String userId)
+  {
+    _adminCloud = AdminCloud(userId);
+  }
 
   bool _isLoading = true;
   List<TweetModel> _tweets = [];
@@ -16,9 +21,6 @@ class FeedProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   List<TweetModel> get tweets => _tweets;
 
-  FeedProvider() {
-    _fetchInitialData();
-  }
 
   Future<void> _fetchInitialData() async {
     _isLoading = true;

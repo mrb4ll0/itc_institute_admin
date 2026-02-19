@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/authority_cloud.dart';
@@ -26,7 +27,7 @@ class CompanyAuthoritySpecificationDialog extends StatefulWidget {
 }
 
 class _CompanyAuthoritySpecificationDialogState extends State<CompanyAuthoritySpecificationDialog> {
-  final AuthorityService _authorityService = AuthorityService();
+  final AuthorityService _authorityService = AuthorityService(FirebaseAuth.instance.currentUser!.uid);
 
   String _selectedOption = 'not_selected'; // 'standalone', 'under_authority', 'not_selected'
   String? _selectedAuthorityId;

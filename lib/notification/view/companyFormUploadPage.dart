@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:math';
 import 'package:file_picker/file_picker.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
@@ -40,7 +41,7 @@ class _CompanyFormUploadPageState extends State<CompanyFormUploadPage> {
   final Uuid _uuid = const Uuid();
   String? _fileError;
   List<Map<String, String>> _fileDetails = []; // Store file details
-  final companyService = Company_Cloud();
+  final companyService = Company_Cloud(FirebaseAuth.instance.currentUser!.uid);
 
   @override
   void initState() {

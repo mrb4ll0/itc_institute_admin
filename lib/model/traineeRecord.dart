@@ -322,4 +322,102 @@ class TraineeRecord {
       ..add(evaluation);
     return copyWith(evaluations: newEvaluations);
   }
+
+
+}
+
+extension TraineeDateStatus on TraineeRecord {
+  /// Calculate what the status should be based on dates
+  TraineeStatus get calculatedStatusFromDates {
+    final now = DateTime.now();
+    // If already in final state, don't recalculate
+    if (status == TraineeStatus.completed ||
+        status == TraineeStatus.terminated ||
+        status == TraineeStatus.withdrawn ||
+        status == TraineeStatus.rejected) {
+      return status;
+    }
+
+    // If actual end date exists, it's done
+    if (actualEndDate != null) {
+      return TraineeStatus.completed;
+    }
+
+    // If actively training
+    if (actualStartDate != null) {
+      // Check if past planned end date - capture in local variable first
+      final plannedEndDate = endDate;
+      if (plannedEndDate != null && now.isAfter(plannedEndDate)) {
+        return TraineeStatus.completed;
+      }
+      return TraineeStatus.active;
+    }
+
+    // Not started yet - check planned dates - capture in local variable first
+    final plannedStartDate = startDate;
+    if (plannedStartDate != null) {
+      if (now.isBefore(plannedStartDate)) {
+        return TraineeStatus.accepted;
+      } else {
+        // Start date passed but not started
+        return TraineeStatus.accepted;
+      }
+    }
+
+    return status;
+  }
+
+  /// Check if status is out of sync with dates
+  bool get needsStatusUpdate {
+    return calculatedStatusFromDates != status;
+  }
+
+  /// Get a human-readable description of the status based on dates
+  String get statusDescription {
+    final calculated = calculatedStatusFromDates;
+
+    if (calculated != status) {
+      return 'Should be ${calculated.displayName} (currently ${status.displayName})';
+    }
+
+    switch (calculated) {
+      case TraineeStatus.accepted:
+        if (startDate != null) {
+          final daysUntil = startDate!.difference(DateTime.now()).inDays;
+          if (daysUntil > 0) {
+            return 'Starts in $daysUntil days';
+          } else if (daysUntil == 0) {
+            return 'Starts today';
+          }
+        }
+        return 'Accepted, waiting to start';
+
+      case TraineeStatus.active:
+        if (actualStartDate != null) {
+          final daysActive = DateTime.now().difference(actualStartDate!).inDays;
+          return 'Active for $daysActive days';
+        }
+        return 'Currently active';
+
+      case TraineeStatus.completed:
+        if (actualEndDate != null) {
+          return 'Completed on ${_formatDate(actualEndDate)}';
+        }
+        return 'Training completed';
+
+      case TraineeStatus.terminated:
+        return 'Terminated';
+      case TraineeStatus.withdrawn:
+        return 'Withdrawn';
+      case TraineeStatus.pending:
+        return 'Pending';
+      case TraineeStatus.rejected:
+        return 'Rejected';
+    }
+  }
+
+  String _formatDate(DateTime? date) {
+    if (date == null) return 'unknown date';
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
 }

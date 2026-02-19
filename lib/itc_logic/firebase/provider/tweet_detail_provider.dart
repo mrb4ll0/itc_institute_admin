@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:firebase_auth/firebase_auth.dart';
+
 import 'package:flutter/material.dart';
 import 'package:itc_institute_admin/model/userProfile.dart';
 
@@ -13,7 +13,9 @@ import '../tweet/tweet_cloud.dart';
 
 class TweetDetailProvider extends ChangeNotifier {
   final TweetService _tweetService = TweetService();
-  final String tweetId;
+  late final String tweetId;
+String globalUserId = " ";
+
 
   TweetModel? _tweet;
   List<Comment> _comments = [];
@@ -33,10 +35,11 @@ class TweetDetailProvider extends ChangeNotifier {
   StreamSubscription<List<Comment>>? _commentsSub;
   StreamSubscription<List<Reply>>? _repliesSub;
 
-  TweetDetailProvider({required this.tweetId}) {
+  TweetDetailProvider({required this.tweetId,required String userId}) {
     _subscribeToTweet();
     _subscribeToComments();
     //_subscribeToReplies();
+    globalUserId = userId;
   }
 
   // 🔹 Getters
@@ -153,7 +156,7 @@ class TweetDetailProvider extends ChangeNotifier {
     TweetProvider tweetProvider,
   ) async {
     if (content.isEmpty) return;
-    final userId = FirebaseAuth.instance.currentUser?.uid ?? "";
+    final userId = globalUserId;
 
     Comment comment = await _tweetService.postComment(
       tweetId: tweetId,
@@ -213,7 +216,7 @@ class TweetDetailProvider extends ChangeNotifier {
   }
 
   Future<void> toggleLike(bool isCurrentlyLiked) async {
-    final userId = FirebaseAuth.instance.currentUser?.uid ?? "";
+    final userId = globalUserId;
     if (_tweet == null || userId.isEmpty) return;
 
     // optimistic update
@@ -228,7 +231,7 @@ class TweetDetailProvider extends ChangeNotifier {
   }
 
   Future<void> toggleLikeForComment(bool isCurrentlyLiked, int index) async {
-    final userId = FirebaseAuth.instance.currentUser?.uid ?? "";
+    final userId = globalUserId;
     if (_tweet == null || userId.isEmpty) return;
 
     // optimistic update
@@ -250,7 +253,7 @@ class TweetDetailProvider extends ChangeNotifier {
     int commentIndex,
     int replyIndex,
   ) async {
-    final userId = FirebaseAuth.instance.currentUser?.uid ?? "";
+    final userId = globalUserId;
     if (_tweet == null || userId.isEmpty) return;
 
     // optimistic update

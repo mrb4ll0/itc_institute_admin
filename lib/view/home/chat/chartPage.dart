@@ -48,7 +48,7 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
   final TextEditingController _messageController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
-  late ChatService _chatService = ChatService();
+  late ChatService _chatService = ChatService(FirebaseAuth.instance.currentUser!.uid);
   late Stream<List<Message>> _messagesStream;
   String? _currentUserId;
   String? _currentUserRole;
@@ -60,7 +60,7 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
   bool _showStudentInfo = false; // For showing student profile card
   late dynamic _receiverData; // Store the receiver data
   late Company? _company;
-  ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic();
+  ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
   int? _previousMessageCount;
   bool _showScrollToBottomButton = false;
   Timestamp? previousDate;
@@ -178,7 +178,7 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
       // Store receiver data
       _receiverData = widget.receiverData;
 
-      _chatService = ChatService();
+      _chatService = ChatService(FirebaseAuth.instance.currentUser!.uid);
       _messagesStream = _chatService.getFilteredMessages(
         _currentUserId!,
         widget.receiverId,

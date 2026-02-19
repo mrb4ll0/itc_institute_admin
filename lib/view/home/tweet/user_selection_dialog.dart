@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../../generalmethods/GeneralMethods.dart';
@@ -10,7 +11,7 @@ import '../../../model/student.dart';
 class UserSelectionDialog extends StatefulWidget {
   final String tweetContent;
   final String tweetId;
-  final ChatService chatService = ChatService();
+  final ChatService chatService = ChatService(FirebaseAuth.instance.currentUser!.uid);
 
   UserSelectionDialog({
     Key? key,
@@ -37,7 +38,7 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
 
   Future<void> _fetchUsers() async {
     try {
-      final adminCloud = AdminCloud();
+      final adminCloud = AdminCloud(FirebaseAuth.instance.currentUser!.uid);
       final students = await adminCloud.getAllStudents();
       final companies = await adminCloud.getAllCompanies();
       setState(() {

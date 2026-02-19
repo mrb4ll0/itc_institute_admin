@@ -40,8 +40,8 @@ class _CreateIndustrialTrainingPageState
   final TextEditingController _contactPersonController =
   TextEditingController();
 
-  final Company_Cloud company_cloud = Company_Cloud();
-  final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic();
+  final Company_Cloud company_cloud = Company_Cloud(FirebaseAuth.instance.currentUser!.uid);
+  final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
 
   final FirebaseUploader firebaseUploader = FirebaseUploader();
 

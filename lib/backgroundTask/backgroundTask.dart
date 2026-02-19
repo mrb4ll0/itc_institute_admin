@@ -1,5 +1,10 @@
 import 'dart:async';
+import 'dart:ui';
 
+
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:workmanager/workmanager.dart';
 import 'dart:isolate';
 
@@ -7,6 +12,7 @@ class BackgroundTaskManager {
   static final BackgroundTaskManager _instance = BackgroundTaskManager._internal();
   factory BackgroundTaskManager() => _instance;
   BackgroundTaskManager._internal();
+
 
   final Map<String, _TaskInfo> _tasks = {};
   final _statusController = StreamController<TaskUpdate>.broadcast();
@@ -18,8 +24,10 @@ class BackgroundTaskManager {
     required Future<dynamic> Function() task,
     String? taskId,
   }) {
-    final id = taskId ?? _generateTaskId();
 
+    debugPrint('before creating the task id');
+    final id = taskId ?? _generateTaskId();
+    debugPrint('🔵 [BackgroundTaskManager] Creating task with ID: $id');
     // Store task info
     _tasks[id] = _TaskInfo(
       id: id,
@@ -28,10 +36,16 @@ class BackgroundTaskManager {
     );
 
     _statusController.add(TaskUpdate(id, 'queued'));
+    debugPrint('🟡 [BackgroundTaskManager] Spawning isolate for task: $id');
 
+    final rootIsolateToken = RootIsolateToken.instance;
+    if (rootIsolateToken == null) {
+      debugPrint('❌ RootIsolateToken is null in main isolate!');
+      return "null";
+    }
     // Run in isolate
-    _spawnIsolate(id, task);
-
+    _spawnIsolate(id, task,rootIsolateToken);
+    debugPrint('🟢 [BackgroundTaskManager] Task submitted, returning ID: $id');
     return id;
   }
 
@@ -112,7 +126,7 @@ class BackgroundTaskManager {
     return 'task_${DateTime.now().millisecondsSinceEpoch}_${_tasks.length}';
   }
 
-  void _spawnIsolate(String taskId, Future<dynamic> Function() task) async {
+  void _spawnIsolate(String taskId, Future<dynamic> Function() task, RootIsolateToken rootIsolateToken) async {
     final receivePort = ReceivePort();
 
     receivePort.listen((message) {
@@ -132,6 +146,7 @@ class BackgroundTaskManager {
         _IsolateData(
           sendPort: receivePort.sendPort,
           task: task,
+          rootIsolateToken: rootIsolateToken,
         ),
       );
     } catch (e) {
@@ -142,7 +157,18 @@ class BackgroundTaskManager {
 
   static void _isolateEntry(_IsolateData data) async {
     try {
+
+      BackgroundIsolateBinaryMessenger.ensureInitialized(data.rootIsolateToken);
+      debugPrint("🏁 Background messenger initialized with passed token");
+
+      // Initialize Firebase
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp();
+        debugPrint("🏁 Firebase initialized in isolate");
+      }
       final result = await data.task();
+
+
       data.sendPort.send(_IsolateResult(success: true, data: result));
     } catch (e) {
       data.sendPort.send(_IsolateResult(success: false, error: e.toString()));
@@ -213,7 +239,8 @@ class TaskUpdate {
 class _IsolateData {
   final SendPort sendPort;
   final Future<dynamic> Function() task;
-  _IsolateData({required this.sendPort, required this.task});
+  final RootIsolateToken rootIsolateToken;
+  _IsolateData({required this.sendPort, required this.task,required this.rootIsolateToken});
 }
 
 class _IsolateResult {

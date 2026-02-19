@@ -28,8 +28,8 @@ class _InternshipDetailsPageState extends State<InternshipDetailsPage> {
   bool _isExpanded = false;
   bool _showFullDescription = false;
   late IndustrialTraining _internship;
-  final Company_Cloud company_cloud = Company_Cloud();
-  final ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic();
+  final Company_Cloud company_cloud = Company_Cloud(FirebaseAuth.instance.currentUser!.uid);
+  final ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
 
   @override
   void initState() {

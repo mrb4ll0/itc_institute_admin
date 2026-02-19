@@ -29,8 +29,8 @@ class _CompanyEditPageState extends State<CompanyEditPage> {
   bool _isLoading = false;
   File? _logoFile;
   final ImagePicker _picker = ImagePicker();
-  final ITCFirebaseLogic _firebaseLogic = ITCFirebaseLogic();
-  final Company_Cloud company_cloud = Company_Cloud();
+  final ITCFirebaseLogic _firebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
+  final Company_Cloud company_cloud = Company_Cloud(FirebaseAuth.instance.currentUser!.uid);
   final FirebaseUploader firebaseUploader = FirebaseUploader();
 
   // Nigerian states for dropdown

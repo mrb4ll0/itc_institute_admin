@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/company_cloud.dart'; // Add this import
 import 'package:itc_institute_admin/model/company.dart';
@@ -31,7 +32,7 @@ class _CompanyFormsListPageState extends State<CompanyFormsListPage> {
   final Dio _dio = Dio();
   final Map<String, File> _cachedFiles = {};
   bool _sortByDateAscending = false;
-  final Company_Cloud _companyService = Company_Cloud(); // Add service instance
+  final Company_Cloud _companyService = Company_Cloud(FirebaseAuth.instance.currentUser!.uid); // Add service instance
 
   @override
   void initState() {

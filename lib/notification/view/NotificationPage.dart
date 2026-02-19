@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:intl/intl.dart';
@@ -21,7 +22,7 @@ class CompanyNotificationsPage extends StatefulWidget {
 
 class _CompanyNotificationsPageState extends State<CompanyNotificationsPage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final Company_Cloud _companyCloud = Company_Cloud();
+  final Company_Cloud _companyCloud = Company_Cloud(FirebaseAuth.instance.currentUser!.uid);
   final ScrollController _scrollController = ScrollController();
   bool _showFAB = true;
   String _selectedFilter = 'all';

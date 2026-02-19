@@ -37,7 +37,7 @@ class _StudentApplicationDetailsPageState
     extends State<StudentApplicationDetailsPage> {
   final DateFormat _dateFormat = DateFormat('dd MMM yyyy');
   final DateFormat _dateTimeFormat = DateFormat('dd MMM yyyy, hh:mm a');
-  final Company_Cloud company_cloud = Company_Cloud();
+  final Company_Cloud company_cloud = Company_Cloud(FirebaseAuth.instance.currentUser!.uid);
   final NotificationService notificationService = NotificationService();
   final FireStoreNotification fireStoreNotification = FireStoreNotification();
   bool canAcceptOrReject = false;
@@ -52,7 +52,7 @@ class _StudentApplicationDetailsPageState
   Authority? authority;
   loadAuthority()async
   {
-    authority = await ITCFirebaseLogic().getAuthority(FirebaseAuth.instance.currentUser!.uid);
+    authority = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid).getAuthority(FirebaseAuth.instance.currentUser!.uid);
   }
   @override
   Widget build(BuildContext context) {
@@ -178,7 +178,7 @@ class _StudentApplicationDetailsPageState
             InkWell(
               onTap: ()async
               {
-                final itcFirebaseAuthority = ITCFirebaseLogic();
+                final itcFirebaseAuthority = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
                 String uid = FirebaseAuth.instance.currentUser!.uid;
                 Company? company = await itcFirebaseAuthority.getCompany(uid);
                 if(company == null)
@@ -887,7 +887,7 @@ class _StudentApplicationDetailsPageState
                 pdfUrl =
                 await runPdfGeneration(acceptanceLetterData, userId: student.uid,);
 
-                await Company_Cloud().storeAcceptanceLetter(
+                await Company_Cloud(FirebaseAuth.instance.currentUser!.uid).storeAcceptanceLetter(
                     studentId: application.student.uid,
                     acceptanceLetterData: acceptanceLetterData,
                     internshipId: application.internship.id!,

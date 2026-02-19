@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/general_cloud.dart';
@@ -27,7 +28,7 @@ class AuthorityCompaniesScreen extends StatefulWidget {
 class _AuthorityCompaniesScreenState extends State<AuthorityCompaniesScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final AuthorityService _authorityService = AuthorityService();
+  final AuthorityService _authorityService = AuthorityService(FirebaseAuth.instance.currentUser!.uid);
 
   late Future<List<Company>> _linkedCompaniesFuture;
   late Future<List<Company>> _pendingCompaniesFuture;
@@ -44,7 +45,7 @@ class _AuthorityCompaniesScreenState extends State<AuthorityCompaniesScreen>
   }
   _loadAuthority() async
   {
-    authority = await ITCFirebaseLogic().getAuthority(widget.authorityId);
+    authority = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid).getAuthority(widget.authorityId);
   }
 
   void _loadData() {

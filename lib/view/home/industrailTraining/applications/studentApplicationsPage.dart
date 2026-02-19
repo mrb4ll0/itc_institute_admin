@@ -89,7 +89,7 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
   @override
   void initState() {
     super.initState();
-    _applicationService = Company_Cloud();
+    _applicationService = Company_Cloud(FirebaseAuth.instance.currentUser!.uid);
     canAcceptOrReject = widget.isAuthority?true:AuthorityRulesHelper.canAcceptStudents(FirebaseAuth.instance.currentUser!.uid);
 
     _loadApplications();
@@ -109,7 +109,7 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
         companiesIds: widget.companyIds
 
       );
-      authority = await ITCFirebaseLogic().getAuthority(FirebaseAuth.instance.currentUser!.uid);
+      authority = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid).getAuthority(FirebaseAuth.instance.currentUser!.uid);
 
       setState(() {
         _applications = applications;
@@ -258,7 +258,7 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
         pdfUrl =
         await runPdfGeneration(acceptanceLetterData, userId: student.uid,);
 
-        await Company_Cloud().storeAcceptanceLetter(
+        await Company_Cloud(FirebaseAuth.instance.currentUser!.uid).storeAcceptanceLetter(
             studentId: application.student.uid,
             acceptanceLetterData: acceptanceLetterData,
             internshipId: application.internship.id!,

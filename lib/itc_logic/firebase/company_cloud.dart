@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:intl/intl.dart';
 import 'package:itc_institute_admin/firebase_cloud_storage/firebase_cloud.dart';
@@ -28,11 +27,17 @@ import 'general_cloud.dart';
 class Company_Cloud {
   final FirebaseFirestore _firebaseFirestore = FirebaseFirestore.instance;
   String usersCollection = "users";
-  final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic();
+  late final ITCFirebaseLogic _itcFirebaseLogic ;
   final ActionLogger actionLogger = ActionLogger();
   final FirebaseUploader _cloudStorage = FirebaseUploader();
   final FireStoreNotification fireStoreNotification = FireStoreNotification();
-
+  String globalUserId = "";
+  Company_Cloud(String userId)
+  {
+    globalUserId = userId;
+    _itcFirebaseLogic = ITCFirebaseLogic(userId);
+  }
+  
   Future<void> postInternship(IndustrialTraining internship,{required bool isAuthority}) async {
     // Verify the user is a company
     final company = await _itcFirebaseLogic.getCompany(internship.company.id);
@@ -55,7 +60,7 @@ class Company_Cloud {
       await internshipRef.set(internshipData);
       RecentAction recentAction = RecentAction(
         id: "",
-        userId: FirebaseAuth.instance.currentUser!.uid,
+        userId: globalUserId,
         userName: company.name,
         userEmail: company.email,
         userRole: company.role,
@@ -68,7 +73,7 @@ class Company_Cloud {
       );
       await actionLogger.logAction(
         recentAction,
-        companyId: FirebaseAuth.instance.currentUser!.uid,
+        companyId: globalUserId,
         isAuthority: isAuthority
       );
     } catch (e, s) {
@@ -121,7 +126,7 @@ class Company_Cloud {
       // Log the update action
       final recentAction = RecentAction(
         id: "",
-        userId: FirebaseAuth.instance.currentUser!.uid,
+        userId: globalUserId,
         userName: company.name,
         userEmail: company.email,
         userRole: company.role,
@@ -136,7 +141,7 @@ class Company_Cloud {
       await actionLogger.logAction(
         isAuthority:isAuthority,
         recentAction,
-        companyId: FirebaseAuth.instance.currentUser!.uid,
+        companyId: globalUserId,
       );
 
       debugPrint("Internship updated successfully: ${internshipRef.id}");
@@ -182,7 +187,7 @@ class Company_Cloud {
       if (company != null) {
         final recentAction = RecentAction(
           id: "",
-          userId: FirebaseAuth.instance.currentUser?.uid ?? "",
+          userId: globalUserId ?? "",
           userName: company.name,
           userEmail: company.email,
           userRole: company.role,
@@ -247,7 +252,7 @@ class Company_Cloud {
       // Log the update action
       final recentAction = RecentAction(
         id: "",
-        userId: FirebaseAuth.instance.currentUser!.uid,
+        userId: globalUserId,
         userName: company.name,
         userEmail: company.email,
         userRole: company.role,
@@ -261,7 +266,7 @@ class Company_Cloud {
 
       await actionLogger.logAction(
         recentAction,
-        companyId: FirebaseAuth.instance.currentUser!.uid,
+        companyId: globalUserId,
         isAuthority: isAuthority
       );
 
@@ -733,7 +738,7 @@ class Company_Cloud {
     final batch = _firebaseFirestore.batch();
 
     for (final uid in studentIds) {
-      final student = await ITCFirebaseLogic().getStudent(uid); // fetch student
+      final student = await ITCFirebaseLogic(globalUserId).getStudent(uid); // fetch student
       if (student == null) continue;
 
       final application = StudentApplication(
@@ -768,7 +773,7 @@ class Company_Cloud {
         .doc('companies')
         .collection('companies')
         .doc(companyId)
-        .collection('internships')
+        .collection('IT')
         .get();
 
     List<StudentApplication> applications = [];
@@ -835,12 +840,12 @@ class Company_Cloud {
 
     await appRef.update({'applicationStatus': status});
     Company? company = await _itcFirebaseLogic.getCompany(
-      FirebaseAuth.instance.currentUser!.uid,
+      globalUserId,
     );
 
     RecentAction action = RecentAction(
       id: "",
-      userId: FirebaseAuth.instance.currentUser!.uid,
+      userId: globalUserId,
       userName: company?.name ?? "",
       userEmail: company?.email ?? "",
       userRole: company?.role ?? "",
@@ -856,7 +861,7 @@ class Company_Cloud {
       await incrementInternshipApplicationCount(companyId, internshipId,isAuthority: isAuthority);
     }
     if(status.toLowerCase() == 'accepted' || status.toLowerCase() == 'rejected') {
-      await TraineeService().createTraineeFromApplication(
+      await TraineeService(globalUserId).createTraineeFromApplication(
         isAuthority:isAuthority,
           application: application,
           companyId: companyId,
@@ -901,7 +906,7 @@ class Company_Cloud {
 
       // Get company info for audit log
       Company? company = await _itcFirebaseLogic.getCompany(
-        FirebaseAuth.instance.currentUser!.uid,
+        globalUserId,
       );
 
       // Get internship title for audit log
@@ -921,7 +926,7 @@ class Company_Cloud {
       // Create audit trail
       RecentAction action = RecentAction(
         id: "",
-        userId: FirebaseAuth.instance.currentUser!.uid,
+        userId: globalUserId,
         userName: company?.name ?? "",
         userEmail: company?.email ?? "",
         userRole: company?.role ?? "",
@@ -1171,6 +1176,8 @@ class Company_Cloud {
           ? companyIds
           : [companyId];
 
+      debugPrint("targetCompanyIds is ${targetCompanyIds.length}");
+
       // Fetch results from all companies
       final List<List<StudentWithLatestApplication>> allCompanyResults = [];
 
@@ -1180,6 +1187,7 @@ class Company_Cloud {
             limit,
             sortByRecent
         );
+
         allCompanyResults.add(companyResults);
       }
 
@@ -1791,12 +1799,12 @@ debugPrint("targetCompanyIds ${targetCompanyIds.toString()}");
       await batch.commit();
 
       Company? company = await _itcFirebaseLogic.getCompany(
-        FirebaseAuth.instance.currentUser!.uid,
+        globalUserId,
       );
 
       RecentAction action = RecentAction(
         id: "",
-        userId: FirebaseAuth.instance.currentUser!.uid,
+        userId: globalUserId,
         userName: company?.name ?? "",
         userEmail: company?.email ?? "",
         userRole: company?.role ?? "",
@@ -3914,7 +3922,7 @@ debugPrint("targetCompanyIds ${targetCompanyIds.toString()}");
   // Log the action
   final recentAction = RecentAction(
   id: "",
-  userId: FirebaseAuth.instance.currentUser!.uid,
+  userId: globalUserId,
   userName: company?.name??"",
   userEmail: company?.email??"",
   userRole: company?.role ?? "",

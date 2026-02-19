@@ -26,9 +26,9 @@ class GroupInfoPage extends StatefulWidget {
 }
 
 class _GroupInfoPageState extends State<GroupInfoPage> {
-  final ChatService _chatService = ChatService();
-  final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic();
-  final AdminCloud adminCloud = AdminCloud();
+  final ChatService _chatService = ChatService(FirebaseAuth.instance.currentUser!.uid);
+  final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
+  final AdminCloud adminCloud = AdminCloud(FirebaseAuth.instance.currentUser!.uid);
   bool _isLoading = false;
   String? _error;
   Map<String, dynamic>? group;

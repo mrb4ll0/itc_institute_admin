@@ -1,7 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
-
 import '../../model/admin.dart';
 import '../../model/authority.dart';
 import '../../model/company.dart';
@@ -10,11 +8,17 @@ import '../../model/internship_model.dart';
 import '../../model/student.dart';
 
 class ITCFirebaseLogic {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firebaseFirestore = FirebaseFirestore.instance;
   final CollectionReference _institutionRef = FirebaseFirestore.instance
       .collection('institutions');
 
+
+  String globalUserId = "";
+  ITCFirebaseLogic(String userId)
+  {
+    globalUserId =  userId;
+  }
+  
   final String usersCollection = 'users';
 
   //-------------------Institution ------------------------
@@ -41,10 +45,8 @@ class ITCFirebaseLogic {
   }
 
   Future<void> addStudent(Student student) async {
-    final currentUser = _auth.currentUser;
-    if (currentUser == null) throw Exception("User not logged in");
 
-    await ITCFirebaseLogic.registerStudent(currentUser.uid, {
+    await ITCFirebaseLogic.registerStudent(globalUserId, {
       ...student.toMap(),
       'role': 'student',
     });
@@ -138,12 +140,8 @@ class ITCFirebaseLogic {
     required String matricNumber,
     required String department,
   }) async {
-    final currentUser = _auth.currentUser;
-    if (currentUser == null) {
-      throw Exception("No logged in user found");
-    }
 
-    final uid = currentUser.uid;
+    final uid = globalUserId;
 
     try {
       await _firebaseFirestore
@@ -171,12 +169,9 @@ class ITCFirebaseLogic {
   }
 
   Future<bool> hasCompletedInstitutionInfo() async {
-    final currentUser = _auth.currentUser;
-    if (currentUser == null) {
-      throw Exception("No logged in user found");
-    }
 
-    final uid = currentUser.uid;
+
+    final uid = globalUserId;
 
     try {
       final doc = await _firebaseFirestore
@@ -267,8 +262,7 @@ class ITCFirebaseLogic {
 
   /// Add a new authority
   Future<void> addAuthority(Authority authority) async {
-    final currentUser = _auth.currentUser;
-    if (currentUser == null) throw Exception("User not logged in");
+
 
     // Add to authorities collection
     await FirebaseFirestore.instance
@@ -920,10 +914,8 @@ class ITCFirebaseLogic {
   }
 
   Future<void> updateUserFCMToken(String token) async {
-    final currentUser = _auth.currentUser;
-    if (currentUser == null) return;
 
-    final uid = currentUser.uid;
+    final uid = globalUserId;
 
     try {
       // Try to update in student collection

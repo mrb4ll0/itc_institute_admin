@@ -32,7 +32,7 @@ class CompanyMyProfilePage extends StatefulWidget {
 
 class _CompanyMyProfilePageState extends State<CompanyMyProfilePage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final ITCFirebaseLogic _firebaseLogic = ITCFirebaseLogic();
+  final ITCFirebaseLogic _firebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
   bool _isLoading = false;
 
   @override

@@ -12,6 +12,7 @@ import '../../model/company.dart';
 // Create a simple ViewModel for this specific functionality
 class StudentAcceptanceViewModel extends ChangeNotifier {
   // Default rule for student acceptance
+  // Default rule for student acceptance
   AuthorityRule? _studentAcceptanceRule;
 
   // List of companies that can accept students (if rule doesn't apply to all)
@@ -80,7 +81,7 @@ class StudentAcceptanceViewModel extends ChangeNotifier {
   bool isLoadingCompanies = false;
 
   List<Company> get companies => _companyCache.values.toList();
- ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic();
+ ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
   Future<void> loadCompanies(List<String> companyIds) async {
     if (_companyCache.isNotEmpty) return;
 
@@ -187,7 +188,7 @@ class StudentAcceptanceControlPage extends StatefulWidget {
 class _StudentAcceptanceControlPageState extends State<StudentAcceptanceControlPage> {
   final _searchController = TextEditingController();
   String _searchQuery = '';
-  ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic();
+  ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
   List<String> applicableCompanies = [];
 
   @override

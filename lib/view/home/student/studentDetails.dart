@@ -30,7 +30,7 @@ class StudentProfilePage extends StatefulWidget {
 class _StudentProfilePageState extends State<StudentProfilePage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final ChatService _chatService = ChatService();
+  final ChatService _chatService = ChatService(FirebaseAuth.instance.currentUser!.uid);
   final UserService _userService = UserService();
   String? _currentUserId;
   bool _isLoading = false;

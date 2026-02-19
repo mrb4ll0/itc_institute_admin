@@ -1,8 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/general_cloud.dart';
-
 import '../model/admin.dart';
 import '../model/application.dart';
 import '../model/approval.dart';
@@ -13,8 +11,12 @@ import '../model/student.dart';
 
 class AdminCloud {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-
+ String globalUserId = "";
+  AdminCloud(String userId)
+  {
+    globalUserId = userId;
+    itcFirebaseLogic= ITCFirebaseLogic(globalUserId);
+  }
   // ─── USERS ────────────────────────────────────────────────────────────────
 
   Future<List<Student>> getAllStudents({Company? company}) async {
@@ -126,7 +128,8 @@ class AdminCloud {
     debugPrint("Successfully fetched ${students.length} students");
     return students;
   }
-  ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic();
+  late ITCFirebaseLogic itcFirebaseLogic ;
+
 
   Future<List<Student>> getPotentialStudents({Company? company}) async {
     debugPrint("get potenetial students ");

@@ -16,7 +16,7 @@ import '../model/tweetModel.dart';
 class TweetProvider extends ChangeNotifier {
   final TweetService _tweetService = TweetService();
   final NotificationService notificationService = NotificationService();
-  final ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic();
+  final ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
 
   // Main tweets list state
   List<TweetModel> _tweets = [];

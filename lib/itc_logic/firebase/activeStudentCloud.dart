@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:itc_institute_admin/model/activeStudent.dart' as models;
 
 import '../../model/Assetments.dart';
@@ -15,7 +14,12 @@ import '../../model/WeeklyReport.dart';
 
 class ActiveTrainingService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  String globalUserId = "";
+  ActiveTrainingService(String userId )
+  {
+    globalUserId = userId;
+  }
 
   // Collection references
   CollectionReference _companyTraineesRef(String companyId) {

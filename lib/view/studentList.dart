@@ -1,7 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import 'package:itc_institute_admin/backgroundTask/backgroundTask.dart';
+import 'package:itc_institute_admin/backgroundTask/backgroundTaskRegistry.dart';
+import 'package:itc_institute_admin/backgroundTask/widget/migrationStatusWidget.dart';
 import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/company_cloud.dart';
 import 'package:itc_institute_admin/model/student.dart';
@@ -9,6 +14,7 @@ import 'package:itc_institute_admin/model/company.dart';
 import 'package:itc_institute_admin/model/traineeRecord.dart';
 import '../itc_logic/firebase/general_cloud.dart';
 import '../itc_logic/service/tranineeService.dart';
+import '../migrationService/migrationService.dart';
 import '../model/studentApplication.dart';
 import 'home/industrailTraining/applications/studentApplicationsPage.dart';
 
@@ -25,8 +31,10 @@ class StudentListPage extends StatefulWidget {
 class _StudentListPageState extends State<StudentListPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final TraineeService _traineeService = TraineeService();
-  final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic();
+  late final TraineeService _traineeService;
+  final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
+  BackgroundTaskManager backgroundTaskManager = BackgroundTaskManager();
+  TaskStatus? taskStatus = BackgroundTaskRegistry.getLatestMigrationTask();
 
   List<TraineeRecord> _pendingTrainees = [];
   List<TraineeRecord> _currentTrainees = [];
@@ -79,9 +87,11 @@ class _StudentListPageState extends State<StudentListPage>
     Icons.check_circle,
   ];
 
+  String migrationStatus = "";
   @override
   void initState() {
     super.initState();
+    _traineeService = TraineeService(FirebaseAuth.instance.currentUser!.uid);
     _tabController = TabController(length: 5, vsync: this); // Changed to 5
     _loadTrainees();
   }
@@ -502,6 +512,10 @@ class _StudentListPageState extends State<StudentListPage>
             onPressed: _loadTrainees,
             tooltip: 'Refresh',
           ),
+
+          MigrationStatusIcon(
+            onRefresh: startMigration,
+          ),
           PopupMenuButton<String>(
             onSelected: (value) {
               if (value == 'stats') {
@@ -575,6 +589,16 @@ const PopupMenuItem(
         ],
       ),
     );
+  }
+
+  startMigration()async
+  {
+    final migrationService = MigrationService(FirebaseAuth.instance.currentUser!.uid);
+    unawaited( migrationService.startMigration().catchError((e,s)
+    {
+      debugPrint("background Task failed with error $e");
+      debugPrintStack(stackTrace: s);
+    }));
   }
 
   Future<void> _showStatistics() async {
@@ -1198,7 +1222,7 @@ class _TraineeDetailDialogState extends State<TraineeDetailDialog> {
 
   Future<void> _loadStudentDetails() async {
     try {
-      final student = await ITCFirebaseLogic().getStudent(widget.trainee.studentId);
+      final student = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid).getStudent(widget.trainee.studentId);
       setState(() {
         _student = student;
         _loadingStudent = false;

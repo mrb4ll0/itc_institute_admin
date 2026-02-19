@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/general_cloud.dart';
 
 import '../../model/AuthorityRule.dart';
@@ -25,7 +26,7 @@ class AuthorityRulesHelper {
     }
   }
 
-  static ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic();
+  static ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
 
   /// Preload all companies under the authority into the cache
   static Future<void> preloadCompanies(String authorityId) async {

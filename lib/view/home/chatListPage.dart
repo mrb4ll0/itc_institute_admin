@@ -33,10 +33,10 @@ class MessagesView extends StatefulWidget {
 }
 
 class _MessagesViewState extends State<MessagesView> {
-  final ChatService _chatService = ChatService();
+  final ChatService _chatService = ChatService(FirebaseAuth.instance.currentUser!.uid);
   final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
-  final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic();
-  final AdminCloud _adminCloud = AdminCloud();
+  final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
+  final AdminCloud _adminCloud = AdminCloud(FirebaseAuth.instance.currentUser!.uid);
 
   late Stream<List<Message>> _messageStream;
   late Stream<List<Map<String, dynamic>>> _groupStream;
@@ -199,7 +199,7 @@ Company? company;
                         itemBuilder: (context, index) {
                           final group = groups[index];
                           return FutureBuilder<QuerySnapshot>(
-                            future: ChatService()
+                            future: ChatService(FirebaseAuth.instance.currentUser!.uid)
                                 .groupsCollection
                                 .doc(group['id'])
                                 .collection('messages')
@@ -981,7 +981,7 @@ class _CreateGroupDialogState extends State<CreateGroupDialog> {
          return;
        }
 
-    final students = await AdminCloud().getPotentialStudents(company: company);
+    final students = await AdminCloud(FirebaseAuth.instance.currentUser!.uid).getPotentialStudents(company: company);
     setState(() {
       _allStudents =
           students.where((s) => s.uid != widget.currentUser.uid).toList();
@@ -1011,7 +1011,7 @@ class _CreateGroupDialogState extends State<CreateGroupDialog> {
         avatarUrl = await FirebaseUploader()
             .uploadFile(_avatarFile!, widget.currentUser.uid, 'group_avatar');
       }
-      final groupId = await ChatService().createGroup(
+      final groupId = await ChatService(FirebaseAuth.instance.currentUser!.uid).createGroup(
         name: _nameController.text.trim(),
         createdBy: widget.currentUser.uid,
         members: _selectedMembers.map((s) => s.uid).toList(),

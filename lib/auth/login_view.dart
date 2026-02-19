@@ -1,15 +1,20 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:http/http.dart' as http;
 import 'package:itc_institute_admin/auth/signup.dart';
+import 'package:itc_institute_admin/backgroundTask/backgroundTask.dart';
 import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
 import 'package:itc_institute_admin/itc_logic/notification/notitification_service.dart';
+import 'package:itc_institute_admin/migrationService/migrationService.dart';
 import 'package:itc_institute_admin/model/authorityCompanyMapper.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../backgroundTask/backgroundTaskRegistry.dart';
 import '../itc_logic/firebase/general_cloud.dart';
 import '../model/authority.dart';
 import '../model/company.dart';
@@ -84,10 +89,10 @@ class _LoginScreenState extends State<LoginScreen> {
       });
 
       Company? company;
-       company = await ITCFirebaseLogic().getCompany(currentUser.uid);
+       company = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid).getCompany(currentUser.uid);
        if(company == null)
          {
-           Authority? authority = await ITCFirebaseLogic().getAuthority(currentUser.uid);
+           Authority? authority = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid).getAuthority(currentUser.uid);
            if(authority != null)
              {
                company = AuthorityCompanyMapper.createCompanyFromAuthority(authority: authority);
@@ -95,7 +100,18 @@ class _LoginScreenState extends State<LoginScreen> {
          }
 
       if (company != null) {
-        // User has a company, navigate to dashboard
+
+
+             final migrationService = MigrationService(FirebaseAuth.instance.currentUser!.uid);
+              unawaited(migrationService.startMigration().catchError((e,s)
+              {
+                debugPrint("background Task failed with error $e");
+                debugPrintStack(stackTrace: s);
+              }));
+
+
+        debugPrint("after the backgroundTaskManger line");
+         // User has a company, navigate to dashboard
         if (mounted) {
           GeneralMethods.replaceNavigationTo(
             context,
@@ -164,13 +180,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
       // Check if user has a company
       Company? company;
-       company = await ITCFirebaseLogic().getCompany(
+       company = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid).getCompany(
         userCredential.user!.uid,
       );
 
        if(company == null)
          {
-           Authority? authority = await ITCFirebaseLogic().getAuthority(userCredential.user!.uid);
+           Authority? authority = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid).getAuthority(userCredential.user!.uid);
            if(authority != null)
              {
                company = AuthorityCompanyMapper.createCompanyFromAuthority(authority: authority);
@@ -191,6 +207,15 @@ class _LoginScreenState extends State<LoginScreen> {
       debugPrint('company is $company and ${company.originalAuthority == null}');
       await notificationService.saveTokenToFirestore();
       // Successfully logged in with company, navigate to dashboard
+
+
+          final migrationService = MigrationService(FirebaseAuth.instance.currentUser!.uid);
+               unawaited(migrationService.startMigration().catchError((e,s)
+               {
+                 debugPrint("background Task failed with error $e");
+                 debugPrintStack(stackTrace: s);
+               }));
+      debugPrint("after the backgroundTaskManger line");
       if (mounted) {
         GeneralMethods.replaceNavigationTo(
           context,

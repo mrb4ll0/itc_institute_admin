@@ -1,17 +1,21 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
-
 import '../../../model/message.dart';
 import '../../notification/notification_sender.dart';
 import '../../notification/notitification_service.dart';
 import '../general_cloud.dart';
 
 class ChatService extends ChangeNotifier {
-  final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
   final FirebaseFirestore _firebaseFirestore = FirebaseFirestore.instance;
   final NotificationSender _notificationSender = NotificationSender();
-  final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic();
+  late final ITCFirebaseLogic _itcFirebaseLogic ;
+
+  String globalUserId = "";
+  ChatService(String userId)
+  {
+    globalUserId = userId;
+    _itcFirebaseLogic = ITCFirebaseLogic(globalUserId);
+  }
 
   // GROUP CHAT LOGIC
   final CollectionReference groupsCollection = FirebaseFirestore.instance
@@ -157,7 +161,7 @@ class ChatService extends ChangeNotifier {
     required String type,
     required String title,
   }) async {
-    final String currentUserId = _firebaseAuth.currentUser!.uid;
+    final String currentUserId = globalUserId;
 
     List<String> chatID = [currentUserId, receiverID];
     chatID.sort();
@@ -236,7 +240,7 @@ class ChatService extends ChangeNotifier {
 
   Stream<List<Message>> getAllMessagesForCurrentUser() {
     debugPrint("getAllMessagesForCurrentUser called");
-    final String? currentUserId = _firebaseAuth.currentUser?.uid;
+    final String? currentUserId = globalUserId;
     if (currentUserId == null) {
       throw Exception("User not logged in.");
     }
@@ -350,7 +354,7 @@ class ChatService extends ChangeNotifier {
     String receiverID = msg.receiverId;
 
     String imageUrl = msg.imageUrl??"", optionalText = msg.content;
-    final String currentUserId = _firebaseAuth.currentUser!.uid;
+    final String currentUserId = globalUserId;
 
     List<String> chatID = [currentUserId, receiverID];
     chatID.sort();

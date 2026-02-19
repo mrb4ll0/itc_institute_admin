@@ -29,7 +29,7 @@ class _SavedPostsPageState extends State<SavedPostsPage> {
   String? _currentUserId;
   SortType _currentSortType = SortType.newestFirst;
   String _searchQuery = '';
-  final ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic();
+  final ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
   final UserService userService = UserService();
   final TweetService tweetService = TweetService();
 

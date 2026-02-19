@@ -1,4 +1,5 @@
 // Placeholder for group chat page
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:itc_institute_admin/model/userProfile.dart';
 import 'package:provider/provider.dart';
@@ -24,8 +25,8 @@ class GroupChatPage extends StatefulWidget {
 }
 
 class _GroupChatPageState extends State<GroupChatPage> with WidgetsBindingObserver {
-  final ChatService _chatService = ChatService();
-  final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic();
+  final ChatService _chatService = ChatService(FirebaseAuth.instance.currentUser!.uid);
+  final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _messageController = TextEditingController();
   final FocusNode _inputFocusNode = FocusNode();

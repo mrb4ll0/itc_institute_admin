@@ -174,7 +174,13 @@ For questions or issues, refer to the workflow diagram above.
 
 class TraineeService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final Company_Cloud _companyCloud = Company_Cloud(); // Use your existing Company_Cloud
+  late final Company_Cloud _companyCloud ; // Use your existing Company_Cloud
+  String globalUserId = "";
+  TraineeService(String userId)
+  {
+    globalUserId = userId;
+    _companyCloud =  Company_Cloud(userId);
+  }
 
   // Collection references - matching your existing structure
   CollectionReference get _traineesRef => _firestore.collection('trainees');
@@ -1457,8 +1463,9 @@ class TraineeService {
       }
 
       return true;
-    } catch (e) {
+    } catch (e,s) {
       debugPrint('Error updating trainee status: $e');
+      debugPrintStack(stackTrace: s);
       return false;
     }
   }
@@ -1791,5 +1798,235 @@ class TraineeService {
     }
   }
 
+
+  /// Delete trainee records where the document ID contains studentId_companyId pattern
+  /// Returns the number of deleted records
+  Future<int> deleteTraineesByStudentAndCompany({
+    required String studentId,
+    required String companyId,
+  }) async {
+    try {
+      debugPrint('Attempting to delete trainee records for student: $studentId, company: $companyId');
+
+      // Create the pattern to search for in document IDs
+      final searchPattern = '${studentId}_${companyId}';
+
+      // Get all documents that might match (using start/end range for efficiency)
+      final querySnapshot = await _traineesRef
+          .where(FieldPath.documentId, isGreaterThanOrEqualTo: searchPattern)
+          .where(FieldPath.documentId, isLessThan: searchPattern + '\uf8ff')
+          .get();
+
+      if (querySnapshot.docs.isEmpty) {
+        debugPrint('No trainee records found with pattern: $searchPattern');
+        return 0;
+      }
+
+      debugPrint('Found ${querySnapshot.docs.length} potential trainee records');
+
+      // Further filter to ensure exact match (since the range query might return more)
+      final matchingDocs = querySnapshot.docs.where((doc) {
+        return doc.id.contains(searchPattern);
+      }).toList();
+
+      if (matchingDocs.isEmpty) {
+        debugPrint('No exact matches found after filtering');
+        return 0;
+      }
+
+      debugPrint('Found ${matchingDocs.length} exact matching trainee records to delete');
+
+      // Delete the documents
+      final batch = _firestore.batch();
+      for (final doc in matchingDocs) {
+        debugPrint('Deleting trainee record: ${doc.id}');
+        batch.delete(doc.reference);
+      }
+
+      await batch.commit();
+      debugPrint('Successfully deleted ${matchingDocs.length} trainee records');
+
+      // Also clean up company lists if needed
+      await _removeFromCompanyLists(
+        companyId: companyId,
+        studentId: studentId,
+        deletedDocIds: matchingDocs.map((doc) => doc.id).toList(),
+      );
+
+      return matchingDocs.length;
+    } catch (e, stackTrace) {
+      debugPrint('Error deleting trainee records: $e');
+      debugPrintStack(stackTrace: stackTrace);
+      return 0;
+    }
+  }
+
+  /// Alternative version that uses a more flexible pattern matching
+  Future<int> deleteTraineesByStudentAndCompanyFlexible({
+    required String studentId,
+    required String companyId,
+    bool patternAtStart = true, // Whether studentId_companyId is at the start
+  }) async {
+    try {
+      debugPrint('Flexible delete for student: $studentId, company: $companyId');
+
+      final searchPattern = '${studentId}_${companyId}';
+      List<DocumentSnapshot> docsToDelete = [];
+
+      if (patternAtStart) {
+        // If pattern is at the start (most efficient)
+        final querySnapshot = await _traineesRef
+            .where(FieldPath.documentId, isGreaterThanOrEqualTo: searchPattern)
+            .where(FieldPath.documentId, isLessThan: searchPattern + '\uf8ff')
+            .get();
+
+        docsToDelete = querySnapshot.docs.where((doc) {
+          return doc.id.startsWith(searchPattern);
+        }).toList();
+      } else {
+        // If pattern could be anywhere in the ID (less efficient, requires scanning)
+        // Only use this if you know you have a small number of documents
+        final allDocs = await _traineesRef.get();
+        docsToDelete = allDocs.docs.where((doc) {
+          return doc.id.contains(searchPattern);
+        }).toList();
+      }
+
+      if (docsToDelete.isEmpty) {
+        debugPrint('No matching trainee records found');
+        return 0;
+      }
+
+      debugPrint('Found ${docsToDelete.length} trainee records to delete');
+
+      // Delete in batches if there are many
+      if (docsToDelete.length <= 500) {
+        // Can delete in one batch
+        final batch = _firestore.batch();
+        for (final doc in docsToDelete) {
+          batch.delete(doc.reference);
+        }
+        await batch.commit();
+      } else {
+        // Delete in chunks of 500 (Firestore batch limit)
+        for (int i = 0; i < docsToDelete.length; i += 500) {
+          final chunk = docsToDelete.sublist(
+              i,
+              (i + 500).clamp(0, docsToDelete.length)
+          );
+
+          final batch = _firestore.batch();
+          for (final doc in chunk) {
+            batch.delete(doc.reference);
+          }
+          await batch.commit();
+
+          debugPrint('Deleted batch ${i ~/ 500 + 1}');
+        }
+      }
+
+      // Clean up company lists
+      await _removeFromCompanyLists(
+        companyId: companyId,
+        studentId: studentId,
+        deletedDocIds: docsToDelete.map((doc) => doc.id).toList(),
+      );
+
+      return docsToDelete.length;
+    } catch (e, stackTrace) {
+      debugPrint('Error in flexible delete: $e');
+      debugPrintStack(stackTrace: stackTrace);
+      return 0;
+    }
+  }
+
+  /// Helper method to remove trainee references from company lists
+  Future<void> _removeFromCompanyLists({
+    required String companyId,
+    required String studentId,
+    required List<String> deletedDocIds,
+  }) async {
+    try {
+      final companyRef = _companiesRef.doc(companyId);
+      final companyDoc = await companyRef.get();
+
+      if (!companyDoc.exists) return;
+
+      final data = companyDoc.data() as Map<String, dynamic>;
+      final updates = <String, dynamic>{};
+
+      // Check all possible trainee lists
+      final listFields = [
+        'pendingTrainees',
+        'acceptedTrainees',
+        'currentTrainees',
+        'completedTrainees',
+        'terminatedTrainees',
+        'withdrawnTrainees',
+      ];
+
+      for (final field in listFields) {
+        final currentList = List<String>.from(data[field] ?? []);
+        final updatedList = currentList.where((id) =>
+        !deletedDocIds.contains(id)
+        ).toList();
+
+        if (currentList.length != updatedList.length) {
+          updates[field] = updatedList;
+        }
+      }
+
+      // Also remove from student-specific lists if they exist
+      if (data.containsKey('studentTrainees')) {
+        final studentTrainees = Map<String, dynamic>.from(data['studentTrainees'] ?? {});
+        studentTrainees.remove(studentId);
+        updates['studentTrainees'] = studentTrainees;
+      }
+
+      if (updates.isNotEmpty) {
+        updates['updatedAt'] = FieldValue.serverTimestamp();
+        await companyRef.update(updates);
+        debugPrint('Updated company lists for company: $companyId');
+      }
+    } catch (e) {
+      debugPrint('Error removing from company lists: $e');
+      // Don't throw - this is a cleanup operation
+    }
+  }
+
+  /// Convenience method to delete by exact document ID
+  Future<bool> deleteTraineeById(String traineeId) async {
+    try {
+      await _traineesRef.doc(traineeId).delete();
+      debugPrint('Deleted trainee: $traineeId');
+      return true;
+    } catch (e) {
+      debugPrint('Error deleting trainee $traineeId: $e');
+      return false;
+    }
+  }
+
+  /// Delete all trainees for a company (use with caution!)
+  Future<int> deleteAllCompanyTrainees(String companyId) async {
+    try {
+      final snapshot = await _traineesRef
+          .where('companyId', isEqualTo: companyId)
+          .get();
+
+      if (snapshot.docs.isEmpty) return 0;
+
+      final batch = _firestore.batch();
+      for (final doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+
+      debugPrint('Deleted all ${snapshot.docs.length} trainees for company: $companyId');
+      return snapshot.docs.length;
+    } catch (e) {
+      debugPrint('Error deleting all company trainees: $e');
+      return 0;
+    }
+  }
 
 }
