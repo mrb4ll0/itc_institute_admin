@@ -10,12 +10,15 @@ import 'package:itc_institute_admin/auth/signup.dart';
 import 'package:itc_institute_admin/backgroundTask/backgroundTask.dart';
 import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
 import 'package:itc_institute_admin/itc_logic/notification/notitification_service.dart';
+import 'package:itc_institute_admin/migrationService/migrationManager.dart';
 import 'package:itc_institute_admin/migrationService/migrationService.dart';
+import 'package:itc_institute_admin/migrationService/ui/migrationSettingsPage.dart';
 import 'package:itc_institute_admin/model/authorityCompanyMapper.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../backgroundTask/backgroundTaskRegistry.dart';
 import '../itc_logic/firebase/general_cloud.dart';
+import '../migrationService/migrationSettingsStrorage.dart';
 import '../model/authority.dart';
 import '../model/company.dart';
 import '../view/home/companyDashboardController.dart';
@@ -101,14 +104,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (company != null) {
 
+        final settings = await MigrationSettingsStorage.loadSettings();
 
-             final migrationService = MigrationService(FirebaseAuth.instance.currentUser!.uid);
-              unawaited(migrationService.startMigration().catchError((e,s)
-              {
-                debugPrint("background Task failed with error $e");
-                debugPrintStack(stackTrace: s);
-              }));
+        MigrationTrigger trigger = settings["trigger"];
 
+        debugPrint("trigger is ${trigger.displayName}");
+
+             MigrationManager().doMigration(trigger);
 
         debugPrint("after the backgroundTaskManger line");
          // User has a company, navigate to dashboard
@@ -135,6 +137,7 @@ class _LoginScreenState extends State<LoginScreen> {
       });
     }
   }
+
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) {
@@ -208,13 +211,14 @@ class _LoginScreenState extends State<LoginScreen> {
       await notificationService.saveTokenToFirestore();
       // Successfully logged in with company, navigate to dashboard
 
+      final settings = await MigrationSettingsStorage.loadSettings();
 
-          final migrationService = MigrationService(FirebaseAuth.instance.currentUser!.uid);
-               unawaited(migrationService.startMigration().catchError((e,s)
-               {
-                 debugPrint("background Task failed with error $e");
-                 debugPrintStack(stackTrace: s);
-               }));
+      MigrationTrigger trigger = settings["trigger"];
+
+      debugPrint("trigger is ${trigger.displayName}");
+
+      MigrationManager().doMigration(trigger);
+
       debugPrint("after the backgroundTaskManger line");
       if (mounted) {
         GeneralMethods.replaceNavigationTo(

@@ -66,9 +66,10 @@ class MigrationService {
   bool isAuthority = false;
   Company? _company;
   Future<void> startMigration() async {
-    debugPrint("startMigration - entered method");
 
-    // Register task at start
+
+
+
     final taskId = BackgroundTaskRegistry.registerTask(
       type: 'migration',
       metadata: {'startedBy': globalUserId},
@@ -171,10 +172,11 @@ class MigrationService {
         companyId: companyId,
       );
       debugPrint("total trainee deleted $totalTrainee");
+        Company? company = await itcFirebaseLogic.getCompany(companyId);
       TraineeRecord? record = await traineeService.createTraineeFromApplication(
         application: student.latestApplication!,
         companyId: companyId,
-        companyName: _company!.name,
+        companyName: company?.name?? "NOT SPECIFIED",
         fromUpdateStatus: true,
         isAuthority: isAuthority,
       );

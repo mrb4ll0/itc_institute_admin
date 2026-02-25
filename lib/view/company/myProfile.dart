@@ -13,12 +13,14 @@ import 'package:itc_institute_admin/view/company/companyEdit.dart';
 import '../../auth/login_view.dart';
 import '../../generalmethods/GeneralMethods.dart';
 import '../../itc_logic/help_support/help.dart';
+import '../../migrationService/ui/migrationSettingsPage.dart';
 import '../../notification/view/companyFormsList.dart';
 import '../home/aboutITConnect.dart'; // Add this import
 
 class CompanyMyProfilePage extends StatefulWidget {
   final Company company;
-  final Function(Company) onProfileUpdated; // Callback for when profile is updated
+  final Function(Company)
+  onProfileUpdated; // Callback for when profile is updated
 
   const CompanyMyProfilePage({
     Key? key,
@@ -30,9 +32,12 @@ class CompanyMyProfilePage extends StatefulWidget {
   _CompanyMyProfilePageState createState() => _CompanyMyProfilePageState();
 }
 
-class _CompanyMyProfilePageState extends State<CompanyMyProfilePage> with SingleTickerProviderStateMixin {
+class _CompanyMyProfilePageState extends State<CompanyMyProfilePage>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final ITCFirebaseLogic _firebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
+  final ITCFirebaseLogic _firebaseLogic = ITCFirebaseLogic(
+    FirebaseAuth.instance.currentUser!.uid,
+  );
   bool _isLoading = false;
 
   @override
@@ -75,11 +80,10 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage> with Single
     );
   }
 
-
-
   // Share profile functionality (for recruitment)
   void _shareProfile() {
-    final shareText = 'Check out ${widget.company.name} - ${widget.company.industry} company. ${widget.company.description.isNotEmpty ? widget.company.description.substring(0, 10) + '...' : ''}';
+    final shareText =
+        'Check out ${widget.company.name} - ${widget.company.industry} company. ${widget.company.description.isNotEmpty ? widget.company.description.substring(0, 10) + '...' : ''}';
     Fluttertoast.showToast(msg: "Feature not available yet ");
     return;
     showModalBottomSheet(
@@ -222,10 +226,7 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage> with Single
                         height: 100,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Colors.white,
-                            width: 4,
-                          ),
+                          border: Border.all(color: Colors.white, width: 4),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black.withOpacity(0.3),
@@ -236,33 +237,33 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage> with Single
                         ),
                         child: widget.company.logoURL.isNotEmpty
                             ? ClipRRect(
-                          borderRadius: BorderRadius.circular(50),
-                          child: Image.network(
-                            widget.company.logoURL,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                color: theme.colorScheme.surface,
+                                borderRadius: BorderRadius.circular(50),
+                                child: Image.network(
+                                  widget.company.logoURL,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Container(
+                                      color: theme.colorScheme.surface,
+                                      child: Icon(
+                                        Icons.business,
+                                        size: 40,
+                                        color: theme.colorScheme.primary,
+                                      ),
+                                    );
+                                  },
+                                ),
+                              )
+                            : Container(
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.surface,
+                                  shape: BoxShape.circle,
+                                ),
                                 child: Icon(
                                   Icons.business,
                                   size: 40,
                                   color: theme.colorScheme.primary,
                                 ),
-                              );
-                            },
-                          ),
-                        )
-                            : Container(
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.surface,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.business,
-                            size: 40,
-                            color: theme.colorScheme.primary,
-                          ),
-                        ),
+                              ),
                       ),
                       Positioned(
                         bottom: 0,
@@ -420,9 +421,7 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage> with Single
     return Container(
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
-        border: Border(
-          bottom: BorderSide(color: theme.dividerColor),
-        ),
+        border: Border(bottom: BorderSide(color: theme.dividerColor)),
       ),
       child: TabBar(
         controller: _tabController,
@@ -596,7 +595,13 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage> with Single
                 color: Colors.green,
                 onTap: () {
                   // Navigate to forms upload
-                  GeneralMethods.navigateTo(context, CompanyFormUploadPage(companyId: widget.company.id, companyName: widget.company.name,));
+                  GeneralMethods.navigateTo(
+                    context,
+                    CompanyFormUploadPage(
+                      companyId: widget.company.id,
+                      companyName: widget.company.name,
+                    ),
+                  );
                 },
                 theme: theme,
               ),
@@ -700,10 +705,7 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage> with Single
                 child: ListTile(
                   leading: CircleAvatar(
                     backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
-                    child: Icon(
-                      Icons.person,
-                      color: theme.colorScheme.primary,
-                    ),
+                    child: Icon(Icons.person, color: theme.colorScheme.primary),
                   ),
                   title: Text(
                     trainee.toString(),
@@ -722,7 +724,10 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage> with Single
                       Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.blue.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(4),
@@ -772,10 +777,7 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage> with Single
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Profile Views',
-                    style: theme.textTheme.bodyLarge,
-                  ),
+                  Text('Profile Views', style: theme.textTheme.bodyLarge),
                   const SizedBox(height: 12),
                   Container(
                     height: 150,
@@ -805,10 +807,7 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage> with Single
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Trainee Engagement',
-                    style: theme.textTheme.bodyLarge,
-                  ),
+                  Text('Trainee Engagement', style: theme.textTheme.bodyLarge),
                   const SizedBox(height: 12),
                   ListTile(
                     leading: const Icon(Icons.people, color: Colors.blue),
@@ -899,13 +898,35 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage> with Single
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                   onTap: () {
                     // Navigate to help
-                    GeneralMethods.navigateTo(context, CompanyFormsListPage(company: widget.company,));
+                    GeneralMethods.navigateTo(
+                      context,
+                      CompanyFormsListPage(company: widget.company),
+                    );
                   },
                 ),
               ],
             ),
           ),
-const SizedBox(height: 20),
+          const SizedBox(height: 20),
+          Card(
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.compare_arrows),
+                  title: const Text('Migration Setting'),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: () {
+                    // Navigate to help
+                    GeneralMethods.navigateTo(
+                      context,
+                      MigrationSettingsPage(),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
 
           Card(
             child: Column(
@@ -946,9 +967,9 @@ const SizedBox(height: 20),
                     'Logout',
                     style: TextStyle(color: theme.colorScheme.error),
                   ),
-                  onTap: ()async {
+                  onTap: () async {
                     // Logout logic
-                   await showLogoutDialog(context);
+                    await showLogoutDialog(context);
                   },
                 ),
               ],
@@ -983,6 +1004,7 @@ const SizedBox(height: 20),
       GeneralMethods.replaceNavigationTo(context, const LoginScreen());
     }
   }
+
   Future<void> logout() async {
     await FirebaseAuth.instance.signOut();
     await GoogleSignIn().signOut();
@@ -1068,11 +1090,27 @@ const SizedBox(height: 20),
   List<Widget> _buildCompletenessItems(ThemeData theme) {
     return [
       _buildCompletenessItem('Logo', widget.company.logoURL.isNotEmpty, theme),
-      _buildCompletenessItem('Description', widget.company.description.isNotEmpty, theme),
-      _buildCompletenessItem('Industry', widget.company.industry.isNotEmpty, theme),
-      _buildCompletenessItem('Address', widget.company.address.isNotEmpty, theme),
+      _buildCompletenessItem(
+        'Description',
+        widget.company.description.isNotEmpty,
+        theme,
+      ),
+      _buildCompletenessItem(
+        'Industry',
+        widget.company.industry.isNotEmpty,
+        theme,
+      ),
+      _buildCompletenessItem(
+        'Address',
+        widget.company.address.isNotEmpty,
+        theme,
+      ),
       _buildCompletenessItem('State', widget.company.state.isNotEmpty, theme),
-      _buildCompletenessItem('Local Govt', widget.company.localGovernment.isNotEmpty, theme),
+      _buildCompletenessItem(
+        'Local Govt',
+        widget.company.localGovernment.isNotEmpty,
+        theme,
+      ),
     ];
   }
 
@@ -1089,7 +1127,9 @@ const SizedBox(height: 20),
         Text(
           label,
           style: theme.textTheme.labelSmall?.copyWith(
-            color: completed ? Colors.green : theme.colorScheme.onSurfaceVariant,
+            color: completed
+                ? Colors.green
+                : theme.colorScheme.onSurfaceVariant,
           ),
         ),
       ],
@@ -1106,10 +1146,23 @@ const SizedBox(height: 20),
           // Basic Information Section
           _buildSectionHeader('Basic Information', Icons.business, theme),
           _buildInfoCard(theme, [
-            _buildInfoRow('Company Name', widget.company.name, Icons.business_outlined),
+            _buildInfoRow(
+              'Company Name',
+              widget.company.name,
+              Icons.business_outlined,
+            ),
             _buildInfoRow('Industry', widget.company.industry, Icons.category),
-            _buildInfoRow('Registration Number', widget.company.registrationNumber, Icons.app_registration),
-            _buildInfoRow('Description', widget.company.description, Icons.description, isMultiline: true),
+            _buildInfoRow(
+              'Registration Number',
+              widget.company.registrationNumber,
+              Icons.app_registration,
+            ),
+            _buildInfoRow(
+              'Description',
+              widget.company.description,
+              Icons.description,
+              isMultiline: true,
+            ),
           ]),
 
           const SizedBox(height: 24),
@@ -1118,7 +1171,11 @@ const SizedBox(height: 20),
           _buildSectionHeader('Contact Information', Icons.contact_mail, theme),
           _buildInfoCard(theme, [
             _buildInfoRow('Email', widget.company.email, Icons.email),
-            _buildInfoRow('Phone Number', widget.company.phoneNumber, Icons.phone),
+            _buildInfoRow(
+              'Phone Number',
+              widget.company.phoneNumber,
+              Icons.phone,
+            ),
           ]),
 
           const SizedBox(height: 24),
@@ -1126,8 +1183,17 @@ const SizedBox(height: 20),
           // Location Information Section
           _buildSectionHeader('Location Information', Icons.location_on, theme),
           _buildInfoCard(theme, [
-            _buildInfoRow('Address', widget.company.address, Icons.home, isMultiline: true),
-            _buildInfoRow('Local Government', widget.company.localGovernment, Icons.account_balance),
+            _buildInfoRow(
+              'Address',
+              widget.company.address,
+              Icons.home,
+              isMultiline: true,
+            ),
+            _buildInfoRow(
+              'Local Government',
+              widget.company.localGovernment,
+              Icons.account_balance,
+            ),
             _buildInfoRow('State', widget.company.state, Icons.map),
           ]),
 
@@ -1144,11 +1210,17 @@ const SizedBox(height: 20),
           _buildInfoCard(theme, [
             _buildInfoRow('Company ID', widget.company.id, Icons.fingerprint),
             _buildInfoRow('Role', widget.company.role, Icons.people_alt),
-            _buildInfoRow('FCM Token', _truncateText(widget.company.fcmToken, 20), Icons.notifications),
+            _buildInfoRow(
+              'FCM Token',
+              _truncateText(widget.company.fcmToken, 20),
+              Icons.notifications,
+            ),
             if (widget.company.updatedAt != null)
               _buildInfoRow(
                 'Last Updated',
-                DateFormat('MMM dd, yyyy • hh:mm a').format(widget.company.updatedAt!),
+                DateFormat(
+                  'MMM dd, yyyy • hh:mm a',
+                ).format(widget.company.updatedAt!),
                 Icons.update,
               ),
           ]),
@@ -1160,7 +1232,11 @@ const SizedBox(height: 20),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildSectionHeader('Uploaded Documents', Icons.description, theme),
+                _buildSectionHeader(
+                  'Uploaded Documents',
+                  Icons.description,
+                  theme,
+                ),
                 _buildDocumentsList(theme),
                 const SizedBox(height: 24),
               ],
@@ -1185,7 +1261,10 @@ const SizedBox(height: 20),
               icon: const Icon(Icons.edit),
               label: const Text('Edit Company Profile'),
               style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 16,
+                ),
               ),
             ),
           ),
@@ -1230,7 +1309,12 @@ const SizedBox(height: 20),
     );
   }
 
-  Widget _buildInfoRow(String label, String value, IconData icon, {bool isMultiline = false}) {
+  Widget _buildInfoRow(
+    String label,
+    String value,
+    IconData icon, {
+    bool isMultiline = false,
+  }) {
     if (value.isEmpty) return const SizedBox.shrink();
 
     return Padding(
@@ -1255,21 +1339,21 @@ const SizedBox(height: 20),
                 const SizedBox(height: 4),
                 isMultiline
                     ? Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                  ),
-                )
+                        value,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      )
                     : Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                        value,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
               ],
             ),
           ),
@@ -1280,15 +1364,60 @@ const SizedBox(height: 20),
 
   Widget _buildStatusGrid(ThemeData theme) {
     final statuses = [
-      _buildStatusItem('Active', widget.company.isActive, Colors.green, Icons.check_circle),
-      _buildStatusItem('Verified', widget.company.isVerified, Colors.blue, Icons.verified),
-      _buildStatusItem('Approved', widget.company.isApproved, Colors.green, Icons.thumb_up),
-      _buildStatusItem('Pending', widget.company.isPending, Colors.orange, Icons.pending),
-      _buildStatusItem('Rejected', widget.company.isRejected, Colors.red, Icons.thumb_down),
-      _buildStatusItem('Blocked', widget.company.isBlocked, Colors.red, Icons.block),
-      _buildStatusItem('Suspended', widget.company.isSuspended, Colors.orange, Icons.pause_circle),
-      _buildStatusItem('Banned', widget.company.isBanned, Colors.red, Icons.do_not_disturb),
-      _buildStatusItem('Muted', widget.company.isMuted, Colors.orange, Icons.volume_off),
+      _buildStatusItem(
+        'Active',
+        widget.company.isActive,
+        Colors.green,
+        Icons.check_circle,
+      ),
+      _buildStatusItem(
+        'Verified',
+        widget.company.isVerified,
+        Colors.blue,
+        Icons.verified,
+      ),
+      _buildStatusItem(
+        'Approved',
+        widget.company.isApproved,
+        Colors.green,
+        Icons.thumb_up,
+      ),
+      _buildStatusItem(
+        'Pending',
+        widget.company.isPending,
+        Colors.orange,
+        Icons.pending,
+      ),
+      _buildStatusItem(
+        'Rejected',
+        widget.company.isRejected,
+        Colors.red,
+        Icons.thumb_down,
+      ),
+      _buildStatusItem(
+        'Blocked',
+        widget.company.isBlocked,
+        Colors.red,
+        Icons.block,
+      ),
+      _buildStatusItem(
+        'Suspended',
+        widget.company.isSuspended,
+        Colors.orange,
+        Icons.pause_circle,
+      ),
+      _buildStatusItem(
+        'Banned',
+        widget.company.isBanned,
+        Colors.red,
+        Icons.do_not_disturb,
+      ),
+      _buildStatusItem(
+        'Muted',
+        widget.company.isMuted,
+        Colors.orange,
+        Icons.volume_off,
+      ),
     ];
 
     return GridView.count(
@@ -1302,7 +1431,12 @@ const SizedBox(height: 20),
     );
   }
 
-  Widget _buildStatusItem(String label, bool isActive, Color color, IconData icon) {
+  Widget _buildStatusItem(
+    String label,
+    bool isActive,
+    Color color,
+    IconData icon,
+  ) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -1314,11 +1448,7 @@ const SizedBox(height: 20),
       ),
       child: Row(
         children: [
-          Icon(
-            icon,
-            size: 18,
-            color: isActive ? color : Colors.grey,
-          ),
+          Icon(icon, size: 18, color: isActive ? color : Colors.grey),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -1370,11 +1500,11 @@ const SizedBox(height: 20),
                   child: const Icon(Icons.insert_drive_file, size: 20),
                 ),
                 title: Text(
-                  'Document ${index + 1}: ${_truncateText(fileName??"not specified", 30)}',
+                  'Document ${index + 1}: ${_truncateText(fileName ?? "not specified", 30)}',
                   style: theme.textTheme.bodyMedium,
                 ),
                 subtitle: Text(
-                  _truncateText(url.fileName??url.downloadUrl??"", 40),
+                  _truncateText(url.fileName ?? url.downloadUrl ?? "", 40),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
@@ -1401,7 +1531,6 @@ const SizedBox(height: 20),
     return '${text.substring(0, maxLength)}...';
   }
 
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -1414,9 +1543,7 @@ const SizedBox(height: 20),
               expandedHeight: 230,
               floating: false,
               pinned: true,
-              flexibleSpace: FlexibleSpaceBar(
-                background: _buildHeader(theme),
-              ),
+              flexibleSpace: FlexibleSpaceBar(background: _buildHeader(theme)),
               actions: [
                 IconButton(
                   icon: const Icon(Icons.settings),
@@ -1427,13 +1554,9 @@ const SizedBox(height: 20),
                 ),
               ],
             ),
-            SliverToBoxAdapter(
-              child: _buildActionButtons(theme),
-            ),
+            SliverToBoxAdapter(child: _buildActionButtons(theme)),
             SliverPersistentHeader(
-              delegate: _SliverAppBarDelegate(
-                child: _buildTabBar(theme),
-              ),
+              delegate: _SliverAppBarDelegate(child: _buildTabBar(theme)),
               pinned: true,
             ),
           ];
@@ -1441,11 +1564,11 @@ const SizedBox(height: 20),
         body: TabBarView(
           controller: _tabController,
           children: [
-            _buildDashboardTab(theme),      // Index 0
-            _buildProfileInfoTab(theme),    // Index 1 - NEW
-            _buildTraineesTab(theme),       // Index 2
-            _buildAnalyticsTab(theme),      // Index 3
-            _buildSettingsTab(theme),       // Index 4
+            _buildDashboardTab(theme), // Index 0
+            _buildProfileInfoTab(theme), // Index 1 - NEW
+            _buildTraineesTab(theme), // Index 2
+            _buildAnalyticsTab(theme), // Index 3
+            _buildSettingsTab(theme), // Index 4
           ],
         ),
       ),
@@ -1464,8 +1587,15 @@ class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
   _SliverAppBarDelegate({required this.child});
 
   @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return Container(color: Theme.of(context).colorScheme.background, child: child);
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return Container(
+      color: Theme.of(context).colorScheme.background,
+      child: child,
+    );
   }
 
   @override

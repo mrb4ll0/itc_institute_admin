@@ -323,6 +323,39 @@ class TraineeRecord {
     return copyWith(evaluations: newEvaluations);
   }
 
+  @override
+  String toString() {
+    return 'TraineeRecord('
+        'id: $id, '
+        'student: $studentName ($studentId), '
+        'company: $companyName ($companyId), '
+        'status: ${status.displayName}, '
+        'progress: ${progress.toStringAsFixed(1)}%, '
+        '${startDate != null ? "planned: ${_formatShortDate(startDate)}" : ""}'
+        '${startDate != null && endDate != null ? " - ${_formatShortDate(endDate)}" : ""}'
+        '${actualStartDate != null ? ", started: ${_formatShortDate(actualStartDate)}" : ""}'
+        '${actualEndDate != null ? ", ended: ${_formatShortDate(actualEndDate)}" : ""}'
+        '${durationInDays != null ? ", duration: $durationInDays days" : ""}'
+        '${isActive && daysRemaining != null ? ", $daysRemaining days left" : ""}'
+        ', supervisors: ${supervisorIds.length}'
+        ', milestones: ${milestones.length}'
+        ', evaluations: ${evaluations.length}'
+        ', department: $department'
+        ', role: $role'
+        ', createdAt: ${_formatDateTime(createdAt)}'
+        ', updatedAt: ${_formatDateTime(updatedAt)}'
+        ')';
+  }
+
+// Helper method for consistent date formatting in toString
+  String _formatShortDate(DateTime? date) {
+    if (date == null) return '';
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
+
+  String _formatDateTime(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  }
 
 }
 
@@ -419,5 +452,16 @@ extension TraineeDateStatus on TraineeRecord {
   String _formatDate(DateTime? date) {
     if (date == null) return 'unknown date';
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
+
+
+// Helper method for consistent date formatting in toString
+  String _formatShortDate(DateTime? date) {
+    if (date == null) return '';
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
+
+  String _formatDateTime(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
 }

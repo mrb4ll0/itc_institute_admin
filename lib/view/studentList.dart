@@ -437,6 +437,8 @@ class _StudentListPageState extends State<StudentListPage>
       separatorBuilder: (context, index) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final trainee = trainees[index];
+        debugPrint("trainee record is ${trainee.toString()}");
+
         return TraineeCard(
           onDoubleTab: ()
           {
