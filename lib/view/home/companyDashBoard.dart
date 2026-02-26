@@ -310,7 +310,7 @@ class _CompanydashboardState extends State<Companydashboard>
                       Align(
                         alignment: Alignment.centerRight,
                         child: TextButton(onPressed: (){
-                          GeneralMethods.navigateTo(context, RecentActionsFullPage(companyId: _company?.id??"",companyName: _company?.name??"",));
+                          GeneralMethods.navigateTo(context, RecentActionsFullPage(isAuthority:widget.isAuthority,companyId: _company?.id??"",companyName: _company?.name??"",));
                         }, child: Text("See All",style: TextStyle(color: Colors.blue),)),
                       )
                     ],

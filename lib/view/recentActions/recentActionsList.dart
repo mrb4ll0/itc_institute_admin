@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:firestore_lazy_loading_totalxsoftware/firestore_lazy_loading_totalxsoftware.dart';
 import 'package:intl/intl.dart';
@@ -10,11 +11,13 @@ import '../../model/RecentActions.dart';
 class RecentActionsFullPage extends StatefulWidget {
   final String companyId;
   final String companyName;
+  final bool isAuthority;
 
   const RecentActionsFullPage({
     super.key,
     required this.companyId,
     required this.companyName,
+    required this.isAuthority,
   });
 
   @override
@@ -42,9 +45,9 @@ class _RecentActionsFullPageState extends State<RecentActionsFullPage> {
   void _initData() {
     _lazyLoading.fetchInitData(
       context,
-      query: FirebaseFirestore.instance.collection("users").doc("companies")
-          .collection('companies')
-          .doc(widget.companyId)
+      query: FirebaseFirestore.instance.collection("users").doc(widget.isAuthority?"authorities":"companies")
+          .collection(widget.isAuthority?"authorities":"companies")
+          .doc(FirebaseAuth.instance.currentUser!.uid)
           .collection('recentActions')
           .orderBy('timestamp', descending: true),
       limit: 10,

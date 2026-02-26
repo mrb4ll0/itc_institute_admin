@@ -869,7 +869,7 @@ class Company_Cloud {
           fromUpdateStatus: true,
           status: status.toLowerCase());
     }
-    await actionLogger.logAction(action, companyId: companyId,isAuthority:isAuthority);
+    await actionLogger.logAction(action, companyId: globalUserId,isAuthority:isAuthority);
   }
 
   // In Company_Cloud class - Add this method
@@ -943,7 +943,7 @@ class Company_Cloud {
         await incrementInternshipApplicationCount(companyId, internshipId,isAuthority: isAuthority);
       }
 
-      await actionLogger.logAction(action, companyId: companyId,isAuthority:isAuthority);
+      await actionLogger.logAction(action, companyId: globalUserId,isAuthority:isAuthority);
 
     } catch (e, stackTrace) {
       debugPrint('Error updating application status by IDs: $e');

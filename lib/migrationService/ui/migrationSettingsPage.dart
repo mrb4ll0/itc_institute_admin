@@ -82,9 +82,9 @@ class MigrationSettingsPage extends StatefulWidget {
 
 class _MigrationSettingsPageState extends State<MigrationSettingsPage> with TickerProviderStateMixin {
   MigrationTrigger _selectedTrigger = MigrationTrigger.firstDailyLaunch;
-  bool _migrateOnWifiOnly = true;
+  bool _migrateOnWifiOnly = false;
   bool _migrateWhileCharging = false;
-  bool _showNotifications = true;
+  bool _showNotifications = false;
   TimeOfDay? _scheduledTime = const TimeOfDay(hour: 2, minute: 0); // 2 AM default
   int _selectedDay = DateTime.monday;
 
@@ -281,7 +281,6 @@ class _MigrationSettingsPageState extends State<MigrationSettingsPage> with Tick
             if(trigger == MigrationTrigger.scheduled){
               _selectTime();
             }
-
             // Haptic feedback
             HapticFeedback.selectionClick();
           },
@@ -456,6 +455,7 @@ class _MigrationSettingsPageState extends State<MigrationSettingsPage> with Tick
 
             // WiFi only
             SwitchListTile(
+
               title: const Text('WiFi Only'),
               subtitle: const Text('Only migrate when connected to WiFi'),
               value: _migrateOnWifiOnly,
@@ -467,7 +467,7 @@ class _MigrationSettingsPageState extends State<MigrationSettingsPage> with Tick
                 ),
                 child: const Icon(Icons.wifi, color: Colors.blue),
               ),
-              onChanged: (value) {
+              onChanged: true?null:  (value) {
                 setState(() {
                   _migrateOnWifiOnly = value;
                 });
@@ -487,7 +487,7 @@ class _MigrationSettingsPageState extends State<MigrationSettingsPage> with Tick
                 ),
                 child: const Icon(Icons.battery_charging_full, color: Colors.green),
               ),
-              onChanged: (value) {
+              onChanged: true?null:  (value) {
                 setState(() {
                   _migrateWhileCharging = value;
                 });
@@ -507,7 +507,7 @@ class _MigrationSettingsPageState extends State<MigrationSettingsPage> with Tick
                 ),
                 child: const Icon(Icons.notifications, color: Colors.orange),
               ),
-              onChanged: (value) {
+              onChanged: true?null:  (value) {
                 setState(() {
                   _showNotifications = value;
                 });
