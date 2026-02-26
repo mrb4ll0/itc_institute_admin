@@ -13,6 +13,7 @@ import 'package:itc_institute_admin/view/authorityRule/authorityRule.dart';
 import 'package:itc_institute_admin/view/company/myProfile.dart';
 import 'package:itc_institute_admin/view/home/LinkedCompaniesScreen.dart';
 import 'package:itc_institute_admin/view/home/chatListPage.dart';
+import 'package:itc_institute_admin/view/home/companyAuthority/myAuthority.dart';
 import 'package:itc_institute_admin/view/home/companyDashBoard.dart';
 import 'package:itc_institute_admin/view/home/studentApplicationPage.dart';
 import 'package:itc_institute_admin/view/home/themePage.dart';
@@ -311,6 +312,21 @@ class _CompanyDashboardControllerState
           ),
           _buildDrawerItem(icon: Icons.nightlight, text: 'Theme', onTap: () {
             GeneralMethods.navigateTo(context,ThemeSettingsPage());
+          }),
+          if(company.isUnderAuthority)_buildDrawerItem(icon: Icons.admin_panel_settings_sharp, text: 'Authority', onTap: () async
+          {
+            if(company == null)
+              {
+                Fluttertoast.showToast(msg: "Authority not found , kindly logout and login or link your Account to authority");
+                return;
+              }
+             Authority? authority = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid).getAuthority(company.authorityId??"");
+              if(authority == null)
+                {
+                  Fluttertoast.showToast(msg: "INTERNAL ERROR: Authority not found");
+                  return;
+                }
+            GeneralMethods.navigateTo(context,AuthorityPage(authority: authority, isCompanyLinked: company.isUnderAuthority,));
           }),
           widget.tweetCompany.originalAuthority != null?Container():
           _buildDrawerItem(

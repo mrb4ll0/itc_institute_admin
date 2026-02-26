@@ -37,14 +37,14 @@ class _AboutITConnectPageState extends State<AboutITConnectPage> {
   }
 
   void _launchPrivacyPolicy() async {
-    const url = 'https://itconnect.space/privacy';
+    const url = 'https://www.itconnect.space/Privacy.html';
     if (await canLaunchUrl(Uri.parse(url))) {
       await launchUrl(Uri.parse(url));
     }
   }
 
   void _launchTermsOfService() async {
-    const url = 'https://itconnect.space/terms';
+    const url = 'https://www.itconnect.space/termsAndService.html';
     if (await canLaunchUrl(Uri.parse(url))) {
       await launchUrl(Uri.parse(url));
     }
