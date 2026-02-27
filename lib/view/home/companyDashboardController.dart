@@ -12,6 +12,7 @@ import 'package:itc_institute_admin/view/acceptanceLetter.dart';
 import 'package:itc_institute_admin/view/authorityRule/authorityRule.dart';
 import 'package:itc_institute_admin/view/company/myProfile.dart';
 import 'package:itc_institute_admin/view/home/LinkedCompaniesScreen.dart';
+import 'package:itc_institute_admin/view/home/chat/chartPage.dart';
 import 'package:itc_institute_admin/view/home/chatListPage.dart';
 import 'package:itc_institute_admin/view/home/companyAuthority/myAuthority.dart';
 import 'package:itc_institute_admin/view/home/companyDashBoard.dart';
@@ -326,7 +327,17 @@ class _CompanyDashboardControllerState
                   Fluttertoast.showToast(msg: "INTERNAL ERROR: Authority not found");
                   return;
                 }
-            GeneralMethods.navigateTo(context,AuthorityPage(authority: authority, isCompanyLinked: company.isUnderAuthority,));
+            GeneralMethods.navigateTo(context,AuthorityPage(authority: authority, isCompanyLinked: company.isUnderAuthority,
+            onChatPressed: ()
+              {
+                GeneralMethods.navigateTo(context, ChatDetailsPage(
+                  receiverAvatarUrl: authority.logoURL??"",
+                  receiverName: authority.name,
+                  receiverId: authority.id,
+                  receiverRole: "Authority",
+                  receiverData: authority,
+                ));
+              },));
           }),
           widget.tweetCompany.originalAuthority != null?Container():
           _buildDrawerItem(

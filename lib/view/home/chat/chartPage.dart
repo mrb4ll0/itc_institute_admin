@@ -1346,9 +1346,23 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
                               color: theme.colorScheme.onSurfaceVariant,
                             ),
                           );
-                        } else {
+                        } else if(widget.receiverRole == 'company') {
                           return Text(
                             'Company',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          );
+                        }else  if(widget.receiverRole == 'Authority' || widget.receiverRole == 'authority'){
+                          return Text(
+                            'Authority',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          );
+                        }else {
+                          return Text(
+                            'Role Not Specified',
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant,
                             ),
