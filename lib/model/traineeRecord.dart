@@ -393,7 +393,7 @@ extension TraineeDateStatus on TraineeRecord {
         return TraineeStatus.accepted;
       } else {
         // Start date passed but not started
-        return TraineeStatus.accepted;
+        return TraineeStatus.active;
       }
     }
 

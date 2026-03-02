@@ -67,9 +67,6 @@ class MigrationService {
   Company? _company;
   Future<void> startMigration() async {
 
-
-
-
     final taskId = BackgroundTaskRegistry.registerTask(
       type: 'migration',
       metadata: {'startedBy': globalUserId},
@@ -167,26 +164,22 @@ class MigrationService {
         continue;
       }
       // delete the trainee for the currentStudent
-      int totalTrainee = await traineeService.deleteTraineesByStudentAndCompany(
+      Map<String, dynamic> result = await traineeService.deleteTraineesByStudentAndCompany(
         studentId: student.student.uid,
         companyId: companyId,
+        applicationId: student.latestApplication?.id  ??"",
+        status: student.latestApplication?.applicationStatus??"",
       );
-      debugPrint("total trainee deleted $totalTrainee");
-        Company? company = await itcFirebaseLogic.getCompany(companyId);
-      TraineeRecord? record = await traineeService.createTraineeFromApplication(
-        application: student.latestApplication!,
-        companyId: companyId,
-        companyName: company?.name?? "NOT SPECIFIED",
-        fromUpdateStatus: true,
-        isAuthority: isAuthority,
-      );
-
-      debugPrint("migration completed for student ${student.student.fullName}");
+      debugPrint("action ${result["action"]} and deletedCount ${result["deletedCount"]} and message ${result["message"]}");
+        TraineeRecord? record = result["trainee"];
       if (record == null) {
         debugPrint("record is null after the migration");
         return;
       }
       debugPrint("Started status check and update");
+
+      debugPrint("record.calculatedStatusFromDates is ${record.calculatedStatusFromDates.name}");
+      debugPrint("record data is ${record.toMap()}");
 
       bool statusUpdated = await traineeService.updateTraineeStatus(
         traineeId: record.id,

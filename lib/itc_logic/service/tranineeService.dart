@@ -1801,12 +1801,16 @@ class TraineeService {
 
   /// Delete trainee records where the document ID contains studentId_companyId pattern
   /// Returns the number of deleted records
-  Future<int> deleteTraineesByStudentAndCompany({
+  Future<Map<String, dynamic>> deleteTraineesByStudentAndCompany({
     required String studentId,
     required String companyId,
+    required String applicationId,
+    required String status,
+    StudentApplication? application, // Add optional application for creating new record
+    bool isAuthority = false, // Add isAuthority parameter
   }) async {
     try {
-      debugPrint('Attempting to delete trainee records for student: $studentId, company: $companyId');
+      debugPrint('Attempting to delete trainee records for student: $studentId, company: $companyId, applicationId: $applicationId, status: $status');
 
       // Create the pattern to search for in document IDs
       final searchPattern = '${studentId}_${companyId}';
@@ -1819,7 +1823,32 @@ class TraineeService {
 
       if (querySnapshot.docs.isEmpty) {
         debugPrint('No trainee records found with pattern: $searchPattern');
-        return 0;
+
+        // If no record exists and we have application data, create a new one
+        if (application != null) {
+          debugPrint('No existing record found. Creating new trainee record.');
+          final newTrainee = await createTraineeFromApplication(
+            application: application,
+            companyId: companyId,
+            companyName: application.internship.company.name,
+            status: status,
+            isAuthority: isAuthority,
+          );
+
+          if (newTrainee != null) {
+            return {
+              'action': 'created',
+              'trainee': newTrainee,
+              'message': 'New trainee record created'
+            };
+          }
+        }
+
+        return {
+          'action': 'none',
+          'trainee': null,
+          'message': 'No records found and no application provided for creation'
+        };
       }
 
       debugPrint('Found ${querySnapshot.docs.length} potential trainee records');
@@ -1831,35 +1860,206 @@ class TraineeService {
 
       if (matchingDocs.isEmpty) {
         debugPrint('No exact matches found after filtering');
-        return 0;
+
+        // If no exact match but we have application data, create a new one
+        if (application != null) {
+          debugPrint('No exact match found. Creating new trainee record.');
+          final newTrainee = await createTraineeFromApplication(
+            application: application,
+            companyId: companyId,
+            companyName: application.internship.company.name,
+            status: status,
+            isAuthority: isAuthority,
+          );
+
+          if (newTrainee != null) {
+            return {
+              'action': 'created',
+              'trainee': newTrainee,
+              'message': 'New trainee record created'
+            };
+          }
+        }
+
+        return {
+          'action': 'none',
+          'trainee': null,
+          'message': 'No exact matches found and no application provided for creation'
+        };
       }
 
-      debugPrint('Found ${matchingDocs.length} exact matching trainee records to delete');
+      debugPrint('Found ${matchingDocs.length} exact matching trainee records');
 
-      // Delete the documents
-      final batch = _firestore.batch();
-      for (final doc in matchingDocs) {
-        debugPrint('Deleting trainee record: ${doc.id}');
+      // CASE 1: More than one match - delete ALL matching documents
+      if (matchingDocs.length > 1) {
+        debugPrint('More than one match found (${matchingDocs.length}). Deleting ALL matching records.');
+
+        // Delete all matching documents
+        final batch = _firestore.batch();
+        final List<String> deletedIds = [];
+
+        for (final doc in matchingDocs) {
+          final data = doc.data() as Map<String, dynamic>;
+          final trainee = TraineeRecord.fromFirestore(data, doc.id);
+
+          debugPrint('Deleting trainee record - ID: ${doc.id}, ApplicationID: ${trainee.applicationId}, Status: ${trainee.status}');
+          batch.delete(doc.reference);
+          deletedIds.add(doc.id);
+        }
+
+        await batch.commit();
+        debugPrint('Successfully deleted ${matchingDocs.length} trainee records');
+
+        // Clean up company lists
+        await _removeFromCompanyLists(
+          companyId: companyId,
+          studentId: studentId,
+          deletedDocIds: deletedIds,
+        );
+
+        // After cleanup, create new trainee if application provided
+        if (application != null) {
+          debugPrint('Creating new trainee record after cleanup.');
+          final newTrainee = await createTraineeFromApplication(
+            application: application,
+            companyId: companyId,
+            companyName: application.internship.company.name,
+            status: status,
+            isAuthority: isAuthority,
+          );
+
+          if (newTrainee != null) {
+            return {
+              'action': 'deleted_and_created',
+              'deletedCount': matchingDocs.length,
+              'trainee': newTrainee,
+              'message': 'Deleted ${matchingDocs.length} duplicate records and created new one'
+            };
+          }
+        }
+
+        return {
+          'action': 'deleted',
+          'deletedCount': matchingDocs.length,
+          'trainee': null,
+          'message': 'Deleted ${matchingDocs.length} duplicate records'
+        };
+      }
+
+      // CASE 2: Exactly one match found
+      final doc = matchingDocs.first;
+      final data = doc.data() as Map<String, dynamic>;
+      final trainee = TraineeRecord.fromFirestore(data, doc.id);
+
+      debugPrint('Single trainee record found - ApplicationID: ${trainee.applicationId}, Current Status: ${trainee.status}, Provided Status: $status');
+
+      // Check if the applicationId matches
+      if (trainee.applicationId != applicationId) {
+        debugPrint('Application ID mismatch. Trainee applicationId: ${trainee.applicationId}, Given applicationId: $applicationId. DELETING record due to mismatch.');
+
+        // Delete the document since applicationId doesn't match
+        final batch = _firestore.batch();
         batch.delete(doc.reference);
+        await batch.commit();
+
+        debugPrint('Successfully deleted trainee record due to applicationId mismatch: ${doc.id}');
+
+        // Clean up company lists
+        await _removeFromCompanyLists(
+          companyId: companyId,
+          studentId: studentId,
+          deletedDocIds: [doc.id],
+        );
+
+        // Create new trainee if application provided
+        if (application != null) {
+          debugPrint('Creating new trainee record after deletion.');
+          final newTrainee = await createTraineeFromApplication(
+            application: application,
+            companyId: companyId,
+            companyName: application.internship.company.name,
+            status: status,
+            isAuthority: isAuthority,
+          );
+
+          if (newTrainee != null) {
+            return {
+              'action': 'deleted_and_created',
+              'deletedCount': 1,
+              'trainee': newTrainee,
+              'message': 'Deleted record with wrong applicationId and created new one'
+            };
+          }
+        }
+
+        return {
+          'action': 'deleted',
+          'deletedCount': 1,
+          'trainee': null,
+          'message': 'Deleted record with wrong applicationId'
+        };
       }
 
-      await batch.commit();
-      debugPrint('Successfully deleted ${matchingDocs.length} trainee records');
+      // ApplicationId matches, now check if status is the same
+      final currentStatus = trainee.status?.name ?? '';
+      if (currentStatus.toLowerCase() == status.toLowerCase()) {
+        debugPrint('ApplicationId matches and status is the same ($status). No changes needed.');
 
-      // Also clean up company lists if needed
-      await _removeFromCompanyLists(
-        companyId: companyId,
-        studentId: studentId,
-        deletedDocIds: matchingDocs.map((doc) => doc.id).toList(),
+        // Return the existing trainee record
+        return {
+          'action': 'none',
+          'trainee': trainee,
+          'message': 'Record already exists with correct applicationId and status'
+        };
+      }
+
+      // ApplicationId matches but status is different - update the status instead of deleting
+      debugPrint('ApplicationId matches but status is different (Current: $currentStatus, Provided: $status). Updating status.');
+
+      // Update the trainee status
+      final updated = await updateTraineeStatus(
+        traineeId: trainee.id,
+        newStatus: switchStatus(status),
+        reason: 'Status updated from $currentStatus to $status',
       );
 
-      return matchingDocs.length;
+      if (updated) {
+        // Fetch the updated trainee record
+        final updatedDoc = await _traineesRef.doc(trainee.id).get();
+        if (updatedDoc.exists) {
+          final updatedTrainee = TraineeRecord.fromFirestore(
+            updatedDoc.data() as Map<String, dynamic>,
+            updatedDoc.id,
+          );
+
+          debugPrint('Successfully updated trainee status: ${trainee.id}');
+
+          return {
+            'action': 'updated',
+            'trainee': updatedTrainee,
+            'message': 'Updated status from $currentStatus to $status'
+          };
+        }
+      }
+
+      // If update failed, return the original trainee
+      return {
+        'action': 'none',
+        'trainee': trainee,
+        'message': 'Failed to update status'
+      };
+
     } catch (e, stackTrace) {
-      debugPrint('Error deleting trainee records: $e');
+      debugPrint('Error in deleteTraineesByStudentAndCompany: $e');
       debugPrintStack(stackTrace: stackTrace);
-      return 0;
+      return {
+        'action': 'error',
+        'trainee': null,
+        'message': 'Error occurred: $e'
+      };
     }
   }
+
 
   /// Alternative version that uses a more flexible pattern matching
   Future<int> deleteTraineesByStudentAndCompanyFlexible({

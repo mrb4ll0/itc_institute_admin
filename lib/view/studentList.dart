@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:intl/intl.dart';
 import 'package:itc_institute_admin/backgroundTask/backgroundTask.dart';
 import 'package:itc_institute_admin/backgroundTask/backgroundTaskRegistry.dart';
@@ -12,6 +13,7 @@ import 'package:itc_institute_admin/itc_logic/firebase/company_cloud.dart';
 import 'package:itc_institute_admin/model/student.dart';
 import 'package:itc_institute_admin/model/company.dart';
 import 'package:itc_institute_admin/model/traineeRecord.dart';
+import 'package:itc_institute_admin/view/home/student/studentDetails.dart';
 import '../itc_logic/firebase/general_cloud.dart';
 import '../itc_logic/service/tranineeService.dart';
 import '../migrationService/migrationService.dart';
@@ -29,7 +31,7 @@ class StudentListPage extends StatefulWidget {
 }
 
 class _StudentListPageState extends State<StudentListPage>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late TabController _tabController;
   late final TraineeService _traineeService;
   final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
@@ -498,107 +500,100 @@ class _StudentListPageState extends State<StudentListPage>
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF101622) : const Color(0xFFf6f6f8),
-      appBar: AppBar(
-        title: Text('Trainee Management - ${widget.company.name}'),
-        backgroundColor: isDark ? const Color(0xFF1a2232) : Colors.white,
-        elevation: 0,
-        bottom: TabBar(
-          controller: _tabController,
-          isScrollable: true, // Added because we have more tabs
-          tabs: [
-            for (int i = 0; i < 5; i++)
-              Tab(
-                icon: Icon(_tabIcons[i]),
-                text: _tabLabels[i],
-              ),
-          ],
-          indicatorColor: Colors.blue,
-          labelColor: Colors.blue,
-          unselectedLabelColor: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadTrainees,
-            tooltip: 'Refresh',
-          ),
-
-          MigrationStatusIcon(
-            onRefresh: startMigration,
-          ),
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'stats') {
-                _showStatistics();
-              } else if (value == 'export') {
-                _exportData();
-              } else if (value == 'sync') {
-                _syncWithApplication();
-              }
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'stats',
-                child: Row(
-                  children: [
-                    Icon(Icons.analytics, size: 20),
-                    SizedBox(width: 8),
-                    Text('View Statistics'),
-                  ],
+    return DefaultTabController(
+      length: 5,
+      child: Scaffold(
+        backgroundColor: isDark ? const Color(0xFF101622) : const Color(0xFFf6f6f8),
+        appBar: AppBar(
+          title: Text('Trainee Management - ${widget.company.name}'),
+          backgroundColor: isDark ? const Color(0xFF1a2232) : Colors.white,
+          elevation: 0,
+          bottom: TabBar(
+            controller: _tabController,
+            isScrollable: true, // Added because we have more tabs
+            tabs: [
+              for (int i = 0; i < 5; i++)
+                Tab(
+                  icon: Icon(_tabIcons[i]),
+                  text: _tabLabels[i],
                 ),
-              ),
-              const PopupMenuItem(
-                value: 'export',
-                child: Row(
-                  children: [
-                    Icon(Icons.download, size: 20),
-                    SizedBox(width: 8),
-                    Text('Export Data'),
-                  ],
-                ),
-              ),
-const PopupMenuItem(
-                value: 'sync',
-                child: Row(
-                  children: [
-                    Icon(Icons.download, size: 20),
-                    SizedBox(width: 8),
-                    Text('Sync with application'),
-                  ],
-                ),
-              ),
             ],
+            indicatorColor: Colors.blue,
+            labelColor: Colors.blue,
+            unselectedLabelColor: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
           ),
-        ],
-      ),
-      body: _isLoading
-          ? _buildLoadingState()
-          : _error.isNotEmpty
-          ? _buildErrorState()
-          : Column(
-        children: [
-          // Stats for current tab
-          _buildTabStats(_tabController.index),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: _loadTrainees,
+              tooltip: 'Refresh',
+            ),
 
-          // Search bar for current tab
-          _buildSearchBar(_tabController.index),
-
-          // Trainee list for current tab
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                for (int i = 0; i < 5; i++)
-                  RefreshIndicator(
-                    onRefresh: _loadTrainees,
-                    child: _buildTabContent(i),
+            MigrationStatusIcon(
+              onRefresh: startMigration,
+            ),
+            PopupMenuButton<String>(
+              onSelected: (value) {
+                if (value == 'stats') {
+                  _showStatistics();
+                } else if (value == 'export') {
+                  _exportData();
+                } else if (value == 'sync') {
+                  _syncWithApplication();
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'stats',
+                  child: Row(
+                    children: [
+                      Icon(Icons.analytics, size: 20),
+                      SizedBox(width: 8),
+                      Text('View Statistics'),
+                    ],
                   ),
+                ),
+                const PopupMenuItem(
+                  value: 'export',
+                  child: Row(
+                    children: [
+                      Icon(Icons.download, size: 20),
+                      SizedBox(width: 8),
+                      Text('Export Data'),
+                    ],
+                  ),
+                ),
               ],
             ),
-          ),
-        ],
+          ],
+        ),
+        body: _isLoading
+            ? _buildLoadingState()
+            : _error.isNotEmpty
+            ? _buildErrorState()
+            : Column(
+          children: [
+            // Stats for current tab
+            _buildTabStats(_tabController.index),
+
+            // Search bar for current tab
+            _buildSearchBar(_tabController.index),
+
+            // Trainee list for current tab
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  for (int i = 0; i < 5; i++)
+                    RefreshIndicator(
+                      onRefresh: _loadTrainees,
+                      child: _buildTabContent(i),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1010,14 +1005,26 @@ class TraineeCard extends StatelessWidget {
                           Row(
                             children: [
                               Expanded(
-                                child: Text(
-                                  trainee.studentName,
-                                  style: theme.textTheme.titleLarge?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: isDark ? Colors.white : theme.colorScheme.onSurface,
+                                child: InkWell(
+                                  onTap: () async
+                                  {
+                                    Student? student = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid).getStudent(trainee.studentId);
+                                      if(student == null)
+                                        {
+                                          Fluttertoast.showToast(msg: "Student Record not found");
+                                          return;
+                                        }
+                                    GeneralMethods.navigateTo(context,StudentProfilePage(student: student));
+                                  },
+                                  child: Text(
+                                    trainee.studentName,
+                                    style: theme.textTheme.titleLarge?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: isDark ? Colors.white : theme.colorScheme.onSurface,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                               Container(
@@ -1235,11 +1242,7 @@ class TraineeCard extends StatelessWidget {
                 if (_getActionButtons().isNotEmpty) ...[
                   const SizedBox(height: 16),
                   Row(
-                    children: _getActionButtons().map((button) {
-                      return Expanded(
-                        child: button,
-                      );
-                    }).toList(),
+                    children: _getActionButtons(),
                   ),
                 ],
 
@@ -1343,6 +1346,9 @@ class TraineeCard extends StatelessWidget {
             child: OutlinedButton(
               onPressed: () {
                 // View progress or other action
+                Fluttertoast.showToast(
+                  msg: 'Progress Record not available',
+                  toastLength: Toast.LENGTH_SHORT);
               },
               style: OutlinedButton.styleFrom(
                 foregroundColor: Colors.blue,
@@ -1605,76 +1611,88 @@ class _TraineeDetailDialogState extends State<TraineeDetailDialog> {
 
                       // Name and Status
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              trainee.studentName,
-                              style: theme.textTheme.headlineSmall?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                shadows: [
-                                  Shadow(
-                                    color: Colors.black.withOpacity(0.3),
-                                    offset: const Offset(0, 2),
-                                    blurRadius: 4,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            if (_loadingStudent)
-                              Container(
-                                width: 120,
-                                height: 16,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.3),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: const ShimmerLoading(
-                                  child: SizedBox.expand(),
-                                ),
-                              )
-                            else if (_student?.email != null)
+                        child: InkWell(
+                          onTap: ()async
+                          {
+                            Student? student = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid).getStudent(trainee.studentId);
+                            if(student == null)
+                            {
+                              Fluttertoast.showToast(msg: "Student Record not found");
+                              return;
+                            }
+                            GeneralMethods.navigateTo(context,StudentProfilePage(student: student));
+                          },
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
                               Text(
-                                _student!.email,
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: Colors.white70,
+                                trainee.studentName,
+                                style: theme.textTheme.headlineSmall?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  shadows: [
+                                    Shadow(
+                                      color: Colors.black.withOpacity(0.3),
+                                      offset: const Offset(0, 2),
+                                      blurRadius: 4,
+                                    ),
+                                  ],
                                 ),
                               ),
-                            const SizedBox(height: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(30),
-                                border: Border.all(
-                                  color: Colors.white.withOpacity(0.3),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    trainee.status.icon,
-                                    size: 16,
-                                    color: Colors.white,
+                              const SizedBox(height: 4),
+                              if (_loadingStudent)
+                                Container(
+                                  width: 120,
+                                  height: 16,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.3),
+                                    borderRadius: BorderRadius.circular(4),
                                   ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    trainee.status.displayName,
-                                    style: theme.textTheme.labelMedium?.copyWith(
-                                      fontWeight: FontWeight.w600,
+                                  child: const ShimmerLoading(
+                                    child: SizedBox.expand(),
+                                  ),
+                                )
+                              else if (_student?.email != null)
+                                Text(
+                                  _student!.email,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: Colors.white70,
+                                  ),
+                                ),
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(30),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.3),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      trainee.status.icon,
+                                      size: 16,
                                       color: Colors.white,
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      trainee.status.displayName,
+                                      style: theme.textTheme.labelMedium?.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ],
@@ -2554,7 +2572,7 @@ class ShimmerLoading extends StatefulWidget {
 }
 
 class _ShimmerLoadingState extends State<ShimmerLoading>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation;
 
