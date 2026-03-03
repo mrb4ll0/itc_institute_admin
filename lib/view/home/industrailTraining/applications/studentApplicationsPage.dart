@@ -765,7 +765,7 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header
+              // Header with Status
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -810,6 +810,102 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
 
               SizedBox(height: 12),
 
+              // 🏢 COMPANY SECTION - Newly Added
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: colorScheme.primary.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: colorScheme.primary.withOpacity(0.2),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    // Company Logo/Avatar
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: colorScheme.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Center(
+                        child: Text(
+                          application.internship.company.name[0] ?? 'C',
+                          style: textTheme.titleLarge?.copyWith(
+                            color: colorScheme.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: 12),
+
+                    // Company Details
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Submitted to',
+                            style: textTheme.labelSmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          Text(
+                            application.internship.company.name ??
+                                'Unknown Company',
+                            style: textTheme.bodyLarge?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                          if (application.internship.company.industry != null)
+                            Text(
+                              application.internship.company.industry,
+                              style: textTheme.labelSmall?.copyWith(
+                                color: colorScheme.primary,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+
+                    // Rating if available
+                    // if (application.internship.company != null)
+                    //   Container(
+                    //     padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    //     decoration: BoxDecoration(
+                    //       color: Colors.amber.withOpacity(0.1),
+                    //       borderRadius: BorderRadius.circular(20),
+                    //     ),
+                    //     child: Row(
+                    //       children: [
+                    //         Icon(
+                    //           Icons.star,
+                    //           size: 14,
+                    //           color: Colors.amber,
+                    //         ),
+                    //         SizedBox(width: 2),
+                    //         Text(
+                    //           application.internship.industryPartner!.rating!.toString(),
+                    //           style: textTheme.labelSmall?.copyWith(
+                    //             fontWeight: FontWeight.bold,
+                    //             color: Colors.amber[800],
+                    //           ),
+                    //         ),
+                    //       ],
+                    //     ),
+                    //   ),
+                  ],
+                ),
+              ),
+
+              SizedBox(height: 12),
+
               // Description
               if (application.internship.description != null &&
                   application.internship.description!.isNotEmpty)
@@ -818,7 +914,7 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
                   style: textTheme.bodyMedium?.copyWith(
                     color: theme.hintColor,
                   ),
-                  maxLines: 3,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
 
@@ -846,12 +942,23 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: Colors.green.shade100),
                       ),
-                      child: Text(
-                        application.internship.stipend!,
-                        style: textTheme.labelSmall?.copyWith(
-                          color: Colors.green.shade800,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.money,
+                            size: 14,
+                            color: Colors.green.shade700,
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            application.internship.stipend!,
+                            style: textTheme.labelSmall?.copyWith(
+                              color: Colors.green.shade800,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                 ],
@@ -866,8 +973,11 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
                     child: OutlinedButton.icon(
                       onPressed: () {
                         GeneralMethods.navigateTo(
-                            context,
-                            StudentApplicationDetailsPage(application: application,isAuthority: widget.isAuthority,)
+                          context,
+                          StudentApplicationDetailsPage(
+                            application: application,
+                            isAuthority: widget.isAuthority,
+                          ),
                         );
                       },
                       icon: Icon(Icons.visibility_outlined, size: 16),
@@ -880,7 +990,8 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
                     ),
                   ),
                   SizedBox(width: 12),
-                  if (application.applicationStatus.toLowerCase() == 'pending' && (widget.isAuthority?true: canAcceptOrReject ))
+                  if (application.applicationStatus.toLowerCase() == 'pending' &&
+                      (widget.isAuthority ? true : canAcceptOrReject))
                     _buildActionButtons(application),
                 ],
               ),
@@ -890,7 +1001,6 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
       ),
     );
   }
-
   Widget _buildDetailItem(IconData icon, String text) {
     final theme = Theme.of(context);
 
