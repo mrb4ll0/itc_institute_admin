@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 import '../../../../../model/comments_model.dart';
 import '../../../../../model/reply_model.dart';
 import '../../../auth/tweet_provider.dart';
+import '../../../generalmethods/GeneralMethods.dart';
 import '../../../model/tweetModel.dart';
 import 'expandable_text.dart';
 
@@ -1268,7 +1269,7 @@ class _TweetDetailBody extends StatelessWidget {
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: Text(
-                                      'Student',
+                                      commentStudent.role,
                                       style: textTheme.labelSmall?.copyWith(
                                         color: colorScheme.onPrimaryContainer,
                                         fontWeight: FontWeight.w600,
@@ -1364,7 +1365,8 @@ class _TweetDetailBody extends StatelessWidget {
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: OutlinedButton.icon(
+                          child: GeneralMethods.isSmallScreen(context) && comment.replies.isNotEmpty?IconButton(
+                            icon: Icon(Icons.messenger_outline),
                             onPressed: () {
                               onReplyToComment(
                                 comment.id ?? '',
@@ -1372,7 +1374,15 @@ class _TweetDetailBody extends StatelessWidget {
                                 index,
                               );
                             },
-                            icon: const Icon(Icons.reply, size: 18),
+                          ):OutlinedButton.icon(
+                            onPressed: () {
+                              onReplyToComment(
+                                comment.id ?? '',
+                                comment.content,
+                                index,
+                              );
+                            },
+                            icon: const Icon(Icons.messenger_outline, size: 18),
                             label: Text(
                               comment.replies.isNotEmpty
                                   ? 'Reply (${comment.replies.length})'

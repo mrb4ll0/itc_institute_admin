@@ -140,11 +140,13 @@ class _IndustrialTrainingPostsPageState
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'Industrial Training Posts',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: colorScheme.onSurface,
+            Expanded(
+              child: Text(
+                'Industrial Training Posts',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
+                ),
               ),
             ),
             Row(
@@ -285,6 +287,7 @@ class _IndustrialTrainingPostsPageState
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     debugPrint("applciations count ${post.applications.length}");
+
     return Card(
       elevation: 0,
       color: colorScheme.surface,
@@ -296,7 +299,7 @@ class _IndustrialTrainingPostsPageState
           debugPrint("Internship Details Page");
           GeneralMethods.navigateTo(
             context,
-            InternshipDetailsPage(internship: post,isAuthority: widget.isAuthority,),
+            InternshipDetailsPage(internship: post, isAuthority: widget.isAuthority),
           );
         },
         child: Padding(
@@ -305,10 +308,11 @@ class _IndustrialTrainingPostsPageState
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Left side - Expanded content
                   Expanded(
+                    flex: 3, // Give more weight to left side
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -351,15 +355,20 @@ class _IndustrialTrainingPostsPageState
                               color: colorScheme.onSurfaceVariant,
                             ),
                             const SizedBox(width: 4),
-                            Text(
-                              post.industry,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: colorScheme.onSurfaceVariant,
+                            Expanded( // Wrap with Expanded to prevent overflow
+                              child: Text(
+                                post.industry,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 4),
+                        // Fixed the nested Row issue here
                         Row(
                           children: [
                             Icon(
@@ -368,24 +377,32 @@ class _IndustrialTrainingPostsPageState
                               color: colorScheme.onSurfaceVariant,
                             ),
                             const SizedBox(width: 4),
-                            Row(
-                              children: [
-                                Text(
-                                  '${post.applicationsCount} ${post.applicationsCount == 1 ? 'Applicant' : 'Applicants'}',
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    color: colorScheme.onSurfaceVariant
-                                        .withOpacity(0.6),
+                            // Use a Column instead of nested Row for better wrapping
+                            Flexible(
+                              child: Wrap(
+                                spacing: 8,
+                                runSpacing: 4,
+                                children: [
+                                  Text(
+                                    '${post.applicationsCount} ${post.applicationsCount == 1 ? 'Applicant' : 'Applicants'}',
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: colorScheme.onSurfaceVariant.withOpacity(0.6),
+                                    ),
                                   ),
-                                ),
-                                SizedBox(width: 10),
-                                Text(
-                                  '${GeneralMethods.calculateSlot(post.intake.toString(), post.applicationsCount.toString())} Slot left',
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    color: colorScheme.onSurfaceVariant
-                                        .withOpacity(0.6),
+                                  Text(
+                                    '•',
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: colorScheme.onSurfaceVariant.withOpacity(0.6),
+                                    ),
                                   ),
-                                ),
-                              ],
+                                  Text(
+                                    '${GeneralMethods.calculateSlot(post.intake.toString(), post.applicationsCount.toString())} Slot left',
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: colorScheme.onSurfaceVariant.withOpacity(0.6),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
@@ -399,10 +416,14 @@ class _IndustrialTrainingPostsPageState
                                 color: colorScheme.onSurfaceVariant,
                               ),
                               const SizedBox(width: 4),
-                              Text(
-                                '${_formatDate(post.startDate!)} - ${_formatDate(post.endDate!)}',
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: colorScheme.onSurfaceVariant,
+                              Expanded( // Wrap with Expanded
+                                child: Text(
+                                  '${_formatDate(post.startDate!)} - ${_formatDate(post.endDate!)}',
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                             ],
@@ -420,25 +441,24 @@ class _IndustrialTrainingPostsPageState
                       ],
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 8), // Reduced from 12
+
+                  // Right side - Fixed width content
                   Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       InkWell(
                         onTap: () {},
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
+                            horizontal: 8, // Reduced from 12
+                            vertical: 4, // Reduced from 6
                           ),
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(16),
-                            color: _getStatusColor(
-                              post.status,
-                            ).withOpacity(0.1),
+                            color: _getStatusColor(post.status).withOpacity(0.1),
                             border: Border.all(
-                              color: _getStatusColor(
-                                post.status,
-                              ).withOpacity(0.3),
+                              color: _getStatusColor(post.status).withOpacity(0.3),
                               width: 1,
                             ),
                           ),
@@ -447,34 +467,44 @@ class _IndustrialTrainingPostsPageState
                             children: [
                               Icon(
                                 _getStatusIcon(post.status),
-                                size: 14,
+                                size: 12, // Reduced from 14
                                 color: _getStatusColor(post.status),
                               ),
-                              const SizedBox(width: 4),
+                              const SizedBox(width: 2), // Reduced from 4
                               Text(
                                 _getStatusText(post.status),
                                 style: theme.textTheme.labelSmall?.copyWith(
                                   color: _getStatusColor(post.status),
                                   fontWeight: FontWeight.w600,
+                                  fontSize: 10, // Smaller font
                                 ),
                               ),
                             ],
                           ),
                         ),
                       ),
-                      SizedBox(height: 10),
+                      const SizedBox(height: 8), // Reduced from 10
                       IconButton(
                         onPressed: () {
                           _viewInternshipDetails(context, post);
                         },
-                        icon: Icon(Icons.remove_red_eye_outlined),
+                        icon: Icon(Icons.remove_red_eye_outlined, size: 20), // Smaller icon
+                        constraints: const BoxConstraints( // Tighter constraints
+                          minWidth: 32,
+                          minHeight: 32,
+                        ),
+                        padding: EdgeInsets.zero,
                       ),
                     ],
                   ),
                 ],
               ),
               const SizedBox(height: 12),
-              Row(
+
+              // Bottom row with tags - make it wrap
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
                   if (post.stipendAvailable != null)
                     Container(
@@ -487,6 +517,7 @@ class _IndustrialTrainingPostsPageState
                         color: Colors.green.withOpacity(0.1),
                       ),
                       child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
                             Icons.monetization_on,
@@ -495,7 +526,7 @@ class _IndustrialTrainingPostsPageState
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            post.stipend ?? 'Stipend Provided',
+                            post.stipend ?? 'Stipend',
                             style: theme.textTheme.labelSmall?.copyWith(
                               color: Colors.green,
                               fontWeight: FontWeight.w500,
@@ -504,7 +535,6 @@ class _IndustrialTrainingPostsPageState
                         ],
                       ),
                     ),
-                  const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,
@@ -515,7 +545,7 @@ class _IndustrialTrainingPostsPageState
                       color: colorScheme.primary.withOpacity(0.1),
                     ),
                     child: Text(
-                      '${_getDurationText(post.duration)}',
+                      _getDurationText(post.duration),
                       style: theme.textTheme.labelSmall?.copyWith(
                         color: colorScheme.primary,
                         fontWeight: FontWeight.w500,
@@ -530,7 +560,6 @@ class _IndustrialTrainingPostsPageState
       ),
     );
   }
-
   Widget _buildLoadingState(BuildContext context) {
     return Center(
       child: Column(

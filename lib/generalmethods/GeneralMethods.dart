@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class GeneralMethods {
@@ -563,4 +564,210 @@ class GeneralMethods {
     }
   }
 
+
+  static String? parseDateToString(dynamic value, {String format = 'dd-MM-yyyy'}) {
+    if (value == null) return null;
+
+    try {
+      DateTime? dateTime;
+
+      // Direct DateTime
+      if (value is DateTime) {
+        dateTime = value;
+      }
+      // Firestore Timestamp
+      else if (value is Timestamp) {
+        dateTime = value.toDate();
+      }
+      // Firestore timestamp as Map
+      else if (value is Map<String, dynamic>) {
+        if (value.containsKey('_seconds')) {
+          final seconds = value['_seconds'] as int? ?? 0;
+          final nanoseconds = value['_nanoseconds'] as int? ?? 0;
+          dateTime = DateTime.fromMillisecondsSinceEpoch(
+            seconds * 1000 + (nanoseconds ~/ 1000000),
+          );
+        }
+      }
+      // Numeric timestamp
+      else if (value is int) {
+        dateTime = DateTime.fromMillisecondsSinceEpoch(value);
+      }
+      else if (value is double) {
+        dateTime = DateTime.fromMillisecondsSinceEpoch(value.toInt());
+      }
+      // String - try ISO 8601 first
+      else if (value is String) {
+        if (value.isEmpty) return null;
+
+        // Try ISO 8601
+        try {
+          dateTime = DateTime.parse(value);
+        } catch (_) {
+          // Try numeric string
+          final milliseconds = int.tryParse(value);
+          if (milliseconds != null) {
+            dateTime = DateTime.fromMillisecondsSinceEpoch(milliseconds);
+          }
+        }
+      }
+
+      // If we successfully parsed a DateTime, format it using intl
+      if (dateTime != null) {
+        final formatter = DateFormat(format);
+        return formatter.format(dateTime);
+      }
+
+      return null;
+    } catch (e) {
+      debugPrint('Date parsing error: $e');
+      return null;
+    }
+  }
+
+  static String? parseDateTimeToString(dynamic value, {String format = 'dd-MM-yyyy hh:mm:ss a'}) {
+    if (value == null) return null;
+
+    try {
+      DateTime? dateTime;
+
+      // Direct DateTime
+      if (value is DateTime) {
+        dateTime = value;
+      }
+      // Firestore Timestamp
+      else if (value is Timestamp) {
+        dateTime = value.toDate();
+      }
+      // Firestore timestamp as Map
+      else if (value is Map<String, dynamic>) {
+        if (value.containsKey('_seconds')) {
+          final seconds = value['_seconds'] as int? ?? 0;
+          final nanoseconds = value['_nanoseconds'] as int? ?? 0;
+          dateTime = DateTime.fromMillisecondsSinceEpoch(
+            seconds * 1000 + (nanoseconds ~/ 1000000),
+          );
+        }
+      }
+      // Numeric timestamp
+      else if (value is int) {
+        dateTime = DateTime.fromMillisecondsSinceEpoch(value);
+      }
+      else if (value is double) {
+        dateTime = DateTime.fromMillisecondsSinceEpoch(value.toInt());
+      }
+      // String - try ISO 8601 first
+      else if (value is String) {
+        if (value.isEmpty) return null;
+
+        // Try ISO 8601
+        try {
+          dateTime = DateTime.parse(value);
+        } catch (_) {
+          // Try numeric string
+          final milliseconds = int.tryParse(value);
+          if (milliseconds != null) {
+            dateTime = DateTime.fromMillisecondsSinceEpoch(milliseconds);
+          }
+        }
+      }
+
+      // If we successfully parsed a DateTime, format it using intl
+      if (dateTime != null) {
+        final formatter = DateFormat(format);
+        return formatter.format(dateTime);
+      }
+
+      return null;
+    } catch (e) {
+      debugPrint('Date parsing error: $e');
+      return null;
+    }
+  }
+
+  static bool isSmallScreen(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    return width < 600;
+  }
+
+  /// Method 2: Check if screen is medium (typically tablets)
+  static bool isMediumScreen(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    return width >= 600 && width < 1200;
+  }
+
+  /// Method 3: Check if screen is large (typically desktops)
+  static bool isLargeScreen(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    return width >= 1200;
+  }
+
+  /// Method 4: Get screen dimensions as a tuple/map
+  static Map<String, double> getScreenDimensions(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final padding = MediaQuery.of(context).padding;
+    final viewInsets = MediaQuery.of(context).viewInsets;
+
+    return {
+      'width': size.width,
+      'height': size.height,
+      'availableHeight': size.height - padding.top - padding.bottom - viewInsets.bottom,
+      'availableWidth': size.width - padding.left - padding.right,
+      'statusBarHeight': padding.top,
+      'bottomBarHeight': padding.bottom,
+    };
+  }
+
+  /// Method 5: Get responsive value based on screen size
+  static T responsiveValue<T>({
+    required BuildContext context,
+    required T small,
+    T? medium,
+    T? large,
+  }) {
+    if (isLargeScreen(context) && large != null) {
+      return large;
+    } else if (isMediumScreen(context) && medium != null) {
+      return medium;
+    } else {
+      return small;
+    }
+  }
+
+  /// Method 6: Get screen width
+  static double getScreenWidth(BuildContext context) {
+    return MediaQuery.of(context).size.width;
+  }
+
+  /// Method 7: Get screen height
+  static double getScreenHeight(BuildContext context) {
+    return MediaQuery.of(context).size.height;
+  }
+
+  /// Method 8: Get available screen height (accounting for keyboard and system bars)
+  static double getAvailableHeight(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final padding = MediaQuery.of(context).padding;
+    final viewInsets = MediaQuery.of(context).viewInsets;
+    return size.height - padding.top - padding.bottom - viewInsets.bottom;
+  }
+
+  /// Method 9: Get screen size category as string
+  static String getScreenSizeCategory(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+
+    if (width < 360) {
+      return 'Very Small Phone';
+    } else if (width < 600) {
+      return 'Phone';
+    } else if (width < 900) {
+      return 'Small Tablet';
+    } else if (width < 1200) {
+      return 'Large Tablet';
+    } else if (width < 1600) {
+      return 'Desktop';
+    } else {
+      return 'Large Desktop';
+    }
+  }
 }

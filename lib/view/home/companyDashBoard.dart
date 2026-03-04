@@ -368,76 +368,105 @@ class _CompanydashboardState extends State<Companydashboard>
 
   Widget _buildStatsCards() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    // Calculate crossAxisCount based on screen width
+    int crossAxisCount = screenWidth < 600 ? 2 : 4;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Wrap(
-        spacing: 12,
-        runSpacing: 12,
-        children: [
-          _buildStatCard(
-            title: 'New Applications',
-            value: newApplicationCounts.toString()??"0",
-          ),
-          _buildStatCard(
-            title: 'Active Trainings',
-            value: activeApplicationsCounts.toString(),
-          ),
-          widget.isAuthority?
-          _buildStatCard(
-            title: 'Companies',
-            value: _company?.originalAuthority?.linkedCompanies.length.toString()??'0',
-          ):_buildStatCard(
-            title: 'Supervisors',
-            value: supervisorCount.toString(),
-          ),
-          _buildStatCard(
-            title: 'Accepted',
-            value: acceptedApplicationCount.toString(),
-          ),
-        ],
+      child: GridView.builder(
+        shrinkWrap: true, // Important for nested GridView
+        physics: const NeverScrollableScrollPhysics(), // Prevent scrolling inside
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: crossAxisCount,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 1.5, // Adjust based on your card design
+        ),
+        itemCount: 4,
+        itemBuilder: (context, index) {
+          switch (index) {
+            case 0:
+              return _buildStatCard(
+                title: 'New Applications',
+                value: newApplicationCounts.toString() ?? "0",
+              );
+            case 1:
+              return _buildStatCard(
+                title: 'Active Trainings',
+                value: activeApplicationsCounts.toString(),
+              );
+            case 2:
+              return widget.isAuthority
+                  ? _buildStatCard(
+                title: 'Companies',
+                value: _company?.originalAuthority?.linkedCompanies.length
+                    .toString() ??
+                    '0',
+              )
+                  : _buildStatCard(
+                title: 'Supervisors',
+                value: supervisorCount.toString(),
+              );
+            case 3:
+              return _buildStatCard(
+                title: 'Accepted',
+                value: acceptedApplicationCount.toString(),
+              );
+            default:
+              return const SizedBox.shrink();
+          }
+        },
       ),
     );
   }
-
   Widget _buildStatCard({required String title, required String value}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final screenWidth = MediaQuery.of(context).size.width;
 
-    return Container(
-      constraints: const BoxConstraints(minWidth: 158),
-      child: Card(
-        color: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
-        elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-                ),
+    // Optional: Slightly increase sizes on very large screens
+    double titleSize = screenWidth > 1200 ? 14 : 12;
+    double valueSize = screenWidth > 1200 ? 24 : 20;
+    double padding = screenWidth > 1200 ? 16 : 12;
+
+    return Card(
+      color: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: EdgeInsets.all(padding),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: titleSize,
+                fontWeight: FontWeight.w500,
+                color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
               ),
-              const SizedBox(height: 8),
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: isDark ? Colors.white : Colors.black,
-                ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: valueSize,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : Colors.black,
               ),
-            ],
-          ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
         ),
       ),
     );
   }
-
   Widget _buildSearchBar() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -1607,13 +1636,14 @@ Widget _announcementBanner({
                             Icon(Icons.access_time,
                                 size: 14, color: Color(0xFF64B5F6)),
                             const SizedBox(width: 4),
-                            Text(
-                              'Posted: ' +
-                                  DateFormat('yMMMd H:mm').format(createdAt),
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Color(0xFF64B5F6),
-                                fontWeight: FontWeight.w500,
+                            Expanded(
+                              child: Text(
+                                'Posted: ${GeneralMethods.parseDateTimeToString(createdAt)}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF64B5F6),
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
                             ),
                           ],
@@ -1707,13 +1737,14 @@ Widget _announcementBanner({
                           Icon(Icons.access_time,
                               size: 12, color: const Color(0xFF64B5F6)),
                           const SizedBox(width: 4),
-                          Text(
-                            'Posted: ' +
-                                DateFormat('yMMMd H:mm').format(createdAt),
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: Color(0xFF64B5F6),
-                              fontWeight: FontWeight.w500,
+                          Expanded(
+                            child: Text(
+                              'Posted: ${GeneralMethods.parseDateTimeToString(createdAt)}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF64B5F6),
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ),
                         ],

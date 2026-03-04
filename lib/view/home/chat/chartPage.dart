@@ -1248,9 +1248,9 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
                       SnackBar(content: Text('User not found.')),
                     );
                   }
-                  Student? student = user!.getAs<Student>();
-                  Company? company = user!.getAs<Company>();
-                  Admin? admin = user.getAs<Admin>();
+                  Student? student = user?.getAs<Student>();
+                  Company? company = user?.getAs<Company>();
+                  Admin? admin = user?.getAs<Admin>();
                   if (student != null) {
                     Navigator.push(
                       context,
