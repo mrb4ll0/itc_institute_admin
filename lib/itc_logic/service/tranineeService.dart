@@ -1825,6 +1825,7 @@ class TraineeService {
         debugPrint('No trainee records found with pattern: $searchPattern');
 
         // If no record exists and we have application data, create a new one
+        debugPrint("application is null ? ${application == null}");
         if (application != null) {
           debugPrint('No existing record found. Creating new trainee record.');
           final newTrainee = await createTraineeFromApplication(

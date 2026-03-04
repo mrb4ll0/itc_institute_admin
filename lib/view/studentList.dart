@@ -2159,20 +2159,19 @@ class _TraineeDetailDialogState extends State<TraineeDetailDialog> {
     final theme = Theme.of(context);
 
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), // Reduced padding
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8), // Smaller radius
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Row( // Changed from Column to Row for better space usage
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Label shimmer
+          // Icon placeholder
           Container(
-            width: 60,
-            height: 12,
-            margin: const EdgeInsets.only(bottom: 6),
+            width: 20,
+            height: 20,
+            margin: const EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
               color: theme.colorScheme.primary.withOpacity(0.1),
               borderRadius: BorderRadius.circular(4),
@@ -2181,23 +2180,44 @@ class _TraineeDetailDialogState extends State<TraineeDetailDialog> {
               child: SizedBox.expand(),
             ),
           ),
-          // Value shimmer
-          Container(
-            width: 80,
-            height: 14,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: const ShimmerLoading(
-              child: SizedBox.expand(),
+          // Text placeholders column
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Label shimmer
+                Container(
+                  width: 50, // Reduced width
+                  height: 8, // Reduced height
+                  margin: const EdgeInsets.only(bottom: 4),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                  child: const ShimmerLoading(
+                    child: SizedBox.expand(),
+                  ),
+                ),
+                // Value shimmer
+                Container(
+                  width: 70, // Reduced width
+                  height: 10, // Reduced height
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                  child: const ShimmerLoading(
+                    child: SizedBox.expand(),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
       ),
     );
   }
-
   // Error card widget
   Widget _buildErrorCard(BuildContext context, String message) {
     final theme = Theme.of(context);
@@ -2258,10 +2278,12 @@ class _TraineeDetailDialogState extends State<TraineeDetailDialog> {
               ),
             ),
             const SizedBox(width: 12),
-            Text(
-              title,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
+            Expanded(
+              child: Text(
+                title,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ],
@@ -2390,14 +2412,19 @@ class _TraineeDetailDialogState extends State<TraineeDetailDialog> {
   }
 
   Widget _buildInfoGrid(BuildContext context, List<Widget> tiles) {
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      childAspectRatio: 2.2,
-      crossAxisSpacing: 8,
-      mainAxisSpacing: 8,
-      children: tiles,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Use a fixed height approach instead of aspect ratio
+        return GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: 2,
+          crossAxisSpacing: 8,
+          mainAxisSpacing: 8,
+          childAspectRatio: (constraints.maxWidth / 2 - 12) / 60, // 60px fixed height
+          children: tiles,
+        );
+      },
     );
   }
 
@@ -2411,49 +2438,58 @@ class _TraineeDetailDialogState extends State<TraineeDetailDialog> {
     final theme = Theme.of(context);
 
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), // Reduced padding
       decoration: BoxDecoration(
         color: color.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8), // Slightly smaller radius
         border: Border.all(
           color: color.withOpacity(0.2),
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Row( // Changed from Column to Row for more efficient space usage
         children: [
-          Row(
-            children: [
-              Icon(icon, size: 14, color: color),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(icon, size: 12, color: color),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
                   label,
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
+                    fontSize: 10, // Smaller font
+                    height: 1.2, // Tighter line height
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            style: theme.textTheme.bodySmall?.copyWith(
-              fontWeight: FontWeight.w600,
-              color: theme.colorScheme.onSurface,
+                Text(
+                  value,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.onSurface,
+                    fontSize: 12, // Slightly smaller
+                    height: 1.2, // Tighter line height
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
     );
   }
-
   Widget _buildProgressIndicator(BuildContext context) {
     final theme = Theme.of(context);
     final progress = widget.trainee.progress;

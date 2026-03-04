@@ -1,4 +1,14 @@
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:csv/csv.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:pdf/pdf.dart';
+import 'package:open_file/open_file.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
@@ -7,6 +17,10 @@ import 'package:itc_institute_admin/itc_logic/firebase/company_cloud.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/general_cloud.dart';
 import 'package:itc_institute_admin/view/home/studentApplications/studentApplicationDetail.dart';
 import 'package:intl/intl.dart';
+import 'package:open_file/open_file.dart';
+import 'package:pdf/pdf.dart';
+import 'package:printing/printing.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../../itc_logic/firebase/AuthorityRulesHelper.dart';
 import '../../../../itc_logic/notification/fireStoreNotification.dart';
@@ -920,23 +934,34 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
 
               SizedBox(height: 16),
 
-              // Details Row
-              Row(
+              // Details Column with improved layout
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  _buildDetailItem(
-                    Icons.calendar_today,
-                    DateFormat('MMM dd, yyyy').format(application.applicationDate),
+                  // First row - Date and Location (wrapped in a Container to control width)
+                  Wrap(
+                    spacing: 16,
+                    runSpacing: 8,
+                    children: [
+                      _buildDetailItem(
+                        Icons.calendar_today,
+                        DateFormat('MMM dd, yyyy').format(application.applicationDate),
+                      ),
+                      if (application.internship.location != null)
+                        _buildDetailItem(
+                          Icons.location_on,
+                          application.internship.location!,
+                        ),
+                    ],
                   ),
-                  SizedBox(width: 16),
-                  if (application.internship.location != null)
-                    _buildDetailItem(
-                      Icons.location_on,
-                      application.internship.location!,
-                    ),
-                  Spacer(),
+
+                  const SizedBox(height: 8),
+
+                  // Second row - Stipend (aligned to start)
                   if (application.internship.stipend != null)
                     Container(
-                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                       decoration: BoxDecoration(
                         color: Colors.green.shade50,
                         borderRadius: BorderRadius.circular(12),
@@ -950,7 +975,7 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
                             size: 14,
                             color: Colors.green.shade700,
                           ),
-                          SizedBox(width: 4),
+                          const SizedBox(width: 4),
                           Text(
                             application.internship.stipend!,
                             style: textTheme.labelSmall?.copyWith(
@@ -1433,6 +1458,7 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -1451,31 +1477,28 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
             ListTile(
               leading: Icon(Icons.file_download, color: colorScheme.primary),
               title: Text('Export as CSV'),
-              subtitle: Text('Export all filtered applications'),
+              subtitle: Text('Export all ${_filteredApplications.length} applications to CSV'),
               onTap: () {
                 Navigator.pop(context);
-                // Implement CSV export
-                Fluttertoast.showToast(msg: "Feature is not available");
+                _exportAsCSV();
               },
             ),
             ListTile(
               leading: Icon(Icons.picture_as_pdf, color: Colors.red),
               title: Text('Export as PDF'),
-              subtitle: Text('Generate PDF report'),
+              subtitle: Text('Generate PDF report with summary and table'),
               onTap: () {
                 Navigator.pop(context);
-                // Implement PDF export
-                Fluttertoast.showToast(msg: "Feature is not available");
+                _exportAsPDF();
               },
             ),
             ListTile(
               leading: Icon(Icons.print, color: Colors.green),
               title: Text('Print Report'),
-              subtitle: Text('Print application details'),
+              subtitle: Text('Print application summary'),
               onTap: () {
                 Navigator.pop(context);
-                // Implement print
-                Fluttertoast.showToast(msg: "Feature is not available");
+                _printReport();
               },
             ),
             SizedBox(height: 16),
@@ -1487,5 +1510,364 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
         ),
       ),
     );
+  }
+
+  Future<void> _exportAsCSV() async {
+    try {
+      // Show loading indicator
+      GeneralMethods.showLoading(context);
+
+      // Prepare CSV data
+      List<List<dynamic>> rows = [];
+
+      // Add headers
+      rows.add([
+        'Application ID',
+        'Internship Title',
+        'Company Name',
+        'Company Industry',
+        'Application Date',
+        'Status',
+        'Location',
+        'Stipend',
+        'Description',
+      ]);
+
+      // Add data rows
+      for (var app in _filteredApplications) {
+        rows.add([
+          app.id,
+          app.internship.title ?? 'N/A',
+          app.internship.company.name ?? 'N/A',
+          app.internship.company.industry ?? 'N/A',
+          DateFormat('yyyy-MM-dd HH:mm').format(app.applicationDate),
+          app.applicationStatus,
+          app.internship.location ?? 'N/A',
+          app.internship.stipend ?? 'N/A',
+          app.internship.description ?? 'N/A',
+        ]);
+      }
+
+      // Convert to CSV
+      String csv = _convertToCSV(rows);
+
+      // Save to file
+      final directory = await getApplicationDocumentsDirectory();
+      final fileName = 'applications_${widget.studentName.replaceAll(' ', '_')}_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.csv';
+      final file = File('${directory.path}/$fileName');
+      await file.writeAsString(csv);
+
+      GeneralMethods.hideLoading(context);
+
+      // Create XFile for sharing
+      final xFile = XFile(file.path);
+
+      // Show options dialog
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Export Successful'),
+          content: Text('File saved as: $fileName\n\nWhat would you like to do?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Share.shareXFiles([xFile],
+                  text: 'Applications for ${widget.studentName}',
+                );
+              },
+              child: const Text('Share'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                OpenFile.open(file.path);
+              },
+              child: const Text('Open File'),
+            ),
+          ],
+        ),
+      );
+    } catch (e, s) {
+      GeneralMethods.hideLoading(context);
+      debugPrintStack(stackTrace: s);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to export CSV: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _exportAsPDF() async {
+    try {
+      // Show loading indicator
+      GeneralMethods.showLoading(context);
+
+      final pdf = pw.Document();
+
+      // Add a page to the PDF
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(32),
+          header: (context) => pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text(
+                'Student Applications Report',
+                style: pw.TextStyle(
+                  fontSize: 24,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.SizedBox(height: 8),
+              pw.Text(
+                'Student: ${widget.studentName}',
+                style: const pw.TextStyle(fontSize: 16),
+              ),
+              pw.Text(
+                'Generated: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}',
+                style: pw.TextStyle(fontSize: 12, color: PdfColors.grey700), // Fixed: PdfColors not pw.PdfColors
+              ),
+              pw.Divider(),
+            ],
+          ),
+          build: (context) => [
+            // Summary Section
+            pw.Container(
+              margin: const pw.EdgeInsets.only(bottom: 20),
+              padding: const pw.EdgeInsets.all(16),
+              decoration: pw.BoxDecoration(
+                color: PdfColors.blue50, // Fixed: PdfColors not pw.PdfColors
+                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
+              ),
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildPDFStatItem('Total', _filteredApplications.length.toString(), PdfColors.blue), // Fixed
+                  _buildPDFStatItem('Pending',
+                      _filteredApplications.where((app) => app.applicationStatus.toLowerCase() == 'pending').length.toString(),
+                      PdfColors.orange), // Fixed
+                  _buildPDFStatItem('Accepted',
+                      _filteredApplications.where((app) => app.applicationStatus.toLowerCase() == 'accepted').length.toString(),
+                      PdfColors.green), // Fixed
+                  _buildPDFStatItem('Rejected',
+                      _filteredApplications.where((app) => app.applicationStatus.toLowerCase() == 'rejected').length.toString(),
+                      PdfColors.red), // Fixed
+                ],
+              ),
+            ),
+
+            // Applications Table
+            pw.Table.fromTextArray(
+              border: pw.TableBorder.all(),
+              cellAlignment: pw.Alignment.centerLeft,
+              headerStyle: pw.TextStyle(
+                fontWeight: pw.FontWeight.bold,
+                fontSize: 10,
+              ),
+              cellStyle: const pw.TextStyle(fontSize: 9),
+              headerDecoration: const pw.BoxDecoration(
+                color: PdfColors.grey300, // Fixed
+              ),
+              data: [
+                // Headers
+                ['#', 'Title', 'Company', 'Date', 'Status', 'Location', 'Stipend'],
+                // Data rows
+                ..._filteredApplications.asMap().entries.map((entry) {
+                  final index = entry.key + 1;
+                  final app = entry.value;
+                  return [
+                    index.toString(),
+                    app.internship.title ?? 'N/A',
+                    app.internship.company.name ?? 'N/A',
+                    DateFormat('MMM dd, yyyy').format(app.applicationDate),
+                    app.applicationStatus,
+                    app.internship.location ?? 'N/A',
+                    app.internship.stipend ?? 'N/A',
+                  ];
+                }).toList(),
+              ],
+            ),
+          ],
+          footer: (context) => pw.Container(
+            alignment: pw.Alignment.centerRight,
+            margin: const pw.EdgeInsets.only(top: 20),
+            child: pw.Text(
+              'Page ${context.pageNumber} of ${context.pagesCount}',
+              style: pw.TextStyle(fontSize: 10, color: PdfColors.grey700), // Fixed
+            ),
+          ),
+        ),
+      );
+
+      GeneralMethods.hideLoading(context);
+
+      // Save PDF
+      final directory = await getApplicationDocumentsDirectory();
+      final fileName = 'applications_${widget.studentName.replaceAll(' ', '_')}_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.pdf';
+      final file = File('${directory.path}/$fileName');
+      await file.writeAsBytes(await pdf.save());
+
+      // Create XFile for sharing
+      final xFile = XFile(file.path);
+
+      // Show options dialog
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('PDF Generated Successfully'),
+          content: Text('File saved as: $fileName\n\nWhat would you like to do?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Share.shareXFiles([xFile],
+                  text: 'Applications Report for ${widget.studentName}',
+                );
+              },
+              child: const Text('Share'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                OpenFile.open(file.path);
+              },
+              child: const Text('Open PDF'),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                await Printing.layoutPdf(
+                  onLayout: (format) async => pdf.save(),
+                );
+              },
+              child: const Text('Print'),
+            ),
+          ],
+        ),
+      );
+    } catch (e, s) {
+      GeneralMethods.hideLoading(context);
+      debugPrintStack(stackTrace: s);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to export PDF: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  pw.Widget _buildPDFStatItem(String label, String value, PdfColor color) {
+    // Use predefined light colors instead of trying to modify the color
+    PdfColor backgroundColor;
+
+    // Choose a light background based on the main color
+    if (color == PdfColors.blue) {
+      backgroundColor = PdfColors.blue50;
+    } else if (color == PdfColors.orange) {
+      backgroundColor = PdfColors.orange50;
+    } else if (color == PdfColors.green) {
+      backgroundColor = PdfColors.green50;
+    } else if (color == PdfColors.red) {
+      backgroundColor = PdfColors.red50;
+    } else {
+      backgroundColor = PdfColors.grey200; // Default light gray
+    }
+
+    return pw.Column(
+      children: [
+        pw.Container(
+          width: 40,
+          height: 40,
+          decoration: pw.BoxDecoration(
+            color: backgroundColor, // Use predefined light color
+            shape: pw.BoxShape.circle,
+          ),
+          child: pw.Center(
+            child: pw.Text(
+              value,
+              style: pw.TextStyle(
+                color: color,
+                fontWeight: pw.FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ),
+        ),
+        pw.SizedBox(height: 4),
+        pw.Text(
+          label,
+          style: const pw.TextStyle(fontSize: 10),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _printReport() async {
+    try {
+      final pdf = pw.Document();
+
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          build: (context) => [
+            pw.Text(
+              'Applications Report for ${widget.studentName}',
+              style:  pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold),
+            ),
+            pw.SizedBox(height: 20),
+            pw.Table.fromTextArray(
+              border: pw.TableBorder.all(),
+              headers: ['Title', 'Company', 'Status', 'Date'], // Added headers parameter
+              data: _filteredApplications.map((app) => [
+                app.internship.title ?? 'N/A',
+                app.internship.company.name ?? 'N/A',
+                app.applicationStatus,
+                DateFormat('MMM dd, yyyy').format(app.applicationDate),
+              ]).toList(),
+            ),
+          ],
+        ),
+      );
+
+      await Printing.layoutPdf(
+        onLayout: (format) async => pdf.save(),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to print: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // Alternative CSV conversion without ListToCsvConverter
+  String _convertToCSV(List<List<dynamic>> rows) {
+    String csv = '';
+    for (var row in rows) {
+      csv += row.map((cell) {
+        String cellStr = cell.toString();
+        // Escape quotes and wrap in quotes if contains comma or newline
+        if (cellStr.contains(',') || cellStr.contains('\n') || cellStr.contains('"')) {
+          cellStr = '"${cellStr.replaceAll('"', '""')}"';
+        }
+        return cellStr;
+      }).join(',') + '\n';
+    }
+    return csv;
   }
 }

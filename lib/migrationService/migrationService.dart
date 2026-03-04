@@ -169,6 +169,7 @@ class MigrationService {
         companyId: companyId,
         applicationId: student.latestApplication?.id  ??"",
         status: student.latestApplication?.applicationStatus??"",
+        application: student.latestApplication
       );
       debugPrint("action ${result["action"]} and deletedCount ${result["deletedCount"]} and message ${result["message"]}");
         TraineeRecord? record = result["trainee"];
