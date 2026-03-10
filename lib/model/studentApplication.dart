@@ -99,8 +99,8 @@ class StudentApplication {
 
   factory StudentApplication.fromMap(
     Map<String, dynamic> map,
-    String itId,
     String id,
+      String itId,
   ) {
     return StudentApplication(
       id: id,

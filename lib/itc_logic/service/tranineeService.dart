@@ -1,6 +1,7 @@
 // services/trainee_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:itc_institute_admin/traineeRecord/traineeRecordService.dart';
 import '../../model/studentApplication.dart';
 import '../../model/traineeRecord.dart';
 import '../firebase/company_cloud.dart';
@@ -298,52 +299,115 @@ class TraineeService {
     String description = '',
     bool fromUpdateStatus = false,
     String status = "accepted",
-    required bool isAuthority
+    required bool isAuthority,
+    Map<String, dynamic>? additionalData, // For any extra fields
   }) async {
     try {
-      debugPrint('Creating trainee record for student: ${application.student.uid}');
-
-      TraineeRecord? record = await getTraineeByStudentId(application.student.uid,companyId,requiredStatus: switchStatus(status));
-       if(record != null)
-         {
-           debugPrint("record exists");
-           return null;
-         }
+      debugPrint('Creating/updating trainee record for student: ${application.student.uid}');
 
       final traineeId = '${application.student.uid}_${companyId}_';
+
+      // Check if record already exists
+      TraineeRecord? existingRecord = await getTraineeByStudentId(
+        application.student.uid,
+        companyId,
+        requiredStatus: switchStatus(status),
+      );
 
       // Parse dates from application
       final parsedStartDate = startDate ?? _parseStartDate(application);
       final parsedEndDate = endDate ?? _parseEndDate(application);
 
-      final traineeRecord = TraineeRecord(
-        imageUrl: application.student.imageUrl,
-        id: traineeId,
-        studentId: application.student.uid,
-        studentName: application.student.fullName,
-        companyId: companyId,
-        companyName: companyName,
-        applicationId: application.id,
-        status: switchStatus(status),
-        startDate: parsedStartDate,
-        endDate: parsedEndDate,
-        department: department,
-        role: role,
-        description: description,
-        requirements: application.durationDetails,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        notes: {}
-      );
+      // Determine the correct status
+      final traineeStatus = existingRecord != null
+          ? _determineUpdateStatus(existingRecord.status, status, fromUpdateStatus)
+          : switchStatus(status);
 
-      // Save to Firestore
-      await _traineesRef.doc(traineeId).set(traineeRecord.toMap(),SetOptions(merge: true),);
+      // Prepare notes with update history
+      final notes = Map<String, dynamic>.from(existingRecord?.notes ?? {});
+      notes['lastUpdated'] = DateTime.now().toIso8601String();
+      notes['updateReason'] = fromUpdateStatus ? 'Status update' : 'Application accepted';
+
+      // Add update to history
+      final history = List<Map<String, dynamic>>.from(notes['history'] ?? []);
+      history.add({
+        'timestamp': DateTime.now().toIso8601String(),
+        'action': existingRecord == null ? 'created' : 'updated',
+        'status': traineeStatus.toString(),
+        'fromStatus': existingRecord?.status.toString(),
+      });
+      notes['history'] = history;
+
+      // Add any additional data
+      if (additionalData != null) {
+        notes['additionalData'] = additionalData;
+      }
+
+      TraineeRecord? finalRecord;
+
+      if (existingRecord != null) {
+        debugPrint("Record exists, updating with copyWith...");
+
+        // Update existing record using copyWith
+        finalRecord = existingRecord.copyWith(
+          imageUrl: application.student.imageUrl,
+          studentName: application.student.fullName,
+          applicationId: application.id,
+          status: traineeStatus,
+          startDate: parsedStartDate,
+          endDate: parsedEndDate,
+          department: department.isEmpty ? existingRecord.department : department,
+          role: role.isEmpty ? existingRecord.role : role,
+          description: description.isEmpty ? existingRecord.description : description,
+          requirements: application.durationDetails,
+          updatedAt: DateTime.now(),
+          notes: notes,
+        );
+
+        // Save updated record
+        await _traineesRef.doc(traineeId).set(
+          finalRecord.toMap(),
+          SetOptions(merge: true),
+        );
+
+        debugPrint('Trainee record updated successfully: $traineeId');
+      } else {
+        debugPrint("No existing record, creating new...");
+
+        // Create new record
+        finalRecord = TraineeRecord(
+          imageUrl: application.student.imageUrl,
+          id: traineeId,
+          studentId: application.student.uid,
+          studentName: application.student.fullName,
+          companyId: companyId,
+          companyName: companyName,
+          applicationId: application.id,
+          status: traineeStatus,
+          startDate: parsedStartDate,
+          endDate: parsedEndDate,
+          department: department,
+          role: role,
+          description: description,
+          requirements: application.durationDetails,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+          notes: notes,
+        );
+
+        await _traineesRef.doc(traineeId).set(
+          finalRecord.toMap(),
+          SetOptions(merge: true),
+        );
+
+        debugPrint('Trainee record created successfully: $traineeId');
+      }
 
       // Update company's trainee lists using your existing Company_Cloud
       await _updateCompanyTraineeLists(companyId, application.student.uid, status);
 
       // Update application status using your existing Company_Cloud
-      if(!fromUpdateStatus) {
+      if (!fromUpdateStatus) {
         await _companyCloud.updateApplicationStatus(
           isAuthority: isAuthority,
           companyId: companyId,
@@ -354,14 +418,57 @@ class TraineeService {
         );
       }
 
-      debugPrint('Trainee record created successfully: $traineeId');
-      return traineeRecord;
+      return finalRecord;
     } catch (e, stackTrace) {
-      debugPrint('Error creating trainee record: $e');
+      debugPrint('Error creating/updating trainee record: $e');
       debugPrint('Stack trace: $stackTrace');
       return null;
     }
   }
+
+// Helper method to determine the appropriate status when updating
+  TraineeStatus _determineUpdateStatus(
+      TraineeStatus currentStatus,
+      String newStatus,
+      bool fromUpdateStatus,
+      ) {
+    final targetStatus = switchStatus(newStatus);
+
+    // Define valid status transitions
+    switch (currentStatus) {
+      case TraineeStatus.pending:
+        if (targetStatus == TraineeStatus.accepted ||
+            targetStatus == TraineeStatus.rejected) {
+          return targetStatus;
+        }
+        break;
+
+      case TraineeStatus.accepted:
+        if (targetStatus == TraineeStatus.active ||
+            targetStatus == TraineeStatus.rejected ||
+            targetStatus == TraineeStatus.withdrawn) {
+          return targetStatus;
+        }
+        break;
+
+      case TraineeStatus.active:
+        if (targetStatus == TraineeStatus.completed ||
+            targetStatus == TraineeStatus.terminated ||
+            targetStatus == TraineeStatus.withdrawn) {
+          return targetStatus;
+        }
+        break;
+
+      default:
+      // Terminal states shouldn't change
+        return currentStatus;
+    }
+
+    // If no valid transition, return current status
+    debugPrint('Invalid status transition: $currentStatus -> $targetStatus');
+    return currentStatus;
+  }
+
 
   Future<void> syncTraineesFromApplications(String companyId,isAuthority) async {
     try {
@@ -1811,6 +1918,9 @@ class TraineeService {
   }) async {
     try {
       debugPrint('Attempting to delete trainee records for student: $studentId, company: $companyId, applicationId: $applicationId, status: $status');
+
+      ITTraineeRecord? traineeRecord = await  TraineeRecordService(isAuthority: isAuthority).getTraineeRecord(studentId);
+        //if()
 
       // Create the pattern to search for in document IDs
       final searchPattern = '${studentId}_${companyId}';

@@ -240,7 +240,8 @@ class TraineeRecord {
     double? progress,
     Map<String, dynamic>? metadata,
     imageUrl,
-    notes
+    notes,
+    updatedAt
   }) {
     return TraineeRecord(
       id: id,
@@ -264,9 +265,9 @@ class TraineeRecord {
       progress: progress ?? this.progress,
       metadata: metadata ?? this.metadata,
       createdAt: createdAt,
-      updatedAt: DateTime.now(),
+      updatedAt: updatedAt ?? DateTime.now(),
       imageUrl: imageUrl??this.imageUrl,
-      notes:notes
+      notes:notes,
     );
   }
 

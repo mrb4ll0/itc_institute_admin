@@ -9,6 +9,7 @@ import 'package:itc_institute_admin/itc_logic/service/tranineeService.dart';
 import 'package:itc_institute_admin/model/authorityCompanyMapper.dart';
 import 'package:itc_institute_admin/model/studentApplication.dart';
 import 'package:itc_institute_admin/model/traineeRecord.dart';
+import 'package:itc_institute_admin/traineeRecord/traineeRecordService.dart';
 import 'package:itc_institute_admin/view/home/industrailTraining/applications/studentWithLatestApplication.dart';
 
 import '../backgroundTask/backgroundTaskRegistry.dart';
@@ -150,6 +151,10 @@ class MigrationService {
   getAndPerformTheStudentMigration(String companyId) async {
       debugPrint("getAndPerformTheStudentMigration - entered method");
       debugPrint("companyId: $companyId");
+
+
+           Map<String,ITTraineeRecord?> studentTraineeRecord = {};
+
     List<StudentWithLatestApplication> recentStudentApplication =
         await company_cloud.getStudentsWithLatestApplications(
           companyId: _company!.id,
@@ -164,15 +169,44 @@ class MigrationService {
         continue;
       }
       // delete the trainee for the currentStudent
-      Map<String, dynamic> result = await traineeService.deleteTraineesByStudentAndCompany(
-        studentId: student.student.uid,
-        companyId: companyId,
-        applicationId: student.latestApplication?.id  ??"",
-        status: student.latestApplication?.applicationStatus??"",
-        application: student.latestApplication
-      );
-      debugPrint("action ${result["action"]} and deletedCount ${result["deletedCount"]} and message ${result["message"]}");
-        TraineeRecord? record = result["trainee"];
+      // Map<String, dynamic> result = await traineeService.deleteTraineesByStudentAndCompany(
+      //   studentId: student.student.uid,
+      //   companyId: companyId,
+      //   applicationId: student.latestApplication?.id  ??"",
+      //   status: student.latestApplication?.applicationStatus??"",
+      //   application: student.latestApplication
+      // );
+
+    ITTraineeRecord? traineeRecord= await TraineeRecordService(isAuthority: isAuthority).getTraineeRecord(student.student.uid);
+           studentTraineeRecord[student.student.uid] = traineeRecord;
+
+      StudentApplication? choosenApplication;
+      if(traineeRecord != null)
+             {
+               choosenApplication = await company_cloud.getApplicationById(companyId, traineeRecord?.internshipId??"", traineeRecord?.applicationId??"");
+             }
+
+
+  debugPrint("choosenApplication id is ${choosenApplication?.id} and internship id is ${choosenApplication?.internship.id}");
+
+      Company? comp = await itcFirebaseLogic.getCompany(companyId);
+      if(comp == null)
+        {
+          debugPrint("comp is null");
+          return;
+        }
+
+        if(choosenApplication != null && choosenApplication.id != student.latestApplication?.id)
+          {
+            final traineeId = '${student.student.uid}_${companyId}_';
+            traineeService.deleteTraineeById(traineeId);
+          }
+
+      TraineeRecord? record = await traineeService.createTraineeFromApplication(application: choosenApplication!,
+          companyId: companyId, companyName: comp.name, isAuthority: isAuthority);
+
+
+      //debugPrint("action ${result["action"]} and deletedCount ${result["deletedCount"]} and message ${result["message"]}");
       if (record == null) {
         debugPrint("record is null after the migration");
         return;
@@ -182,6 +216,19 @@ class MigrationService {
       debugPrint("record.calculatedStatusFromDates is ${record.calculatedStatusFromDates.name}");
       debugPrint("record data is ${record.toMap()}");
 
+              if(traineeRecord == null)
+              {
+                debugPrint("traineeRecord is null");
+                return;
+              }
+
+              if(traineeRecord.applicationId != record.applicationId)
+                {
+                  debugPrint("applicationId mismatch in migration , the application choosing by the student is ${traineeRecord.applicationId} while the "
+                      "one return from the migration is ${record.applicationId}");
+                  return;
+                }
+      // Update)
       bool statusUpdated = await traineeService.updateTraineeStatus(
         traineeId: record.id,
         newStatus: record.calculatedStatusFromDates,
