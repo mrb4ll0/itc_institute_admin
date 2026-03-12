@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -19,12 +20,14 @@ import '../itc_logic/service/tranineeService.dart';
 import '../migrationService/migrationService.dart';
 import '../model/studentApplication.dart';
 import 'home/industrailTraining/applications/studentApplicationsPage.dart';
+import 'home/studentList/traineeDetailsPage.dart';
+import 'package:path_provider/path_provider.dart';
 
 
 class StudentListPage extends StatefulWidget {
   final Company company;
   final bool isAuthority;
-  const StudentListPage({Key? key, required this.company,required this.isAuthority}) : super(key: key);
+   StudentListPage({Key? key, required this.company,required this.isAuthority}) : super(key: key);
 
   @override
   State<StudentListPage> createState() => _StudentListPageState();
@@ -37,6 +40,7 @@ class _StudentListPageState extends State<StudentListPage>
   final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
   BackgroundTaskManager backgroundTaskManager = BackgroundTaskManager();
   TaskStatus? taskStatus = BackgroundTaskRegistry.getLatestMigrationTask();
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   List<TraineeRecord> _pendingTrainees = [];
   List<TraineeRecord> _currentTrainees = [];
@@ -89,23 +93,44 @@ class _StudentListPageState extends State<StudentListPage>
     Icons.check_circle,
   ];
 
+  double _previousAnimationValue = 0.0;
+
+
   String migrationStatus = "";
   @override
   void initState() {
     super.initState();
     _traineeService = TraineeService(FirebaseAuth.instance.currentUser!.uid);
     _tabController = TabController(length: 5, vsync: this); // Changed to 5
+    _previousAnimationValue = _tabController.animation!.value;
     _tabController.addListener(() {
-      if (_tabController.indexIsChanging) {
-        // Update the stats and search bar for the new tab
-        setState(() {
-        });
-
-      }
+      _handleTabScroll();
     });
     _loadTrainees();
   }
 
+  void _handleTabScroll() {
+    final currentValue = _tabController.animation!.value;
+
+    // Check the direction
+    if (currentValue > _previousAnimationValue) {
+      // Scrolling from left to right (positive delta in animation value)
+      print("Scrolling from left to right");
+      setState(() {
+
+      });
+      // Perform your action here
+    } else if (currentValue < _previousAnimationValue) {
+      // Scrolling from right to left (negative delta in animation value)
+      print("Scrolling from right to left");
+      setState(() {
+
+      });
+      // Perform your action here
+    }
+
+    _previousAnimationValue = currentValue;
+  }
 
 
   @override
@@ -231,9 +256,7 @@ class _StudentListPageState extends State<StudentListPage>
   }
 
   void _showTraineeDetails(TraineeRecord trainee, int tabIndex) {
-    showDialog(
-      context: context,
-      builder: (context) => TraineeDetailDialog(
+    GeneralMethods.navigateTo(context,TraineeDetailPage(
         trainee: trainee,
         tabIndex: tabIndex,
         traineeService: _traineeService,
@@ -249,6 +272,7 @@ class _StudentListPageState extends State<StudentListPage>
     required TraineeStatus newStatus,
     String? reason,
   }) async {
+
     try {
       final success = await _traineeService.updateTraineeStatus(
         traineeId: trainee.id,
@@ -263,7 +287,9 @@ class _StudentListPageState extends State<StudentListPage>
             backgroundColor: Colors.green,
           ),
         );
-        _loadTrainees();
+        setState(() {
+          _loadTrainees();
+        });
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -501,6 +527,7 @@ class _StudentListPageState extends State<StudentListPage>
     final isDark = theme.brightness == Brightness.dark;
 
     return DefaultTabController(
+      key: _scaffoldKey,
       length: 5,
       child: Scaffold(
         backgroundColor: isDark ? const Color(0xFF101622) : const Color(0xFFf6f6f8),
@@ -573,29 +600,38 @@ class _StudentListPageState extends State<StudentListPage>
             ? _buildErrorState()
             : Column(
           children: [
-            // Stats for current tab
-            _buildTabStats(_tabController.index),
-
-            // Search bar for current tab
-            _buildSearchBar(_tabController.index),
-
-            // Trainee list for current tab
             Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  for (int i = 0; i < 5; i++)
-                    RefreshIndicator(
-                      onRefresh: _loadTrainees,
-                      child: _buildTabContent(i),
+              child: CustomScrollView(
+                slivers: [
+                  // Stats for current tab - as a Sliver
+                  SliverToBoxAdapter(
+                    child: _buildTabStats(_tabController.index),
+                  ),
+
+                  // Search bar for current tab - as a Sliver
+                  SliverToBoxAdapter(
+                    child: _buildSearchBar(_tabController.index),
+                  ),
+
+                  // Trainee list for current tab
+                  SliverFillRemaining(
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [
+                        for (int i = 0; i < 5; i++)
+                          RefreshIndicator(
+                            onRefresh: _loadTrainees,
+                            child: _buildTabContent(i),
+                          ),
+                      ],
                     ),
+                  ),
                 ],
               ),
             ),
           ],
         ),
-      ),
-    );
+    ));
   }
 
   startMigration()async
@@ -678,19 +714,42 @@ class _StudentListPageState extends State<StudentListPage>
 
   }
 
+
   Future<void> _exportData() async {
+    final messenger = ScaffoldMessenger.of(context);
+
     try {
       final data = await _traineeService.exportTraineeData(widget.company.id);
-      // Here you would implement actual export logic
-      // For now, just show a success message
-      ScaffoldMessenger.of(context).showSnackBar(
+
+      if (!mounted) return;
+
+      // Generate the report
+      String report = _generateTraineeReport(data);
+
+      // Save to file
+      final String filePath = await _saveReportToFile(report);
+
+      // Show success message with options
+      messenger.showSnackBar(
         SnackBar(
-          content: Text('Exported ${data.length} records'),
+          content: Text('Report saved: ${data.length} trainees'),
           backgroundColor: Colors.green,
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(
+            label: 'VIEW',
+            textColor: Colors.white,
+            onPressed: () {
+              _showReportDialog(report, filePath);
+            },
+          ),
         ),
       );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
+    } catch (e, s) {
+      debugPrintStack(stackTrace: s);
+
+      if (!mounted) return;
+
+      messenger.showSnackBar(
         SnackBar(
           content: Text('Failed to export data: $e'),
           backgroundColor: Colors.red,
@@ -698,6 +757,224 @@ class _StudentListPageState extends State<StudentListPage>
       );
     }
   }
+
+  Future<String> _saveReportToFile(String report) async {
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final fileName = 'trainee_report_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.txt';
+      final file = File('${directory.path}/$fileName');
+
+      await file.writeAsString(report);
+
+      debugPrint('Report saved to: ${file.path}');
+      return file.path;
+    } catch (e) {
+      debugPrint('Error saving report to file: $e');
+      return '';
+    }
+  }
+
+  void _showReportDialog(String report, String filePath) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          'Trainee Report',
+          style: TextStyle(
+            color: isDark ? Colors.white : Colors.black,
+          ),
+        ),
+        content: Container(
+          width: double.maxFinite,
+          height: MediaQuery.of(context).size.height * 0.6,
+          child: Column(
+            children: [
+              if (filePath.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  color: isDark
+                      ? Colors.green.withOpacity(0.2)  // Dark mode version
+                      : Colors.green.shade50,           // Light mode version
+                  child: Row(
+                    children: [
+                      Icon(
+                          Icons.check_circle,
+                          color: isDark ? Colors.green.shade300 : Colors.green,
+                          size: 16
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Saved to: $filePath',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: isDark ? Colors.green.shade300 : Colors.green.shade900,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? Colors.grey.shade900   // Dark background for dark mode
+                        : Colors.grey.shade50,    // Light background for light mode
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isDark
+                          ? Colors.grey.shade700
+                          : Colors.grey.shade300,
+                    ),
+                  ),
+                  child: SingleChildScrollView(
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      child: SelectableText(
+                        report,
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 11,
+                          color: isDark ? Colors.white : Colors.black, // Text color based on theme
+                          backgroundColor: Colors.transparent, // Explicitly transparent
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Close',
+              style: TextStyle(
+                color: isDark ? Colors.blue.shade300 : Colors.blue,
+              ),
+            ),
+          ),
+          if (filePath.isNotEmpty)
+            TextButton(
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('File location: $filePath'),
+                    duration: const Duration(seconds: 3),
+                  ),
+                );
+              },
+              child: Text(
+                'File Location',
+                style: TextStyle(
+                  color: isDark ? Colors.blue.shade300 : Colors.blue,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+  String _generateTraineeReport(List<Map<String, dynamic>> trainees) {
+    final StringBuffer report = StringBuffer();
+
+    // Header
+    report.writeln("TRAINEE MANAGEMENT REPORT");
+    report.writeln("Generated: ${DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now())}");
+    report.writeln("Company: ${widget.company.name}");
+    report.writeln("Total Trainees: ${trainees.length}");
+    report.writeln("=" * 80);
+    report.writeln();
+
+    // Statistics by status
+    final statusCount = <String, int>{};
+    for (var trainee in trainees) {
+      final status = trainee['status'] as String;
+      statusCount[status] = (statusCount[status] ?? 0) + 1;
+    }
+
+    report.writeln("STATUS SUMMARY:");
+    statusCount.forEach((status, count) {
+      report.writeln("  $status: $count");
+    });
+    report.writeln();
+
+    // Department distribution
+    final deptCount = <String, int>{};
+    for (var trainee in trainees) {
+      final dept = trainee['department'] as String? ?? 'Not Assigned';
+      deptCount[dept] = (deptCount[dept] ?? 0) + 1;
+    }
+
+    report.writeln("DEPARTMENT DISTRIBUTION:");
+    deptCount.forEach((dept, count) {
+      report.writeln("  $dept: $count");
+    });
+    report.writeln();
+
+    // Progress statistics
+    double totalProgress = 0;
+    int completedCount = 0;
+    int inProgressCount = 0;
+    int notStartedCount = 0;
+
+    for (var trainee in trainees) {
+      final progress = trainee['progress'] as double? ?? 0;
+      totalProgress += progress;
+
+      if (progress >= 100) {
+        completedCount++;
+      } else if (progress > 0) {
+        inProgressCount++;
+      } else {
+        notStartedCount++;
+      }
+    }
+
+    report.writeln("PROGRESS SUMMARY:");
+    report.writeln("  Average Progress: ${(totalProgress / trainees.length).toStringAsFixed(1)}%");
+    report.writeln("  Completed (100%): $completedCount");
+    report.writeln("  In Progress (>0%): $inProgressCount");
+    report.writeln("  Not Started (0%): $notStartedCount");
+    report.writeln();
+
+    // Detailed trainee list
+    report.writeln("DETAILED TRAINEE LIST:");
+    report.writeln("-" * 80);
+
+    for (int i = 0; i < trainees.length; i++) {
+      final t = trainees[i];
+      report.writeln("${i + 1}. ${t['studentName']}");
+      report.writeln("   ID: ${t['studentId']}");
+      report.writeln("   Status: ${t['status']}");
+      report.writeln("   Department: ${t['department'] ?? 'N/A'}");
+      report.writeln("   Role: ${t['role'] ?? 'N/A'}");
+      report.writeln("   Progress: ${t['progress']}%");
+
+      if (t['startDate'] != null) {
+        report.writeln("   Start Date: ${DateFormat('yyyy-MM-dd').format(DateTime.parse(t['startDate']))}");
+      }
+      if (t['endDate'] != null) {
+        report.writeln("   End Date: ${DateFormat('yyyy-MM-dd').format(DateTime.parse(t['endDate']))}");
+      }
+
+      report.writeln("   Supervisors: ${(t['supervisors'] as List?)?.length ?? 0}");
+      report.writeln("   Milestones: ${t['milestones']}");
+      report.writeln("   Evaluations: ${t['evaluations']}");
+      report.writeln("   Last Updated: ${DateFormat('yyyy-MM-dd').format(DateTime.parse(t['updatedAt']))}");
+      report.writeln();
+    }
+
+    return report.toString();
+  }
+
 
   Widget _buildStatItem(String label, String value) {
     return Padding(
@@ -996,70 +1273,158 @@ class TraineeCard extends StatelessWidget {
 
                     const SizedBox(width: 16),
 
-                    // Trainee Info
+                    // Trainee Info - UPDATED for better name display
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Name and Status Row
-                          Row(
-                            children: [
-                              Expanded(
-                                child: InkWell(
-                                  onTap: () async
-                                  {
-                                    Student? student = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid).getStudent(trainee.studentId);
-                                      if(student == null)
-                                        {
+                          // Name and Status Row - UPDATED layout
+                          LayoutBuilder(
+                            builder: (context, constraints) {
+                              // Check if we have enough width for both name and status badge
+                              final nameText = Text(
+                                trainee.studentName,
+                                style: theme.textTheme.titleLarge?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark ? Colors.white : theme.colorScheme.onSurface,
+                                ),
+                              );
+
+                              // Measure the name text width
+                              final namePainter = TextPainter(
+                                text: TextSpan(
+                                  text: trainee.studentName,
+                                  style: theme.textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                maxLines: 1,
+                                textDirection: Directionality.of(context),
+                              )..layout(maxWidth: constraints.maxWidth - 100); // Leave room for status badge
+
+                              // If name is too long, stack vertically
+                              if (namePainter.didExceedMaxLines) {
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    InkWell(
+                                      onTap: () async {
+                                        Student? student = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid).getStudent(trainee.studentId);
+                                        if(student == null) {
                                           Fluttertoast.showToast(msg: "Student Record not found");
                                           return;
                                         }
-                                    GeneralMethods.navigateTo(context,StudentProfilePage(student: student));
-                                  },
-                                  child: Text(
-                                    trainee.studentName,
-                                    style: theme.textTheme.titleLarge?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      color: isDark ? Colors.white : theme.colorScheme.onSurface,
+                                        GeneralMethods.navigateTo(context, StudentProfilePage(student: student));
+                                      },
+                                      child: Text(
+                                        trainee.studentName,
+                                        style: theme.textTheme.titleLarge?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          color: isDark ? Colors.white : theme.colorScheme.onSurface,
+                                          fontSize: 18, // Slightly smaller on constrained screens
+                                        ),
+                                        maxLines: 2, // Allow name to wrap to 2 lines
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
                                     ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: statusColor.withOpacity(0.15),
-                                  borderRadius: BorderRadius.circular(30),
-                                  border: Border.all(
-                                    color: statusColor.withOpacity(0.5),
-                                    width: 1,
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      statusIcon,
-                                      size: 14,
-                                      color: statusColor,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      statusText,
-                                      style: theme.textTheme.labelMedium?.copyWith(
-                                        fontWeight: FontWeight.w600,
-                                        color: statusColor,
+                                    const SizedBox(height: 4),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: statusColor.withOpacity(0.15),
+                                        borderRadius: BorderRadius.circular(30),
+                                        border: Border.all(
+                                          color: statusColor.withOpacity(0.5),
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            statusIcon,
+                                            size: 14,
+                                            color: statusColor,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            statusText,
+                                            style: theme.textTheme.labelMedium?.copyWith(
+                                              fontWeight: FontWeight.w600,
+                                              color: statusColor,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ],
-                                ),
-                              ),
-                            ],
+                                );
+                              } else {
+                                // Enough space for horizontal layout
+                                return Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Expanded(
+                                      child: InkWell(
+                                        onTap: () async {
+                                          Student? student = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid).getStudent(trainee.studentId);
+                                          if(student == null) {
+                                            Fluttertoast.showToast(msg: "Student Record not found");
+                                            return;
+                                          }
+                                          GeneralMethods.navigateTo(context, StudentProfilePage(student: student));
+                                        },
+                                        child: Text(
+                                          trainee.studentName,
+                                          style: theme.textTheme.titleLarge?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                            color: isDark ? Colors.white : theme.colorScheme.onSurface,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: statusColor.withOpacity(0.15),
+                                        borderRadius: BorderRadius.circular(30),
+                                        border: Border.all(
+                                          color: statusColor.withOpacity(0.5),
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            statusIcon,
+                                            size: 14,
+                                            color: statusColor,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            statusText,
+                                            style: theme.textTheme.labelMedium?.copyWith(
+                                              fontWeight: FontWeight.w600,
+                                              color: statusColor,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              }
+                            },
                           ),
 
                           const SizedBox(height: 8),
@@ -1083,13 +1448,15 @@ class TraineeCard extends StatelessWidget {
                                   color: theme.colorScheme.primary,
                                 ),
                                 const SizedBox(width: 4),
-                                Expanded(
+                                Flexible(
                                   child: Text(
                                     trainee.companyName,
                                     style: theme.textTheme.labelMedium?.copyWith(
                                       fontWeight: FontWeight.w600,
                                       color: theme.colorScheme.primary,
                                     ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                               ],
@@ -1170,7 +1537,7 @@ class TraineeCard extends StatelessWidget {
                   const SizedBox(height: 12),
                 ],
 
-                // Info Chips Grid
+                // Info Chips Grid - UPDATED to use Flexible chips
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
@@ -1242,7 +1609,19 @@ class TraineeCard extends StatelessWidget {
                 if (_getActionButtons().isNotEmpty) ...[
                   const SizedBox(height: 16),
                   Row(
-                    children: _getActionButtons(),
+                    children: _getActionButtons().map((button) {
+                      if (button is Expanded) {
+                        return Expanded(
+                          child: Padding(
+                            padding: EdgeInsets.only(
+                              right: _getActionButtons().indexOf(button) < _getActionButtons().length - 1 ? 8 : 0,
+                            ),
+                            child: (button.child as Widget),
+                          ),
+                        );
+                      }
+                      return button;
+                    }).toList(),
                   ),
                 ],
 
@@ -1288,6 +1667,7 @@ class TraineeCard extends StatelessWidget {
       ),
     );
   }
+
   List<Widget> _getActionButtons() {
     switch (tabIndex) {
       case 0: // Pending
@@ -1298,6 +1678,10 @@ class TraineeCard extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
                 foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
               ),
               child: const Text('Accept'),
             ),
@@ -1309,6 +1693,10 @@ class TraineeCard extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
                 foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
               ),
               child: const Text('Reject'),
             ),
@@ -1323,6 +1711,10 @@ class TraineeCard extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blue,
                 foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
               ),
               child: const Text('Start Training'),
             ),
@@ -1337,6 +1729,10 @@ class TraineeCard extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.purple,
                 foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
               ),
               child: const Text('Complete'),
             ),
@@ -1347,12 +1743,16 @@ class TraineeCard extends StatelessWidget {
               onPressed: () {
                 // View progress or other action
                 Fluttertoast.showToast(
-                  msg: 'Progress Record not available',
-                  toastLength: Toast.LENGTH_SHORT);
+                    msg: 'This feature will be available in the next version',
+                    toastLength: Toast.LENGTH_SHORT);
               },
               style: OutlinedButton.styleFrom(
                 foregroundColor: Colors.blue,
                 side: const BorderSide(color: Colors.blue),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
               ),
               child: const Text('View Progress'),
             ),
@@ -1372,37 +1772,39 @@ class TraineeCard extends StatelessWidget {
       }) {
     final theme = Theme.of(context);
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: color.withOpacity(0.3),
-          width: 1,
+    return IntrinsicWidth(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: color.withOpacity(0.3),
+            width: 1,
+          ),
         ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            size: 14,
-            color: color,
-          ),
-          const SizedBox(width: 4),
-          Flexible(
-            child: Text(
-              label,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: color,
-                fontWeight: FontWeight.w500,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 14,
+              color: color,
             ),
-          ),
-        ],
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                label,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w500,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1413,9 +1815,6 @@ class TraineeCard extends StatelessWidget {
     if (progress >= 25) return Colors.orange;
     return Colors.red;
   }
-
-
-
 
   Widget _buildActionButton({
     required String label,
@@ -1453,1206 +1852,6 @@ class TraineeCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 12),
         elevation: 2,
       ),
-    );
-  }
-}
-
-class TraineeDetailDialog extends StatefulWidget {
-  final TraineeRecord trainee;
-  final int tabIndex;
-  final TraineeService traineeService;
-  final VoidCallback onStatusChanged;
-
-  const TraineeDetailDialog({
-    Key? key,
-    required this.trainee,
-    required this.tabIndex,
-    required this.traineeService,
-    required this.onStatusChanged,
-  }) : super(key: key);
-
-  @override
-  State<TraineeDetailDialog> createState() => _TraineeDetailDialogState();
-}
-
-class _TraineeDetailDialogState extends State<TraineeDetailDialog> {
-  Student? _student;
-  Company? _company;
-  bool _loadingStudent = true;
-  bool _loadingCompany = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadStudentDetails();
-    _loadCompanyDetails();
-  }
-
-  Future<void> _loadStudentDetails() async {
-    try {
-      final student = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid)
-          .getStudent(widget.trainee.studentId);
-      if (mounted) {
-        setState(() {
-          _student = student;
-          _loadingStudent = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _loadingStudent = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _loadCompanyDetails() async {
-    try {
-      final company = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid)
-          .getCompany(widget.trainee.companyId);
-      if (mounted) {
-        setState(() {
-          _company = company;
-          _loadingCompany = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _loadingCompany = false;
-        });
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final trainee = widget.trainee;
-    final statusColor = trainee.status.color;
-
-    return Dialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
-      ),
-      elevation: 8,
-      child: Container(
-        constraints: const BoxConstraints(maxHeight: 700, maxWidth: 500),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              theme.colorScheme.surface,
-              theme.colorScheme.surfaceVariant.withOpacity(0.3),
-            ],
-          ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Header with gradient overlay
-            Stack(
-              children: [
-                Container(
-                  height: 180,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        statusColor,
-                        statusColor.withOpacity(0.7),
-                      ],
-                    ),
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(24),
-                      topRight: Radius.circular(24),
-                    ),
-                  ),
-                ),
-
-                // Profile Section
-                Positioned(
-                  left: 16,
-                  right: 16,
-                  bottom: 20,
-                  child: Row(
-                    children: [
-                      // Profile Image with border
-                      Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Colors.white,
-                            width: 4,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.2),
-                              blurRadius: 10,
-                              spreadRadius: 2,
-                            ),
-                          ],
-                        ),
-                        child: ClipOval(
-                          child: GeneralMethods.generateUserAvatar(
-                            username: trainee.studentName,
-                            imageUrl: trainee.imageUrl,
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(width: 16),
-
-                      // Name and Status
-                      Expanded(
-                        child: InkWell(
-                          onTap: ()async
-                          {
-                            Student? student = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid).getStudent(trainee.studentId);
-                            if(student == null)
-                            {
-                              Fluttertoast.showToast(msg: "Student Record not found");
-                              return;
-                            }
-                            GeneralMethods.navigateTo(context,StudentProfilePage(student: student));
-                          },
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                trainee.studentName,
-                                style: theme.textTheme.headlineSmall?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                  shadows: [
-                                    Shadow(
-                                      color: Colors.black.withOpacity(0.3),
-                                      offset: const Offset(0, 2),
-                                      blurRadius: 4,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              if (_loadingStudent)
-                                Container(
-                                  width: 120,
-                                  height: 16,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.3),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: const ShimmerLoading(
-                                    child: SizedBox.expand(),
-                                  ),
-                                )
-                              else if (_student?.email != null)
-                                Text(
-                                  _student!.email,
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    color: Colors.white70,
-                                  ),
-                                ),
-                              const SizedBox(height: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(30),
-                                  border: Border.all(
-                                    color: Colors.white.withOpacity(0.3),
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      trainee.status.icon,
-                                      size: 16,
-                                      color: Colors.white,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      trainee.status.displayName,
-                                      style: theme.textTheme.labelMedium?.copyWith(
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-
-            // Content
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Company Information Card with Loading State
-                    _buildSection(
-                      context,
-                      title: 'Company Information',
-                      icon: Icons.business,
-                      children: [
-                        if (_loadingCompany)
-                          _buildLoadingCompanyCard(context)
-                        else if (_company != null)
-                          _buildCompanyCard(context, _company!)
-                        else
-                          _buildErrorCard(
-                            context,
-                            'Failed to load company information',
-                          ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    // Training Information
-                    _buildSection(
-                      context,
-                      title: 'Training Information',
-                      icon: Icons.work_history,
-                      children: [
-                        _buildInfoGrid(context, [
-                          if (trainee.department.isNotEmpty)
-                            _buildInfoTile(
-                              context,
-                              label: 'Department',
-                              value: trainee.department,
-                              icon: Icons.category,
-                              color: theme.colorScheme.primary,
-                            ),
-                          if (trainee.role.isNotEmpty)
-                            _buildInfoTile(
-                              context,
-                              label: 'Role',
-                              value: trainee.role,
-                              icon: Icons.work,
-                              color: theme.colorScheme.secondary,
-                            ),
-                          if (trainee.startDate != null)
-                            _buildInfoTile(
-                              context,
-                              label: 'Start Date',
-                              value: DateFormat('MMM dd, yyyy').format(trainee.startDate!),
-                              icon: Icons.calendar_today,
-                              color: Colors.green,
-                            ),
-                          if (trainee.endDate != null)
-                            _buildInfoTile(
-                              context,
-                              label: 'End Date',
-                              value: DateFormat('MMM dd, yyyy').format(trainee.endDate!),
-                              icon: Icons.calendar_today_outlined,
-                              color: Colors.orange,
-                            ),
-                          if (trainee.actualStartDate != null)
-                            _buildInfoTile(
-                              context,
-                              label: 'Actual Start',
-                              value: DateFormat('MMM dd, yyyy').format(trainee.actualStartDate!),
-                              icon: Icons.play_circle,
-                              color: Colors.blue,
-                            ),
-                          if (trainee.actualEndDate != null)
-                            _buildInfoTile(
-                              context,
-                              label: 'Actual End',
-                              value: DateFormat('MMM dd, yyyy').format(trainee.actualEndDate!),
-                              icon: Icons.stop_circle,
-                              color: Colors.purple,
-                            ),
-                          if (trainee.durationInDays != null)
-                            _buildInfoTile(
-                              context,
-                              label: 'Duration',
-                              value: '${trainee.durationInDays} days',
-                              icon: Icons.timelapse,
-                              color: Colors.teal,
-                            ),
-                        ]),
-
-                        const SizedBox(height: 16),
-
-                        // Progress Section
-                        if (trainee.progress > 0) ...[
-                          _buildProgressIndicator(context),
-                          const SizedBox(height: 16),
-                        ],
-
-                        // Status Description
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: trainee.needsStatusUpdate
-                                  ? Colors.orange
-                                  : theme.colorScheme.outline.withOpacity(0.2),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                trainee.needsStatusUpdate
-                                    ? Icons.warning_amber
-                                    : Icons.info_outline,
-                                color: trainee.needsStatusUpdate
-                                    ? Colors.orange
-                                    : theme.colorScheme.primary,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Status Info',
-                                      style: theme.textTheme.labelSmall?.copyWith(
-                                        color: theme.colorScheme.onSurfaceVariant,
-                                      ),
-                                    ),
-                                    Text(
-                                      trainee.statusDescription,
-                                      style: theme.textTheme.bodyMedium?.copyWith(
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    // Student Information with Loading State
-                    _buildSection(
-                      context,
-                      title: 'Student Information',
-                      icon: Icons.school,
-                      children: [
-                        if (_loadingStudent)
-                          _buildLoadingStudentInfo(context)
-                        else if (_student != null)
-                          _buildInfoGrid(context, [
-                            _buildInfoTile(
-                              context,
-                              label: 'Full Name',
-                              value: _student!.fullName,
-                              icon: Icons.person,
-                              color: Colors.blue,
-                            ),
-                            _buildInfoTile(
-                              context,
-                              label: 'Email',
-                              value: _student!.email,
-                              icon: Icons.email,
-                              color: Colors.red,
-                            ),
-                            if (_student!.phoneNumber.isNotEmpty)
-                              _buildInfoTile(
-                                context,
-                                label: 'Phone',
-                                value: _student!.phoneNumber,
-                                icon: Icons.phone,
-                                color: Colors.green,
-                              ),
-                            if (_student!.institution.isNotEmpty)
-                              _buildInfoTile(
-                                context,
-                                label: 'Institution',
-                                value: _student!.institution,
-                                icon: Icons.school,
-                                color: Colors.purple,
-                              ),
-                            if (_student!.courseOfStudy.isNotEmpty)
-                              _buildInfoTile(
-                                context,
-                                label: 'Course',
-                                value: _student!.courseOfStudy,
-                                icon: Icons.menu_book,
-                                color: Colors.orange,
-                              ),
-                            if (_student!.level.isNotEmpty)
-                              _buildInfoTile(
-                                context,
-                                label: 'Level',
-                                value: '${_student!.level} Level',
-                                icon: Icons.grade,
-                                color: Colors.teal,
-                              ),
-                            if (_student!.cgpa > 0)
-                              _buildInfoTile(
-                                context,
-                                label: 'CGPA',
-                                value: _student!.cgpa.toStringAsFixed(2),
-                                icon: Icons.star,
-                                color: Colors.amber,
-                              ),
-                          ])
-                        else
-                          _buildErrorCard(
-                            context,
-                            'Failed to load student information',
-                          ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    // Supervisors Section
-                    if (trainee.supervisorIds.isNotEmpty)
-                      _buildSection(
-                        context,
-                        title: 'Supervisors',
-                        icon: Icons.supervisor_account,
-                        children: [
-                          ...trainee.supervisorIds.map((supervisorId) =>
-                              _buildSupervisorTile(context, supervisorId)
-                          ),
-                        ],
-                      ),
-
-                    const SizedBox(height: 20),
-
-                    // Notes Section
-                    if (trainee.notes.isNotEmpty)
-                      _buildSection(
-                        context,
-                        title: 'Notes',
-                        icon: Icons.note_alt,
-                        children: [
-                          ...trainee.notes.entries.map((entry) =>
-                              Container(
-                                margin: const EdgeInsets.only(bottom: 8),
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      entry.key,
-                                      style: theme.textTheme.labelSmall?.copyWith(
-                                        color: theme.colorScheme.primary,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      entry.value.toString(),
-                                      style: theme.textTheme.bodyMedium,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                          ),
-                        ],
-                      ),
-                  ],
-                ),
-              ),
-            ),
-
-            // Action Buttons
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surface,
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(24),
-                  bottomRight: Radius.circular(24),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, -5),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close),
-                      label: const Text('Close'),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        // Navigate to edit or take action
-                        Navigator.pop(context);
-                      },
-                      icon: const Icon(Icons.edit),
-                      label: const Text('Take Action'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: statusColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Loading widget for company card
-  Widget _buildLoadingCompanyCard(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              // Company logo shimmer
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const ShimmerLoading(
-                  child: SizedBox.expand(),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Company name shimmer
-                    Container(
-                      width: double.infinity,
-                      height: 20,
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primary.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const ShimmerLoading(
-                        child: SizedBox.expand(),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    // Industry shimmer
-                    Container(
-                      width: 100,
-                      height: 14,
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primary.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const ShimmerLoading(
-                        child: SizedBox.expand(),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // Website shimmer
-          Container(
-            width: double.infinity,
-            height: 16,
-            margin: const EdgeInsets.only(bottom: 8),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: const ShimmerLoading(
-              child: SizedBox.expand(),
-            ),
-          ),
-          // Phone shimmer
-          Container(
-            width: double.infinity,
-            height: 16,
-            margin: const EdgeInsets.only(bottom: 8),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: const ShimmerLoading(
-              child: SizedBox.expand(),
-            ),
-          ),
-          // Address shimmer
-          Container(
-            width: double.infinity,
-            height: 16,
-            margin: const EdgeInsets.only(bottom: 8),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: const ShimmerLoading(
-              child: SizedBox.expand(),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Loading widget for student info grid
-  Widget _buildLoadingStudentInfo(BuildContext context) {
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      childAspectRatio: 2.2,
-      crossAxisSpacing: 8,
-      mainAxisSpacing: 8,
-      children: List.generate(6, (index) => _buildLoadingInfoTile(context)),
-    );
-  }
-
-  Widget _buildLoadingInfoTile(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), // Reduced padding
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
-        borderRadius: BorderRadius.circular(8), // Smaller radius
-      ),
-      child: Row( // Changed from Column to Row for better space usage
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Icon placeholder
-          Container(
-            width: 20,
-            height: 20,
-            margin: const EdgeInsets.only(right: 8),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: const ShimmerLoading(
-              child: SizedBox.expand(),
-            ),
-          ),
-          // Text placeholders column
-          Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Label shimmer
-                Container(
-                  width: 50, // Reduced width
-                  height: 8, // Reduced height
-                  margin: const EdgeInsets.only(bottom: 4),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                  child: const ShimmerLoading(
-                    child: SizedBox.expand(),
-                  ),
-                ),
-                // Value shimmer
-                Container(
-                  width: 70, // Reduced width
-                  height: 10, // Reduced height
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                  child: const ShimmerLoading(
-                    child: SizedBox.expand(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-  // Error card widget
-  Widget _buildErrorCard(BuildContext context, String message) {
-    final theme = Theme.of(context);
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.error.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: theme.colorScheme.error.withOpacity(0.3),
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.error_outline,
-            color: theme.colorScheme.error,
-            size: 24,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              message,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.error,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSection(
-      BuildContext context, {
-        required String title,
-        required IconData icon,
-        required List<Widget> children,
-      }) {
-    final theme = Theme.of(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                icon,
-                size: 18,
-                color: theme.colorScheme.primary,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                title,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        ...children,
-      ],
-    );
-  }
-
-  Widget _buildCompanyCard(BuildContext context, Company company) {
-    final theme = Theme.of(context);
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            theme.colorScheme.primary.withOpacity(0.1),
-            theme.colorScheme.secondary.withOpacity(0.05),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: theme.colorScheme.primary.withOpacity(0.3),
-        ),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Center(
-                  child: Text(
-                    company.name.substring(0, 2).toUpperCase(),
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      company.name,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    if (company.industry.isNotEmpty)
-                      Text(
-                        company.industry,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (company.phoneNumber.isNotEmpty)
-            _buildDetailRow(
-              context,
-              icon: Icons.phone,
-              label: company.phoneNumber,
-              color: theme.colorScheme.secondary,
-            ),
-          if (company.address.isNotEmpty)
-            _buildDetailRow(
-              context,
-              icon: Icons.location_on,
-              label: company.address,
-              color: Colors.green,
-            ),
-          if (company.description.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              company.description,
-              style: theme.textTheme.bodySmall,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(
-      BuildContext context, {
-        required IconData icon,
-        required String label,
-        required Color color,
-      }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.bodySmall,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoGrid(BuildContext context, List<Widget> tiles) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // Use a fixed height approach instead of aspect ratio
-        return GridView.count(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          crossAxisCount: 2,
-          crossAxisSpacing: 8,
-          mainAxisSpacing: 8,
-          childAspectRatio: (constraints.maxWidth / 2 - 12) / 60, // 60px fixed height
-          children: tiles,
-        );
-      },
-    );
-  }
-
-  Widget _buildInfoTile(
-      BuildContext context, {
-        required String label,
-        required String value,
-        required IconData icon,
-        required Color color,
-      }) {
-    final theme = Theme.of(context);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), // Reduced padding
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(8), // Slightly smaller radius
-        border: Border.all(
-          color: color.withOpacity(0.2),
-        ),
-      ),
-      child: Row( // Changed from Column to Row for more efficient space usage
-        children: [
-          Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Icon(icon, size: 12, color: color),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    fontSize: 10, // Smaller font
-                    height: 1.2, // Tighter line height
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  value,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.onSurface,
-                    fontSize: 12, // Slightly smaller
-                    height: 1.2, // Tighter line height
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-  Widget _buildProgressIndicator(BuildContext context) {
-    final theme = Theme.of(context);
-    final progress = widget.trainee.progress;
-    final color = _getProgressColor(progress);
-
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Training Progress',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            Text(
-              '${progress.toStringAsFixed(0)}%',
-              style: theme.textTheme.bodyLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: LinearProgressIndicator(
-            value: progress / 100,
-            backgroundColor: theme.colorScheme.surfaceVariant,
-            valueColor: AlwaysStoppedAnimation<Color>(color),
-            minHeight: 8,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSupervisorTile(BuildContext context, String supervisorId) {
-    final theme = Theme.of(context);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: theme.colorScheme.outline.withOpacity(0.2),
-        ),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            backgroundColor: theme.colorScheme.primary.withOpacity(0.2),
-            child: Text(
-              supervisorId.substring(0, 2).toUpperCase(),
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.primary,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Supervisor',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                Text(
-                  'ID: $supervisorId',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            icon: Icon(
-              Icons.visibility_outlined,
-              size: 20,
-              color: theme.colorScheme.primary,
-            ),
-            onPressed: () {
-              // Navigate to supervisor details
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Color _getProgressColor(double progress) {
-    if (progress >= 75) return Colors.green;
-    if (progress >= 50) return Colors.blue;
-    if (progress >= 25) return Colors.orange;
-    return Colors.red;
-  }
-}
-
-
-class ShimmerLoading extends StatefulWidget {
-  final Widget child;
-
-  const ShimmerLoading({Key? key, required this.child}) : super(key: key);
-
-  @override
-  State<ShimmerLoading> createState() => _ShimmerLoadingState();
-}
-
-class _ShimmerLoadingState extends State<ShimmerLoading>
-    with TickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _animation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    )..repeat();
-
-    _animation = Tween<double>(begin: -2, end: 2).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _animation,
-      builder: (context, child) {
-        return ShaderMask(
-          shaderCallback: (bounds) {
-            return LinearGradient(
-              begin: Alignment(_animation.value - 1, 0),
-              end: Alignment(_animation.value, 0),
-              colors: [
-                Colors.grey.shade300,
-                Colors.white,
-                Colors.grey.shade300,
-              ],
-              stops: const [0.2, 0.5, 0.8],
-            ).createShader(bounds);
-          },
-          blendMode: BlendMode.srcATop,
-          child: widget.child,
-        );
-      },
     );
   }
 }

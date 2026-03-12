@@ -1423,6 +1423,7 @@ class TraineeService {
     }
   }
 
+
   // Get trainee timeline/activity log
   Future<List<Map<String, dynamic>>> getTraineeTimeline(String traineeId) async {
     try {

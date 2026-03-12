@@ -49,7 +49,10 @@ class _MigrationPopupMenuState extends State<MigrationPopupMenu> {
   void _closeMenu() {
     _overlayEntry?.remove();
     _overlayEntry = null;
-    setState(() => _isOpen = false);
+    if (mounted) {
+      setState(() => _isOpen = false);
+    }
+
   }
 
   OverlayEntry _createOverlayEntry() {
