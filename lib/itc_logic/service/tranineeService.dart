@@ -1519,36 +1519,80 @@ class TraineeService {
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
-      // Add specific dates based on status
+      // Handle dates based on status
       if (newStatus == TraineeStatus.active) {
-        updateData['actualStartDate'] = DateTime.now();
-      } else if (newStatus == TraineeStatus.completed ||
+        // Only set actualStartDate if it's not already set
+        if (trainee.actualStartDate == null) {
+          updateData['actualStartDate'] = DateTime.now();
+        }
+        // Clear hold data if coming from onHold
+        if (trainee.status == TraineeStatus.onHold) {
+          updateData['holdReason'] = FieldValue.delete();
+          updateData['holdStartDate'] = FieldValue.delete();
+        }
+      }
+      else if (newStatus == TraineeStatus.onHold) {
+        debugPrint("Setting trainee to onHold");
+        // Set hold information
+        updateData['holdStartDate'] = DateTime.now();
+        updateData['previousStatus'] = trainee.status.name;
+        if (reason != null && reason.isNotEmpty) {
+          updateData['holdReason'] = reason;
+        }
+      }
+      else if (newStatus == TraineeStatus.completed ||
           newStatus == TraineeStatus.terminated ||
           newStatus == TraineeStatus.withdrawn) {
         updateData['actualEndDate'] = DateTime.now();
+
         if (newStatus == TraineeStatus.completed) {
           updateData['progress'] = 100.0;
         }
+
+        // If coming from onHold, clear hold data
+        if (trainee.status == TraineeStatus.onHold) {
+          updateData['holdReason'] = FieldValue.delete();
+          updateData['holdStartDate'] = FieldValue.delete();
+          updateData['previousStatus'] = FieldValue.delete();
+        }
+      }
+      else if (newStatus == TraineeStatus.pending) {
+        // Clear any hold data when going back to pending
+        updateData['holdReason'] = FieldValue.delete();
+        updateData['holdStartDate'] = FieldValue.delete();
+        updateData['previousStatus'] = FieldValue.delete();
+        updateData['actualStartDate'] = FieldValue.delete();
+        updateData['actualEndDate'] = FieldValue.delete();
+      }
+      else if (newStatus == TraineeStatus.accepted) {
+        // Clear any hold data when accepted
+        updateData['holdReason'] = FieldValue.delete();
+        updateData['holdStartDate'] = FieldValue.delete();
+        updateData['previousStatus'] = FieldValue.delete();
       }
 
-      // Add reason if provided
+      // Add reason to notes if provided
       if (reason != null && reason.isNotEmpty) {
-        if (newStatus == TraineeStatus.terminated) {
-          updateData['terminationReason'] = reason;
-        } else if (newStatus == TraineeStatus.withdrawn) {
-          updateData['withdrawalReason'] = reason;
+        // FIXED: Properly handle notes
+        final currentNotes = data['notes'];
+        List<Map<String, dynamic>> notes;
+
+        if (currentNotes is List) {
+          notes = List<Map<String, dynamic>>.from(currentNotes);
+        } else if (currentNotes is Map) {
+          // If notes is a Map (old format), convert to List
+          notes = [];
+        } else {
+          notes = <Map<String, dynamic>>[];
         }
 
-        // Also add to notes - FIXED HERE
-        final currentNotes = data['notes'];
-        final notes = currentNotes is List ? List<Map<String, dynamic>>.from(currentNotes) : <Map<String, dynamic>>[];
-
         notes.add({
-          'date': DateTime.now(),
+          'date': DateTime.now().toIso8601String(),
           'type': 'status_change',
           'from': trainee.status.name,
           'to': newStatus.name,
           'note': reason,
+          'userId': globalUserId?? 'system',
         });
         updateData['notes'] = notes;
       }
@@ -1570,13 +1614,48 @@ class TraineeService {
         );
       }
 
+      // Log the status change for audit
+      await _logStatusChange(
+        traineeId: traineeId,
+        studentId: trainee.studentId,
+        oldStatus: trainee.status.name,
+        newStatus: newStatus.name,
+        reason: reason,
+      );
+
       return true;
-    } catch (e,s) {
+    } catch (e, s) {
       debugPrint('Error updating trainee status: $e');
       debugPrintStack(stackTrace: s);
       return false;
     }
   }
+
+// Add helper method for audit logging
+  Future<void> _logStatusChange({
+    required String traineeId,
+    required String studentId,
+    required String oldStatus,
+    required String newStatus,
+    String? reason,
+  }) async {
+    try {
+      await _firestore.collection('status_changes').add({
+        'traineeId': traineeId,
+        'studentId': studentId,
+        'oldStatus': oldStatus,
+        'newStatus': newStatus,
+        'reason': reason,
+        'changedBy':globalUserId ?? 'system',
+        'changedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('Error logging status change: $e');
+      // Don't throw - this is just logging
+    }
+  }
+
+
   // Comprehensive method to update application status AND trainee collection
   Future<bool> updateApplicationStatusWithTraineeSync({
     required String companyId,

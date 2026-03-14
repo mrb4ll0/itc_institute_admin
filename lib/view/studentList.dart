@@ -47,14 +47,16 @@ class _StudentListPageState extends State<StudentListPage>
   List<TraineeRecord> _upcomingTrainees = [];
   List<TraineeRecord> _rejectedTrainees = [];
   List<TraineeRecord> _completedTrainees = [];
+  List<TraineeRecord> _onHoldTrainees = [];
 
   // For each tab - store TraineeRecords instead of Students
   Map<int, List<TraineeRecord>> _filteredTrainees = {
     0: [], // Pending
     1: [], // Current
-    2: [], // Upcoming
-    3: [], // Rejected
-    4: [], // Completed
+    2: [], // On-Hold
+    3: [], // Upcoming
+    4: [], // Rejected
+    5: [], // Completed
   };
 
   Map<int, String> _searchQueries = {
@@ -63,6 +65,7 @@ class _StudentListPageState extends State<StudentListPage>
     2: '',
     3: '',
     4: '',
+    5: '',
   };
 
   Map<int, TextEditingController> _searchControllers = {
@@ -71,6 +74,7 @@ class _StudentListPageState extends State<StudentListPage>
     2: TextEditingController(),
     3: TextEditingController(),
     4: TextEditingController(),
+    5: TextEditingController(),
   };
 
   bool _isLoading = true;
@@ -80,6 +84,7 @@ class _StudentListPageState extends State<StudentListPage>
   final List<String> _tabLabels = [
     'Pending Applications',
     'Current Trainees',
+    'On-Hold Trainees',
     'Upcoming Trainees',
     'Rejected Applications',
     'Completed Trainees',
@@ -88,6 +93,7 @@ class _StudentListPageState extends State<StudentListPage>
   final List<IconData> _tabIcons = [
     Icons.pending_actions,
     Icons.work,
+    Icons.pause,
     Icons.schedule,
     Icons.cancel,
     Icons.check_circle,
@@ -101,7 +107,7 @@ class _StudentListPageState extends State<StudentListPage>
   void initState() {
     super.initState();
     _traineeService = TraineeService(FirebaseAuth.instance.currentUser!.uid);
-    _tabController = TabController(length: 5, vsync: this); // Changed to 5
+    _tabController = TabController(length: 6, vsync: this); // Changed to 6
     _previousAnimationValue = _tabController.animation!.value;
     _tabController.addListener(() {
       _handleTabScroll();
@@ -157,6 +163,13 @@ class _StudentListPageState extends State<StudentListPage>
         companyIds: widget.company.originalAuthority?.linkedCompanies??[]
       );
 
+      _onHoldTrainees = await _traineeService.getTraineesByStatus(
+          companyId: companyId,
+          status:TraineeStatus.onHold,
+        isAuthority: widget.isAuthority,
+        companyIds: widget.company.originalAuthority?.linkedCompanies??[]
+      );
+
 
       _currentTrainees = await _traineeService.getCurrentTrainees(companyId: companyId,isAuthority: widget.isAuthority,
           companyIds: widget.company.originalAuthority?.linkedCompanies??[]);
@@ -184,9 +197,10 @@ class _StudentListPageState extends State<StudentListPage>
       // Initialize filtered lists
       _filteredTrainees[0] = List.from(_pendingTrainees);
       _filteredTrainees[1] = List.from(_currentTrainees);
-      _filteredTrainees[2] = List.from(_upcomingTrainees);
-      _filteredTrainees[3] = List.from(_rejectedTrainees);
-      _filteredTrainees[4] = List.from(_completedTrainees);
+      _filteredTrainees[2] = List.from(_onHoldTrainees);
+      _filteredTrainees[3] = List.from(_upcomingTrainees);
+      _filteredTrainees[4] = List.from(_rejectedTrainees);
+      _filteredTrainees[5] = List.from(_completedTrainees);
 
       setState(() {
         _isLoading = false;
@@ -211,12 +225,15 @@ class _StudentListPageState extends State<StudentListPage>
         baseList = _currentTrainees;
         break;
       case 2:
-        baseList = _upcomingTrainees;
+        baseList = _onHoldTrainees;
         break;
       case 3:
-        baseList = _rejectedTrainees;
+        baseList = _upcomingTrainees;
         break;
       case 4:
+        baseList = _rejectedTrainees;
+        break;
+      case 5:
         baseList = _completedTrainees;
         break;
       default:
@@ -257,6 +274,7 @@ class _StudentListPageState extends State<StudentListPage>
 
   void _showTraineeDetails(TraineeRecord trainee, int tabIndex) {
     GeneralMethods.navigateTo(context,TraineeDetailPage(
+      isAuthority: widget.isAuthority,
         trainee: trainee,
         tabIndex: tabIndex,
         traineeService: _traineeService,
@@ -291,7 +309,8 @@ class _StudentListPageState extends State<StudentListPage>
           _loadTrainees();
         });
       }
-    } catch (e) {
+    } catch (e,s) {
+      debugPrintStack(stackTrace: s);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to update status: $e'),
@@ -514,9 +533,11 @@ class _StudentListPageState extends State<StudentListPage>
     switch (tabIndex) {
       case 0: return 'No pending applications';
       case 1: return 'No current trainees';
-      case 2: return 'No upcoming trainees';
-      case 3: return 'No rejected applications';
-      case 4: return 'No completed trainees';
+      case 2: return 'No On-Hold trainees';
+      case 3: return 'No upcoming trainees';
+      case 4: return 'No rejected applications';
+      case 5: return 'No completed trainees';
+
       default: return 'No trainees found';
     }
   }
@@ -528,7 +549,7 @@ class _StudentListPageState extends State<StudentListPage>
 
     return DefaultTabController(
       key: _scaffoldKey,
-      length: 5,
+      length: 6,
       child: Scaffold(
         backgroundColor: isDark ? const Color(0xFF101622) : const Color(0xFFf6f6f8),
         appBar: AppBar(
@@ -1037,9 +1058,10 @@ class _StudentListPageState extends State<StudentListPage>
     switch (tabIndex) {
       case 0: return _pendingTrainees.length;
       case 1: return _currentTrainees.length;
-      case 2: return _upcomingTrainees.length;
-      case 3: return _rejectedTrainees.length;
-      case 4: return _completedTrainees.length;
+      case 2: return _onHoldTrainees.length;
+      case 3: return _upcomingTrainees.length;
+      case 4: return _rejectedTrainees.length;
+      case 5: return _completedTrainees.length;
       default: return 0;
     }
   }
@@ -1048,9 +1070,10 @@ class _StudentListPageState extends State<StudentListPage>
     switch (tabIndex) {
       case 0: return 'Pending';
       case 1: return 'Active';
-      case 2: return 'Upcoming';
-      case 3: return 'Rejected';
-      case 4: return 'Completed';
+      case 2: return 'On-Hold';
+      case 3: return 'Upcoming';
+      case 4: return 'Rejected';
+      case 5: return 'Completed';
       default: return '';
     }
   }
@@ -1606,15 +1629,15 @@ class TraineeCard extends StatelessWidget {
                 ),
 
                 // Action Buttons
-                if (_getActionButtons().isNotEmpty) ...[
+                if (_getActionButtons(context).isNotEmpty) ...[
                   const SizedBox(height: 16),
                   Row(
-                    children: _getActionButtons().map((button) {
+                    children: _getActionButtons(context).map((button) {
                       if (button is Expanded) {
                         return Expanded(
                           child: Padding(
                             padding: EdgeInsets.only(
-                              right: _getActionButtons().indexOf(button) < _getActionButtons().length - 1 ? 8 : 0,
+                              right: _getActionButtons(context).indexOf(button) < _getActionButtons(context).length - 1 ? 8 : 0,
                             ),
                             child: (button.child as Widget),
                           ),
@@ -1668,7 +1691,7 @@ class TraineeCard extends StatelessWidget {
     );
   }
 
-  List<Widget> _getActionButtons() {
+  List<Widget> _getActionButtons(context) {
     switch (tabIndex) {
       case 0: // Pending
         return [
@@ -1699,24 +1722,6 @@ class TraineeCard extends StatelessWidget {
                 ),
               ),
               child: const Text('Reject'),
-            ),
-          ),
-        ];
-
-      case 2: // Upcoming (Accepted)
-        return [
-          Expanded(
-            child: ElevatedButton(
-              onPressed: onStartTraining,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30),
-                ),
-              ),
-              child: const Text('Start Training'),
             ),
           ),
         ];
@@ -1759,9 +1764,277 @@ class TraineeCard extends StatelessWidget {
           ),
         ];
 
+      case 2: // On-Hold Trainees 👈 NEW CASE
+        return [
+          Expanded(
+            child: ElevatedButton(
+              onPressed: onStartTraining, // Resume training
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: const [
+                  Icon(Icons.play_arrow, size: 18),
+                  SizedBox(width: 4),
+                  Text('Resume'),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: OutlinedButton(
+              onPressed: () {
+                // Show hold reason dialog
+                _showHoldReasonDialog(context);
+              },
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.orange,
+                side: const BorderSide(color: Colors.orange),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: const [
+                  Icon(Icons.info_outline, size: 18),
+                  SizedBox(width: 4),
+                  Text('Hold Reason'),
+                ],
+              ),
+            ),
+          ),
+        ];
+
+      case 3: // Upcoming (Accepted)
+        return [
+          Expanded(
+            child: ElevatedButton(
+              onPressed: onStartTraining,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
+              ),
+              child: const Text('Start Training'),
+            ),
+          ),
+        ];
+
+      case 4: // Rejected
+        return [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: () {
+                // Show rejection reason
+                _showRejectionReasonDialog(context);
+              },
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.red,
+                side: const BorderSide(color: Colors.red),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: const [
+                  Icon(Icons.info_outline, size: 18),
+                  SizedBox(width: 4),
+                  Text('View Reason'),
+                ],
+              ),
+            ),
+          ),
+        ];
+
+      case 5: // Completed
+        return [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: () {
+                // View completion details
+                _showCompletionDetailsDialog(context);
+              },
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.green,
+                side: const BorderSide(color: Colors.green),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: const [
+                  Icon(Icons.assignment_turned_in, size: 18),
+                  SizedBox(width: 4),
+                  Text('View Details'),
+                ],
+              ),
+            ),
+          ),
+        ];
+
       default:
         return [];
     }
+  }
+
+// Helper methods for dialogs
+  void _showHoldReasonDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Hold Reason'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'This trainee was placed on hold for:',
+              style: TextStyle(fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.withOpacity(0.3)),
+              ),
+              child: Text(
+                trainee.holdReason.isNotEmpty
+                    ? trainee.holdReason
+                    : 'No specific reason provided',
+                style: const TextStyle(fontSize: 14),
+              ),
+            ),
+            if (trainee.holdStartDate != null) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Icon(Icons.calendar_today, size: 16, color: Colors.grey),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Hold Date: ${DateFormat('MMM dd, yyyy').format(trainee.holdStartDate!)}',
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showRejectionReasonDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Rejection Reason'),
+        content: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.red.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.red.withOpacity(0.3)),
+          ),
+          child: Text(
+            trainee.statusDescription.isNotEmpty
+                ? trainee.statusDescription
+                : 'No specific reason provided',
+            style: const TextStyle(fontSize: 14),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCompletionDetailsDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Completion Details'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (trainee.actualEndDate != null) ...[
+              Row(
+                children: [
+                  Icon(Icons.event, size: 16, color: Colors.green),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Completed: ${DateFormat('MMM dd, yyyy').format(trainee.actualEndDate!)}',
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+            ],
+            const Divider(),
+            Row(
+              children: [
+                Icon(Icons.trending_up, size: 16, color: Colors.blue),
+                const SizedBox(width: 8),
+                Text(
+                  'Final Progress: ${trainee.progress.toStringAsFixed(0)}%',
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+            if (trainee.statusDescription.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const Text(
+                'Notes:',
+                style: TextStyle(fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(trainee.statusDescription),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildInfoChip(

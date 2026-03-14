@@ -78,6 +78,8 @@ dependencies:
   http: ^1.6.0
   csv: ^7.2.0
   printing: ^5.14.2
+  qr_flutter: ^4.1.0
+  flutter_email_sender: ^8.0.0
 
 dev_dependencies:
   flutter_test:

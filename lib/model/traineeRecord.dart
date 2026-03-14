@@ -10,6 +10,7 @@ enum TraineeStatus {
   terminated,   // Training terminated early
   withdrawn,    // Student withdrew
   rejected,
+  onHold
 }
 
 extension TraineeStatusExtension on TraineeStatus {
@@ -20,8 +21,9 @@ extension TraineeStatusExtension on TraineeStatus {
       case TraineeStatus.active: return 'active';
       case TraineeStatus.completed: return 'completed';
       case TraineeStatus.terminated: return 'terminated';
-      case TraineeStatus.withdrawn: return 'withdrawn';
       case TraineeStatus.rejected: return 'rejected';
+      case TraineeStatus.onHold: return 'hold';
+      case TraineeStatus.withdrawn: return 'withdrawn';
     }
   }
 
@@ -33,6 +35,7 @@ extension TraineeStatusExtension on TraineeStatus {
       case TraineeStatus.completed: return 'Completed';
       case TraineeStatus.terminated: return 'Terminated';
       case TraineeStatus.withdrawn: return 'Withdrawn';
+      case TraineeStatus.onHold: return 'On-Hold';
       case TraineeStatus.rejected: return 'rejected';
     }
   }
@@ -45,6 +48,7 @@ extension TraineeStatusExtension on TraineeStatus {
       case TraineeStatus.completed: return Colors.purple;
       case TraineeStatus.terminated: return Colors.red;
       case TraineeStatus.withdrawn: return Colors.grey;
+      case TraineeStatus.onHold: return Colors.amber;
       case TraineeStatus.rejected: return Colors.red;
     }
   }
@@ -57,6 +61,7 @@ extension TraineeStatusExtension on TraineeStatus {
       case TraineeStatus.completed: return Icons.verified;
       case TraineeStatus.terminated: return Icons.cancel;
       case TraineeStatus.withdrawn: return Icons.person_remove;
+      case TraineeStatus.onHold: return Icons.pause_circle;
       case TraineeStatus.rejected: return Icons.cancel;
     }
   }
@@ -87,6 +92,13 @@ class TraineeRecord {
   final DateTime updatedAt;
   final String imageUrl;
   final Map<String,dynamic> notes;
+  String statusDescription;
+  bool needsStatusUpdate;
+  String holdReason;
+  DateTime? holdStartDate;
+  DateTime? holdEndDate;
+  String? holdNotes;
+  String? previousStatus;
 
   TraineeRecord({
     required this.id,
@@ -112,7 +124,14 @@ class TraineeRecord {
     required this.createdAt,
     required this.updatedAt,
     required this.imageUrl,
-    required this.notes
+    required this.notes,
+    this.statusDescription = '',
+    this.needsStatusUpdate = false,
+    this.holdReason = '',
+    this.holdStartDate,
+    this.holdEndDate,
+    this.holdNotes,
+    this.previousStatus,
   });
 
   // Helper methods
@@ -166,6 +185,13 @@ class TraineeRecord {
       notes: data["notes"] is Map<String, dynamic>
           ? Map<String, dynamic>.from(data["notes"])
           : {},
+      statusDescription: data["statusDescription"]??"",
+      needsStatusUpdate: data["needsStatusUpdate"]??false,
+      holdReason: data["holdReason"]??"",
+      holdStartDate: _parseDateTime(data["holdStartDate"]),
+      holdEndDate: _parseDateTime(data["holdEndDate"]),
+      holdNotes: data["holdNotes"]??"",
+      previousStatus: data["previousStatus"]??"",
     );
   }
 
@@ -202,6 +228,7 @@ class TraineeRecord {
     final str = value.toString().toLowerCase();
     switch (str) {
       case 'active': return TraineeStatus.active;
+      case 'hold': return TraineeStatus.onHold;
       case 'accepted': return TraineeStatus.accepted;
       case 'completed': return TraineeStatus.completed;
       case 'terminated': return TraineeStatus.terminated;
@@ -241,7 +268,14 @@ class TraineeRecord {
     Map<String, dynamic>? metadata,
     imageUrl,
     notes,
-    updatedAt
+    updatedAt,
+    statusDescription,
+    needsStatusUpdate,
+    holdReason,
+    holdStartDate,
+    holdEndDate,
+    holdNotes,
+    previousStatus,
   }) {
     return TraineeRecord(
       id: id,
@@ -267,7 +301,13 @@ class TraineeRecord {
       createdAt: createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
       imageUrl: imageUrl??this.imageUrl,
-      notes:notes,
+      notes:notes??this.notes,
+      statusDescription: statusDescription??this.statusDescription,
+      needsStatusUpdate: needsStatusUpdate??  this.needsStatusUpdate,
+      holdReason: holdReason??this.holdReason,
+      holdStartDate: holdStartDate??this.holdStartDate,
+      holdEndDate: holdEndDate??this.holdEndDate,
+      holdNotes: holdNotes??this.holdNotes,
     );
   }
 
@@ -443,6 +483,8 @@ extension TraineeDateStatus on TraineeRecord {
         return 'Terminated';
       case TraineeStatus.withdrawn:
         return 'Withdrawn';
+        case TraineeStatus.onHold:
+        return 'On-Hold';
       case TraineeStatus.pending:
         return 'Pending';
       case TraineeStatus.rejected:

@@ -8,6 +8,8 @@ import '../../model/company.dart';
 import '../../model/internship_model.dart';
 import '../../model/studentApplication.dart';
 import '../itc_logic/firebase/company_cloud.dart';
+import '../itc_logic/service/tranineeService.dart';
+import '../model/traineeRecord.dart';
 
 // ==================== TRAINEE RECORD MODEL ====================
 
@@ -496,6 +498,71 @@ class TraineeRecordService {
     }
   }
 
+  /// Update complete trainee record
+  Future<void> updateTraineeRecord(TraineeRecord trainee) async {
+    try {
+      // Create the trainee record ID (using your existing pattern)
+      final traineeRecordId = '${trainee.applicationId}_${trainee.studentId}';
+
+      // Build the updates map
+      final updates = <String, dynamic>{
+        'studentId': trainee.studentId,
+        'studentName': trainee.studentName,
+        'companyId': trainee.companyId,
+        'status': trainee.status.toString().split('.').last, // Convert enum to string (e.g., "TraineeStatus.active" -> "active")
+        'statusDescription': trainee.statusDescription,
+        'needsStatusUpdate': trainee.needsStatusUpdate,
+        'department': trainee.department,
+        'role': trainee.role,
+        'progress': trainee.progress,
+        'imageUrl': trainee.imageUrl,
+        'supervisorIds': trainee.supervisorIds,
+        'notes': trainee.notes,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      // Add dates if they exist
+      if (trainee.startDate != null) {
+        updates['startDate'] = Timestamp.fromDate(trainee.startDate!);
+      }
+      if (trainee.endDate != null) {
+        updates['endDate'] = Timestamp.fromDate(trainee.endDate!);
+      }
+      if (trainee.actualStartDate != null) {
+        updates['actualStartDate'] = Timestamp.fromDate(trainee.actualStartDate!);
+      }
+      if (trainee.actualEndDate != null) {
+        updates['actualEndDate'] = Timestamp.fromDate(trainee.actualEndDate!);
+      }
+      if (trainee.durationInDays != null) {
+        updates['durationInDays'] = trainee.durationInDays;
+      }
+
+      // Add metadata based on status
+      final statusString = trainee.status.toString().split('.').last;
+      updates['metadata'] = {
+        'hasActiveTraining': ['active', 'onHold'].contains(statusString),
+        'hasCompleted': statusString == 'completed',
+        'hasWithdrawn': statusString == 'withdrawn',
+        'hasTerminated': statusString == 'terminated',
+        'isAccepted': statusString == 'accepted',
+        'isPending': statusString == 'pending',
+        'lastStatusUpdate': FieldValue.serverTimestamp(),
+      };
+
+      // Update the trainee record in Firestore
+      await _firestore
+          .collection(traineesCollection) // Use your existing collection name
+          .doc(traineeRecordId)
+          .update(updates);
+
+      debugPrint('Trainee record updated successfully: ${trainee.studentName}');
+
+    } catch (e) {
+      debugPrint('Error updating trainee record: $e');
+      rethrow;
+    }
+  }
   /// Update trainee progress
   Future<void> updateTraineeProgress({
     required String studentId,
