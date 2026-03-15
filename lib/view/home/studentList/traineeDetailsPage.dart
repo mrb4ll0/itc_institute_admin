@@ -12,6 +12,7 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:itc_institute_admin/theme/app_theme.dart';
 import 'package:itc_institute_admin/traineeRecord/traineeRecordService.dart';
+import 'package:itc_institute_admin/view/home/chat/chartPage.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
@@ -1350,6 +1351,10 @@ class _TraineeDetailPageState extends State<TraineeDetailPage> {
       _withdrawalReason = '';
       _terminationReason = '';
       _holdReason = '';
+      setState(() {
+        trainee.status = newStatus;
+      });
+
 
     } catch (e, s) {
       debugPrintStack(stackTrace: s);
@@ -1452,16 +1457,25 @@ class _TraineeDetailPageState extends State<TraineeDetailPage> {
     print('Status change logged: $logEntry');
   }
 
-  void _navigateToMessage() {
-    // Navigate to messaging
+  void _navigateToMessage() async{
+    Student? student = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser?.uid??"").getStudent(widget.trainee.studentId);
+     if(student == null)
+       {
+         Fluttertoast.showToast(msg: "Student Info not found");
+         return;
+       }
+    GeneralMethods.navigateTo(context, ChatDetailsPage(receiverId: student.uid, receiverName: student.fullName,
+        receiverAvatarUrl: student.imageUrl));
   }
 
   void _navigateToSchedule() {
     // Navigate to scheduling
+    Fluttertoast.showToast(msg: "This feature is under development");
   }
 
   void _navigateToAssignTask() {
     // Navigate to task assignment
+    Fluttertoast.showToast(msg: "This feature is under development");
   }
 
   void _shareProfile() {

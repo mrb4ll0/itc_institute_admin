@@ -22,7 +22,7 @@ extension TraineeStatusExtension on TraineeStatus {
       case TraineeStatus.completed: return 'completed';
       case TraineeStatus.terminated: return 'terminated';
       case TraineeStatus.rejected: return 'rejected';
-      case TraineeStatus.onHold: return 'hold';
+      case TraineeStatus.onHold: return 'onhold';
       case TraineeStatus.withdrawn: return 'withdrawn';
     }
   }
@@ -74,7 +74,7 @@ class TraineeRecord {
   final String companyId;
   final String companyName;
   final String applicationId;
-  final TraineeStatus status;
+   TraineeStatus status;
   final DateTime? startDate;
   final DateTime? endDate;
   final DateTime? actualStartDate;
@@ -224,11 +224,12 @@ class TraineeRecord {
   }
 
   static TraineeStatus _parseTraineeStatus(dynamic value) {
+    debugPrint("value is $value");
     if (value == null) return TraineeStatus.pending;
     final str = value.toString().toLowerCase();
     switch (str) {
       case 'active': return TraineeStatus.active;
-      case 'hold': return TraineeStatus.onHold;
+      case 'onhold': return TraineeStatus.onHold;
       case 'accepted': return TraineeStatus.accepted;
       case 'completed': return TraineeStatus.completed;
       case 'terminated': return TraineeStatus.terminated;

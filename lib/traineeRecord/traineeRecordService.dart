@@ -225,6 +225,26 @@ class ITTraineeRecord {
     final days = duration.inDays;
     return '$days days';
   }
+
+
+  static TraineeStatus _parseTraineeStatus(dynamic value) {
+    debugPrint("status in parse is $value");
+    if (value == null) return TraineeStatus.pending;
+    final str = value.toString().toLowerCase();
+    switch (str) {
+      case 'active': return TraineeStatus.active;
+      case 'onhold': return TraineeStatus.onHold;
+      case 'accepted': return TraineeStatus.accepted;
+      case 'completed': return TraineeStatus.completed;
+      case 'terminated': return TraineeStatus.terminated;
+      case 'withdrawn': return TraineeStatus.withdrawn;
+      case 'rejected': return TraineeStatus.rejected;
+      default: return TraineeStatus.pending;
+    }
+  }
+
+  TraineeStatus get traineeStatus=> _parseTraineeStatus(this.status);
+
 }
 
 // ==================== TRAINEE RECORD SERVICE ====================

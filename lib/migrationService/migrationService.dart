@@ -180,6 +180,16 @@ class MigrationService {
     ITTraineeRecord? traineeRecord= await TraineeRecordService(isAuthority: isAuthority).getTraineeRecord(student.student.uid);
            studentTraineeRecord[student.student.uid] = traineeRecord;
 
+      if(traineeRecord != null)
+        {
+          TraineeStatus status = traineeRecord.traineeStatus;
+          debugPrint("current student status is ${status.displayName}");
+          if(status != TraineeStatus.active)
+            {
+              return;
+            }
+        }
+
       StudentApplication? choosenApplication;
       if(traineeRecord != null)
              {
@@ -204,6 +214,8 @@ class MigrationService {
 
       TraineeRecord? record = await traineeService.createTraineeFromApplication(application: choosenApplication!,
           companyId: companyId, companyName: comp.name, isAuthority: isAuthority);
+
+
 
 
       //debugPrint("action ${result["action"]} and deletedCount ${result["deletedCount"]} and message ${result["message"]}");

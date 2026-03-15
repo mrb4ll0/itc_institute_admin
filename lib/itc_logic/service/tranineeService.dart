@@ -446,7 +446,8 @@ class TraineeService {
       case TraineeStatus.accepted:
         if (targetStatus == TraineeStatus.active ||
             targetStatus == TraineeStatus.rejected ||
-            targetStatus == TraineeStatus.withdrawn) {
+            targetStatus == TraineeStatus.withdrawn ||
+            targetStatus == TraineeStatus.onHold) {  // ADDED: Can put on hold before starting
           return targetStatus;
         }
         break;
@@ -454,13 +455,26 @@ class TraineeService {
       case TraineeStatus.active:
         if (targetStatus == TraineeStatus.completed ||
             targetStatus == TraineeStatus.terminated ||
-            targetStatus == TraineeStatus.withdrawn) {
+            targetStatus == TraineeStatus.withdrawn ||
+            targetStatus == TraineeStatus.onHold) {  // ADDED: Can pause active training
           return targetStatus;
         }
         break;
 
-      default:
-      // Terminal states shouldn't change
+      case TraineeStatus.onHold:  // ADDED: Handle transitions from On Hold
+        if (targetStatus == TraineeStatus.active ||      // Resume training
+            targetStatus == TraineeStatus.completed ||   // Complete from hold
+            targetStatus == TraineeStatus.terminated ||  // Terminate from hold
+            targetStatus == TraineeStatus.withdrawn) {   // Withdraw from hold
+          return targetStatus;
+        }
+        break;
+
+      case TraineeStatus.withdrawn:  // Terminal state
+      case TraineeStatus.terminated: // Terminal state
+      case TraineeStatus.completed:  // Terminal state
+      case TraineeStatus.rejected:   // Terminal state
+      // Terminal states shouldn't change (except maybe to another terminal state if needed)
         return currentStatus;
     }
 
@@ -468,7 +482,6 @@ class TraineeService {
     debugPrint('Invalid status transition: $currentStatus -> $targetStatus');
     return currentStatus;
   }
-
 
   Future<void> syncTraineesFromApplications(String companyId,isAuthority) async {
     try {

@@ -23,126 +23,116 @@ import 'home/industrailTraining/applications/studentApplicationsPage.dart';
 import 'home/studentList/traineeDetailsPage.dart';
 import 'package:path_provider/path_provider.dart';
 
-
 class StudentListPage extends StatefulWidget {
   final Company company;
   final bool isAuthority;
-   StudentListPage({Key? key, required this.company,required this.isAuthority}) : super(key: key);
+
+  const StudentListPage({Key? key, required this.company, required this.isAuthority})
+      : super(key: key);
 
   @override
   State<StudentListPage> createState() => _StudentListPageState();
 }
 
-class _StudentListPageState extends State<StudentListPage>
-    with TickerProviderStateMixin {
-  late TabController _tabController;
+class _StudentListPageState extends State<StudentListPage> {
   late final TraineeService _traineeService;
   final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
-  BackgroundTaskManager backgroundTaskManager = BackgroundTaskManager();
-  TaskStatus? taskStatus = BackgroundTaskRegistry.getLatestMigrationTask();
+  final BackgroundTaskManager backgroundTaskManager = BackgroundTaskManager();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
+  // All trainee lists
   List<TraineeRecord> _pendingTrainees = [];
   List<TraineeRecord> _currentTrainees = [];
   List<TraineeRecord> _upcomingTrainees = [];
   List<TraineeRecord> _rejectedTrainees = [];
   List<TraineeRecord> _completedTrainees = [];
   List<TraineeRecord> _onHoldTrainees = [];
+  List<TraineeRecord> _withdrawnTrainees = [];
+  List<TraineeRecord> _terminatedTrainees = [];
 
-  // For each tab - store TraineeRecords instead of Students
-  Map<int, List<TraineeRecord>> _filteredTrainees = {
-    0: [], // Pending
-    1: [], // Current
-    2: [], // On-Hold
-    3: [], // Upcoming
-    4: [], // Rejected
-    5: [], // Completed
-  };
+  // Selected view type
+  String _selectedView = 'Active Trainees';
 
-  Map<int, String> _searchQueries = {
-    0: '',
-    1: '',
-    2: '',
-    3: '',
-    4: '',
-    5: '',
-  };
+  // Search functionality
+  String _searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
 
-  Map<int, TextEditingController> _searchControllers = {
-    0: TextEditingController(),
-    1: TextEditingController(),
-    2: TextEditingController(),
-    3: TextEditingController(),
-    4: TextEditingController(),
-    5: TextEditingController(),
-  };
+  // Combined list for display
+  List<TraineeRecord> _displayTrainees = [];
 
   bool _isLoading = true;
   String _error = '';
 
-  // Tab labels and icons - ADDED REJECTED AND COMPLETED
-  final List<String> _tabLabels = [
-    'Pending Applications',
-    'Current Trainees',
-    'On-Hold Trainees',
-    'Upcoming Trainees',
-    'Rejected Applications',
-    'Completed Trainees',
+  // View options with icons and colors
+  final List<Map<String, dynamic>> _viewOptions = [
+    {
+      'label': 'Active Trainees',
+      'shortLabel': 'Active',
+      'icon': Icons.work,
+      'color': Colors.blue,
+      'count': 0,
+    },
+    {
+      'label': 'Pending Applications',
+      'shortLabel': 'Pending',
+      'icon': Icons.pending_actions,
+      'color': Colors.orange,
+      'count': 0,
+    },
+    {
+      'label': 'On-Hold Trainees',
+      'shortLabel': 'On Hold',
+      'icon': Icons.pause_circle,
+      'color': Colors.purple,
+      'count': 0,
+    },
+    {
+      'label': 'Upcoming Trainees',
+      'shortLabel': 'Upcoming',
+      'icon': Icons.schedule,
+      'color': Colors.teal,
+      'count': 0,
+    },
+    {
+      'label': 'Completed Trainees',
+      'shortLabel': 'Completed',
+      'icon': Icons.check_circle,
+      'color': Colors.green,
+      'count': 0,
+    },
+    {
+      'label': 'Rejected Applications',
+      'shortLabel': 'Rejected',
+      'icon': Icons.cancel,
+      'color': Colors.red,
+      'count': 0,
+    },
+    {
+      'label': 'Withdrawn Trainees',
+      'shortLabel': 'Withdrawn',
+      'icon': Icons.exit_to_app,
+      'color': Colors.grey,
+      'count': 0,
+    },
+    {
+      'label': 'Terminated Trainees',
+      'shortLabel': 'Terminated',
+      'icon': Icons.gavel,
+      'color': Colors.brown,
+      'count': 0,
+    },
   ];
 
-  final List<IconData> _tabIcons = [
-    Icons.pending_actions,
-    Icons.work,
-    Icons.pause,
-    Icons.schedule,
-    Icons.cancel,
-    Icons.check_circle,
-  ];
-
-  double _previousAnimationValue = 0.0;
-
-
-  String migrationStatus = "";
   @override
   void initState() {
     super.initState();
     _traineeService = TraineeService(FirebaseAuth.instance.currentUser!.uid);
-    _tabController = TabController(length: 6, vsync: this); // Changed to 6
-    _previousAnimationValue = _tabController.animation!.value;
-    _tabController.addListener(() {
-      _handleTabScroll();
-    });
     _loadTrainees();
   }
 
-  void _handleTabScroll() {
-    final currentValue = _tabController.animation!.value;
-
-    // Check the direction
-    if (currentValue > _previousAnimationValue) {
-      // Scrolling from left to right (positive delta in animation value)
-      print("Scrolling from left to right");
-      setState(() {
-
-      });
-      // Perform your action here
-    } else if (currentValue < _previousAnimationValue) {
-      // Scrolling from right to left (negative delta in animation value)
-      print("Scrolling from right to left");
-      setState(() {
-
-      });
-      // Perform your action here
-    }
-
-    _previousAnimationValue = currentValue;
-  }
-
-
   @override
   void dispose() {
-    _tabController.dispose();
-    _searchControllers.forEach((_, controller) => controller.dispose());
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -154,57 +144,85 @@ class _StudentListPageState extends State<StudentListPage>
 
     try {
       final companyId = widget.company.id;
+      final companyIds = widget.company.originalAuthority?.linkedCompanies ?? [];
 
-      // Load all trainee categories
-      _pendingTrainees = await _traineeService.getTraineesByStatus(
+      // Load all trainee categories in parallel for better performance
+      final results = await Future.wait([
+        _traineeService.getTraineesByStatus(
           companyId: companyId,
-          status:TraineeStatus.pending,
-        isAuthority: widget.isAuthority,
-        companyIds: widget.company.originalAuthority?.linkedCompanies??[]
-      );
-
-      _onHoldTrainees = await _traineeService.getTraineesByStatus(
-          companyId: companyId,
-          status:TraineeStatus.onHold,
-        isAuthority: widget.isAuthority,
-        companyIds: widget.company.originalAuthority?.linkedCompanies??[]
-      );
-
-
-      _currentTrainees = await _traineeService.getCurrentTrainees(companyId: companyId,isAuthority: widget.isAuthority,
-          companyIds: widget.company.originalAuthority?.linkedCompanies??[]);
-      _upcomingTrainees = await _traineeService.getUpcomingTrainees(companyId: companyId,isAuthority: widget.isAuthority,
-          companyIds: widget.company.originalAuthority?.linkedCompanies??[]);
-      _rejectedTrainees = await _traineeService.getTraineesByStatus(
-          companyId: companyId,
-          status:TraineeStatus.rejected,
+          status: TraineeStatus.pending,
           isAuthority: widget.isAuthority,
-          companyIds: widget.company.originalAuthority?.linkedCompanies??[]
-      );
-      _completedTrainees = await _traineeService.getTraineesByStatus(
-          companyId:  companyId,
-          status:TraineeStatus.completed,
+          companyIds: companyIds,
+        ),
+        _traineeService.getCurrentTrainees(
+          companyId: companyId,
           isAuthority: widget.isAuthority,
-          companyIds: widget.company.originalAuthority?.linkedCompanies??[]
-      );
+          companyIds: companyIds,
+        ),
+        _traineeService.getTraineesByStatus(
+          companyId: companyId,
+          status: TraineeStatus.onHold,
+          isAuthority: widget.isAuthority,
+          companyIds: companyIds,
+        ),
+        _traineeService.getUpcomingTrainees(
+          companyId: companyId,
+          isAuthority: widget.isAuthority,
+          companyIds: companyIds,
+        ),
+        _traineeService.getTraineesByStatus(
+          companyId: companyId,
+          status: TraineeStatus.rejected,
+          isAuthority: widget.isAuthority,
+          companyIds: companyIds,
+        ),
+        _traineeService.getTraineesByStatus(
+          companyId: companyId,
+          status: TraineeStatus.completed,
+          isAuthority: widget.isAuthority,
+          companyIds: companyIds,
+        ),
+        _traineeService.getTraineesByStatus(
+          companyId: companyId,
+          status: TraineeStatus.withdrawn,
+          isAuthority: widget.isAuthority,
+          companyIds: companyIds,
+        ),
+        _traineeService.getTraineesByStatus(
+          companyId: companyId,
+          status: TraineeStatus.terminated,
+          isAuthority: widget.isAuthority,
+          companyIds: companyIds,
+        ),
+      ]);
 
-      debugPrint("Loaded: ${_pendingTrainees.length} pending, "
-          "${_currentTrainees.length} current, "
-          "${_upcomingTrainees.length} upcoming, "
-          "${_rejectedTrainees.length} rejected, "
-          "${_completedTrainees.length} completed");
+      _pendingTrainees = results[0];
+      _currentTrainees = results[1];
+      _onHoldTrainees = results[2];
+      _upcomingTrainees = results[3];
+      _rejectedTrainees = results[4];
+      _completedTrainees = results[5];
+      _withdrawnTrainees = results[6];
+      _terminatedTrainees = results[7];
 
-      // Initialize filtered lists
-      _filteredTrainees[0] = List.from(_pendingTrainees);
-      _filteredTrainees[1] = List.from(_currentTrainees);
-      _filteredTrainees[2] = List.from(_onHoldTrainees);
-      _filteredTrainees[3] = List.from(_upcomingTrainees);
-      _filteredTrainees[4] = List.from(_rejectedTrainees);
-      _filteredTrainees[5] = List.from(_completedTrainees);
+      // Update counts in view options
+      _updateViewCounts();
+
+      // Set initial display to active trainees (prioritized)
+      _updateDisplayList();
 
       setState(() {
         _isLoading = false;
       });
+
+      debugPrint("Loaded: ${_currentTrainees.length} active, "
+          "${_pendingTrainees.length} pending, "
+          "${_onHoldTrainees.length} on-hold, "
+          "${_upcomingTrainees.length} upcoming, "
+          "${_completedTrainees.length} completed, "
+          "${_rejectedTrainees.length} rejected, "
+          "${_withdrawnTrainees.length} withdrawn, "
+          "${_terminatedTrainees.length} terminated");
     } catch (e, stackTrace) {
       debugPrint("Error in _loadTrainees: $e");
       debugPrint("Stack trace: $stackTrace");
@@ -215,74 +233,139 @@ class _StudentListPageState extends State<StudentListPage>
     }
   }
 
-  void _filterTrainees(int tabIndex) {
-    List<TraineeRecord> baseList;
-    switch (tabIndex) {
-      case 0:
-        baseList = _pendingTrainees;
+  void _updateViewCounts() {
+    for (var option in _viewOptions) {
+      switch (option['label']) {
+        case 'Active Trainees':
+          option['count'] = _currentTrainees.length;
+          break;
+        case 'Pending Applications':
+          option['count'] = _pendingTrainees.length;
+          break;
+        case 'On-Hold Trainees':
+          option['count'] = _onHoldTrainees.length;
+          break;
+        case 'Upcoming Trainees':
+          option['count'] = _upcomingTrainees.length;
+          break;
+        case 'Completed Trainees':
+          option['count'] = _completedTrainees.length;
+          break;
+        case 'Rejected Applications':
+          option['count'] = _rejectedTrainees.length;
+          break;
+        case 'Withdrawn Trainees':
+          option['count'] = _withdrawnTrainees.length;
+          break;
+        case 'Terminated Trainees':
+          option['count'] = _terminatedTrainees.length;
+          break;
+      }
+    }
+  }
+
+  void _updateDisplayList() {
+    List<TraineeRecord> sourceList;
+
+    switch (_selectedView) {
+      case 'Active Trainees':
+        sourceList = _currentTrainees;
         break;
-      case 1:
-        baseList = _currentTrainees;
+      case 'Pending Applications':
+        sourceList = _pendingTrainees;
         break;
-      case 2:
-        baseList = _onHoldTrainees;
+      case 'On-Hold Trainees':
+        sourceList = _onHoldTrainees;
         break;
-      case 3:
-        baseList = _upcomingTrainees;
+      case 'Upcoming Trainees':
+        sourceList = _upcomingTrainees;
         break;
-      case 4:
-        baseList = _rejectedTrainees;
+      case 'Completed Trainees':
+        sourceList = _completedTrainees;
         break;
-      case 5:
-        baseList = _completedTrainees;
+      case 'Rejected Applications':
+        sourceList = _rejectedTrainees;
+        break;
+      case 'Withdrawn Trainees':
+        sourceList = _withdrawnTrainees;
+        break;
+      case 'Terminated Trainees':
+        sourceList = _terminatedTrainees;
         break;
       default:
-        baseList = [];
+        sourceList = _currentTrainees;
     }
-
-    final query = _searchQueries[tabIndex] ?? '';
-    List<TraineeRecord> filtered = baseList;
 
     // Apply search filter
-    if (query.isNotEmpty) {
-      filtered = filtered.where((trainee) {
+    if (_searchQuery.isNotEmpty) {
+      _displayTrainees = sourceList.where((trainee) {
         final name = trainee.studentName.toLowerCase();
-        final searchQuery = query.toLowerCase();
-        return name.contains(searchQuery);
+        final department = trainee.department.toLowerCase();
+        final query = _searchQuery.toLowerCase();
+
+        return name.contains(query) ||
+            department.contains(query);
       }).toList();
+    } else {
+      _displayTrainees = List.from(sourceList);
     }
 
-    setState(() {
-      _filteredTrainees[tabIndex] = filtered;
-    });
+    // Sort active trainees by priority (progress, days remaining, etc.)
+    if (_selectedView == 'Active Trainees') {
+      _displayTrainees.sort((a, b) {
+        // Prioritize by progress (higher first)
+        if (a.progress != b.progress) {
+          return b.progress.compareTo(a.progress);
+        }
+        // Then by days remaining (lower first - urgent)
+        if (a.daysRemaining != null && b.daysRemaining != null) {
+          return a.daysRemaining!.compareTo(b.daysRemaining!);
+        }
+        return 0;
+      });
+    }
+
+    setState(() {});
   }
 
-  void _onSearchChanged(String query, int tabIndex) {
+  void _onSearchChanged(String query) {
     setState(() {
-      _searchQueries[tabIndex] = query;
+      _searchQuery = query;
     });
-    _filterTrainees(tabIndex);
+    _updateDisplayList();
   }
 
-  void _clearSearch(int tabIndex) {
-    _searchControllers[tabIndex]?.clear();
+  void _clearSearch() {
+    _searchController.clear();
     setState(() {
-      _searchQueries[tabIndex] = '';
+      _searchQuery = '';
     });
-    _filterTrainees(tabIndex);
+    _updateDisplayList();
   }
 
-  void _showTraineeDetails(TraineeRecord trainee, int tabIndex) {
-    GeneralMethods.navigateTo(context,TraineeDetailPage(
-      isAuthority: widget.isAuthority,
+  void _showTraineeDetails(TraineeRecord trainee) {
+    GeneralMethods.navigateTo(
+      context,
+      TraineeDetailPage(
+        isAuthority: widget.isAuthority,
         trainee: trainee,
-        tabIndex: tabIndex,
+        tabIndex: _getTabIndexFromView(),
         traineeService: _traineeService,
-        onStatusChanged: () {
-          _loadTrainees();
-        },
+        onStatusChanged: _loadTrainees,
       ),
     );
+  }
+
+  int _getTabIndexFromView() {
+    switch (_selectedView) {
+      case 'Pending Applications': return 0;
+      case 'Active Trainees': return 1;
+      case 'On-Hold Trainees': return 2;
+      case 'Upcoming Trainees': return 3;
+      case 'Rejected Applications': return 4;
+      case 'Completed Trainees': return 5;
+      default: return 1;
+    }
   }
 
   Future<void> _updateTraineeStatus({
@@ -290,7 +373,6 @@ class _StudentListPageState extends State<StudentListPage>
     required TraineeStatus newStatus,
     String? reason,
   }) async {
-
     try {
       final success = await _traineeService.updateTraineeStatus(
         traineeId: trainee.id,
@@ -298,25 +380,33 @@ class _StudentListPageState extends State<StudentListPage>
         reason: reason,
       );
 
-      if (success) {
+      if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Status updated to ${newStatus.displayName}'),
             backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
-        setState(() {
-          _loadTrainees();
-        });
+        _loadTrainees();
       }
-    } catch (e,s) {
+    } catch (e, s) {
       debugPrintStack(stackTrace: s);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to update status: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update status: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -326,22 +416,23 @@ class _StudentListPageState extends State<StudentListPage>
     String? reason,
   }) async {
     try {
-      // First, get the application details
       final application = await _getApplicationForTrainee(trainee);
 
       if (application == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Cannot find application details'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Cannot find application details'),
+              backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
         return;
       }
 
       final status = accept ? 'accepted' : 'rejected';
       final finalReason = reason ?? (accept ? 'Application accepted' : 'Application rejected');
-      debugPrint("application title ${application.internship.title}");
 
       final success = await _traineeService.updateApplicationStatusWithTraineeSync(
         isAuthority: widget.isAuthority,
@@ -353,22 +444,26 @@ class _StudentListPageState extends State<StudentListPage>
         reason: finalReason,
       );
 
-      if (success) {
+      if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Application $status'),
             backgroundColor: accept ? Colors.green : Colors.orange,
+            behavior: SnackBarBehavior.floating,
           ),
         );
         _loadTrainees();
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to update application: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update application: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 
@@ -376,8 +471,6 @@ class _StudentListPageState extends State<StudentListPage>
     try {
       if (trainee.applicationId == null) return null;
 
-      // You'll need to implement this method based on your Company_Cloud
-      // This is a placeholder - adjust according to your actual structure
       final applications = await _traineeService.getPendingApplications(trainee.companyId);
       return applications.firstWhere(
             (app) => app.id == trainee.applicationId,
@@ -391,196 +484,71 @@ class _StudentListPageState extends State<StudentListPage>
     }
   }
 
-  Widget _buildSearchBar(int tabIndex) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final query = _searchQueries[tabIndex] ?? '';
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      height: 48,
-      decoration: BoxDecoration(
-        color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          const SizedBox(width: 16),
-          Icon(
-            Icons.search,
-            color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: TextField(
-              controller: _searchControllers[tabIndex],
-              onChanged: (value) => _onSearchChanged(value, tabIndex),
-              decoration: InputDecoration(
-                hintText: 'Search ${_tabLabels[tabIndex].toLowerCase()}...',
-                hintStyle: TextStyle(
-                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-                ),
-                border: InputBorder.none,
-              ),
-              style: TextStyle(
-                color: isDark ? Colors.white : Colors.black,
-              ),
-            ),
-          ),
-          if (query.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.clear, size: 20),
-              onPressed: () => _clearSearch(tabIndex),
-            ),
-        ],
-      ),
+  Map<String, dynamic> _getCurrentViewOption() {
+    return _viewOptions.firstWhere(
+          (option) => option['label'] == _selectedView,
+      orElse: () => _viewOptions[0],
     );
   }
 
-  Widget _buildTabContent(int tabIndex) {
-    final trainees = _filteredTrainees[tabIndex] ?? [];
-
-    if (trainees.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              _searchQueries[tabIndex]?.isNotEmpty == true
-                  ? Icons.search_off
-                  : _getEmptyIcon(tabIndex),
-              size: 64,
-              color: Colors.grey.shade400,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              _searchQueries[tabIndex]?.isNotEmpty == true
-                  ? 'No matching trainees found'
-                  : _getEmptyMessage(tabIndex),
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey.shade600,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            if (_searchQueries[tabIndex]?.isNotEmpty == true)
-              Text(
-                'Try adjusting your search',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey.shade500,
-                ),
-              ),
-          ],
-        ),
-      );
-    }
-
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemCount: trainees.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final trainee = trainees[index];
-        debugPrint("trainee record is ${trainee.toString()}");
-
-        return TraineeCard(
-          onDoubleTab: ()
-          {
-            GeneralMethods.navigateTo(context, SpecificStudentApplicationsPage(companyId: trainee.companyId,studentUid: trainee.studentId,isAuthority: widget.isAuthority,companyIds: widget.company.originalAuthority?.linkedCompanies??[]));
-          },
-          trainee: trainee,
-          isDark: isDark,
-          tabIndex: tabIndex,
-          onTap: () => _showTraineeDetails(trainee, tabIndex),
-          onAccept: tabIndex == 0 ? () => _handleApplicationDecision(
-            trainee: trainee,
-            accept: true,
-          ) : null,
-          onReject: tabIndex == 0 ? () => _handleApplicationDecision(
-            trainee: trainee,
-            accept: false,
-          ) : null,
-          onStartTraining: tabIndex == 2 ? () => _updateTraineeStatus(
-            trainee: trainee,
-            newStatus: TraineeStatus.active,
-            reason: 'Training started',
-          ) : null,
-          onCompleteTraining: tabIndex == 1 ? () => _updateTraineeStatus(
-            trainee: trainee,
-            newStatus: TraineeStatus.completed,
-            reason: 'Training completed successfully',
-          ) : null,
-        );
-      },
-    );
-  }
-
-  IconData _getEmptyIcon(int tabIndex) {
-    switch (tabIndex) {
-      case 0: return Icons.pending_actions;
-      case 1: return Icons.work_outline;
-      case 2: return Icons.schedule_outlined;
-      case 3: return Icons.cancel_outlined;
-      case 4: return Icons.check_circle_outline;
-      default: return Icons.people_outline;
-    }
-  }
-
-  String _getEmptyMessage(int tabIndex) {
-    switch (tabIndex) {
-      case 0: return 'No pending applications';
-      case 1: return 'No current trainees';
-      case 2: return 'No On-Hold trainees';
-      case 3: return 'No upcoming trainees';
-      case 4: return 'No rejected applications';
-      case 5: return 'No completed trainees';
-
-      default: return 'No trainees found';
-    }
+  String _getDisplayLabel() {
+    final current = _getCurrentViewOption();
+    return current['shortLabel'] ?? current['label'];
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final currentView = _getCurrentViewOption();
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 600;
 
-    return DefaultTabController(
+    return Scaffold(
       key: _scaffoldKey,
-      length: 6,
-      child: Scaffold(
-        backgroundColor: isDark ? const Color(0xFF101622) : const Color(0xFFf6f6f8),
-        appBar: AppBar(
-          title: Text('Trainee Management - ${widget.company.name}'),
-          backgroundColor: isDark ? const Color(0xFF1a2232) : Colors.white,
-          elevation: 0,
-          bottom: TabBar(
-            controller: _tabController,
-            isScrollable: true, // Added because we have more tabs
-            tabs: [
-              for (int i = 0; i < 5; i++)
-                Tab(
-                  icon: Icon(_tabIcons[i]),
-                  text: _tabLabels[i],
-                ),
-            ],
-            indicatorColor: Colors.blue,
-            labelColor: Colors.blue,
-            unselectedLabelColor: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-          ),
-          actions: [
+      backgroundColor: theme.scaffoldBackgroundColor,
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Trainee Management',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            Text(
+              widget.company.name,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onPrimary.withOpacity(0.8),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: theme.appBarTheme.backgroundColor,
+        elevation: 0,
+        actions: [
+          // Responsive actions - hide some on very small screens
+          if (!isSmallScreen) ...[
             IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: _loadTrainees,
-              tooltip: 'Refresh',
+              icon: const Icon(Icons.analytics),
+              onPressed: _showStatistics,
+              tooltip: 'Statistics',
             ),
-
-            MigrationStatusIcon(
-              onRefresh: startMigration,
+            IconButton(
+              icon: const Icon(Icons.download),
+              onPressed: _exportData,
+              tooltip: 'Export Data',
             ),
+            IconButton(
+              icon: const Icon(Icons.sync),
+              onPressed: _syncWithApplication,
+              tooltip: 'Sync with Applications',
+            ),
+          ] else
             PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert),
               onSelected: (value) {
                 if (value == 'stats') {
                   _showStatistics();
@@ -597,7 +565,7 @@ class _StudentListPageState extends State<StudentListPage>
                     children: [
                       Icon(Icons.analytics, size: 20),
                       SizedBox(width: 8),
-                      Text('View Statistics'),
+                      Text('Statistics'),
                     ],
                   ),
                 ),
@@ -611,63 +579,664 @@ class _StudentListPageState extends State<StudentListPage>
                     ],
                   ),
                 ),
+                const PopupMenuItem(
+                  value: 'sync',
+                  child: Row(
+                    children: [
+                      Icon(Icons.sync, size: 20),
+                      SizedBox(width: 8),
+                      Text('Sync'),
+                    ],
+                  ),
+                ),
               ],
+            ),
+          MigrationStatusIcon(onRefresh: startMigration),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadTrainees,
+            tooltip: 'Refresh',
+          ),
+        ],
+      ),
+      body: _isLoading
+          ? _buildLoadingState(theme)
+          : _error.isNotEmpty
+          ? _buildErrorState(theme)
+          : Column(
+        children: [
+          // Stats Overview Cards - Responsive layout
+          _buildStatsOverview(theme, isSmallScreen),
+
+          // View Selector and Search Bar - Stack on small screens
+          _buildViewSelector(theme, currentView, isSmallScreen),
+
+          // Trainee List
+          Expanded(
+            child: _displayTrainees.isEmpty
+                ? _buildEmptyState(theme, currentView)
+                : _buildTraineeList(theme),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatsOverview(ThemeData theme, bool isSmallScreen) {
+    final totalActive = _currentTrainees.length;
+    final totalPending = _pendingTrainees.length;
+    final totalCompleted = _completedTrainees.length;
+    final totalOnHold = _onHoldTrainees.length;
+
+    if (isSmallScreen) {
+      // Horizontal scrollable list for small screens
+      return Container(
+        height: 100,
+        padding: const EdgeInsets.all(16),
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          children: [
+            _buildSmallStatCard(theme, 'Active', totalActive.toString(), Icons.work, Colors.blue),
+            const SizedBox(width: 12),
+            _buildSmallStatCard(theme, 'Pending', totalPending.toString(), Icons.pending_actions, Colors.orange),
+            const SizedBox(width: 12),
+            _buildSmallStatCard(theme, 'Completed', totalCompleted.toString(), Icons.check_circle, Colors.green),
+            const SizedBox(width: 12),
+            _buildSmallStatCard(theme, 'On Hold', totalOnHold.toString(), Icons.pause_circle, Colors.purple),
+          ],
+        ),
+      );
+    }
+
+    // Original grid layout for larger screens
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Expanded(child: _buildStatCard(theme, label:'Active', value:totalActive.toString(), icon:Icons.work,color: Colors.blue)),
+          const SizedBox(width: 12),
+          Expanded(child: _buildStatCard(theme, label:'Pending', value:totalPending.toString(),icon: Icons.pending_actions, color:Colors.orange,)),
+          const SizedBox(width: 12),
+          Expanded(child: _buildStatCard(theme, label: 'Completed', value:totalCompleted.toString(), icon:Icons.check_circle, color:Colors.green)),
+          const SizedBox(width: 12),
+          Expanded(child: _buildStatCard(theme, label: 'On Hold', value:totalOnHold.toString(), icon:Icons.pause_circle,color: Colors.purple)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSmallStatCard(ThemeData theme, String label, String value, IconData icon, Color color) {
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      width: 100,
+      height: 100, // Fixed height
+      padding: EdgeInsets.zero, // Remove padding from container
+      decoration: BoxDecoration(
+        color: isDark ? theme.cardColor : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(4), // Move padding here
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisSize: MainAxisSize.max, // Use max to fill the space
+          children: [
+            // Icon
+            Container(
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 12),
+            ),
+            const SizedBox(height: 2),
+
+            // Value text
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  value,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+
+            // Label text
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
+                  ),
+                ),
+              ),
             ),
           ],
         ),
-        body: _isLoading
-            ? _buildLoadingState()
-            : _error.isNotEmpty
-            ? _buildErrorState()
-            : Column(
+      ),
+    );
+  }
+
+  Widget _buildStatCard(
+      ThemeData theme, {
+        required String label,
+        required String value,
+        required IconData icon,
+        required Color color,
+      }) {
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? theme.cardColor : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: theme.textTheme.bodyLarge?.color,
+            ),
+          ),
+          Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildViewSelector(ThemeData theme, Map<String, dynamic> currentView, bool isSmallScreen) {
+    final isDark = theme.brightness == Brightness.dark;
+
+    if (isSmallScreen) {
+      // Stack vertically on small screens
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Column(
           children: [
-            Expanded(
-              child: CustomScrollView(
-                slivers: [
-                  // Stats for current tab - as a Sliver
-                  SliverToBoxAdapter(
-                    child: _buildTabStats(_tabController.index),
+            // View Dropdown - Full width
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: isDark ? theme.cardColor : Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+                ),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _selectedView,
+                  isExpanded: true,
+                  icon: Icon(
+                    Icons.arrow_drop_down,
+                    color: theme.iconTheme.color,
                   ),
-
-                  // Search bar for current tab - as a Sliver
-                  SliverToBoxAdapter(
-                    child: _buildSearchBar(_tabController.index),
-                  ),
-
-                  // Trainee list for current tab
-                  SliverFillRemaining(
-                    child: TabBarView(
-                      controller: _tabController,
-                      children: [
-                        for (int i = 0; i < 5; i++)
-                          RefreshIndicator(
-                            onRefresh: _loadTrainees,
-                            child: _buildTabContent(i),
+                  style: theme.textTheme.bodyMedium,
+                  onChanged: (String? newValue) {
+                    if (newValue != null) {
+                      setState(() {
+                        _selectedView = newValue;
+                      });
+                      _updateDisplayList();
+                    }
+                  },
+                  items: _viewOptions.map<DropdownMenuItem<String>>((option) {
+                    return DropdownMenuItem<String>(
+                      value: option['label'],
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 24,
+                            height: 24,
+                            decoration: BoxDecoration(
+                              color: (option['color'] as Color).withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              option['icon'],
+                              color: option['color'],
+                              size: 14,
+                            ),
                           ),
-                      ],
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              option['shortLabel'] ?? option['label'],
+                              style: theme.textTheme.bodyMedium,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (option['count'] > 0)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: option['color'].withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                option['count'].toString(),
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: option['color'],
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Search Bar
+            Container(
+              height: 48,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: isDark ? theme.cardColor : Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+                ),
+              ),
+              child: Row(
+                children: [
+                  const SizedBox(width: 12),
+                  Icon(
+                    Icons.search,
+                    color: theme.iconTheme.color?.withOpacity(0.5),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: _onSearchChanged,
+                      decoration: InputDecoration(
+                        hintText: 'Search...',
+                        hintStyle: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.hintColor,
+                        ),
+                        border: InputBorder.none,
+                      ),
+                      style: theme.textTheme.bodyMedium,
                     ),
                   ),
+                  if (_searchQuery.isNotEmpty)
+                    IconButton(
+                      icon: Icon(
+                        Icons.clear,
+                        size: 18,
+                        color: theme.iconTheme.color,
+                      ),
+                      onPressed: _clearSearch,
+                    ),
                 ],
               ),
             ),
           ],
         ),
-    ));
+      );
+    }
+
+    // Original side-by-side layout for larger screens
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          // View Dropdown
+          Expanded(
+            flex: 2,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: isDark ? theme.cardColor : Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+                ),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _selectedView,
+                  isExpanded: true,
+                  icon: Icon(
+                    Icons.arrow_drop_down,
+                    color: theme.iconTheme.color,
+                  ),
+                  style: theme.textTheme.bodyMedium,
+                  onChanged: (String? newValue) {
+                    if (newValue != null) {
+                      setState(() {
+                        _selectedView = newValue;
+                      });
+                      _updateDisplayList();
+                    }
+                  },
+                  items: _viewOptions.map<DropdownMenuItem<String>>((option) {
+                    return DropdownMenuItem<String>(
+                      value: option['label'],
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 24,
+                            height: 24,
+                            decoration: BoxDecoration(
+                              color: (option['color'] as Color).withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              option['icon'],
+                              color: option['color'],
+                              size: 14,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              option['label'],
+                              style: theme.textTheme.bodyMedium,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (option['count'] > 0)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: option['color'].withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                option['count'].toString(),
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: option['color'],
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Search Bar
+          Expanded(
+            flex: 3,
+            child: Container(
+              height: 48,
+              decoration: BoxDecoration(
+                color: isDark ? theme.cardColor : Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+                ),
+              ),
+              child: Row(
+                children: [
+                  const SizedBox(width: 12),
+                  Icon(
+                    Icons.search,
+                    color: theme.iconTheme.color?.withOpacity(0.5),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: _onSearchChanged,
+                      decoration: InputDecoration(
+                        hintText: 'Search by name, department...',
+                        hintStyle: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.hintColor,
+                        ),
+                        border: InputBorder.none,
+                      ),
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ),
+                  if (_searchQuery.isNotEmpty)
+                    IconButton(
+                      icon: Icon(
+                        Icons.clear,
+                        size: 18,
+                        color: theme.iconTheme.color,
+                      ),
+                      onPressed: _clearSearch,
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
-  startMigration()async
-  {
+  Widget _buildTraineeList(ThemeData theme) {
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: _displayTrainees.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final trainee = _displayTrainees[index];
+
+        return TraineeCard(
+          onDoubleTab: () {
+            GeneralMethods.navigateTo(
+              context,
+              SpecificStudentApplicationsPage(
+                companyId: trainee.companyId,
+                studentUid: trainee.studentId,
+                isAuthority: widget.isAuthority,
+                companyIds: widget.company.originalAuthority?.linkedCompanies ?? [],
+              ),
+            );
+          },
+          trainee: trainee,
+          isDark: theme.brightness == Brightness.dark,
+          tabIndex: _getTabIndexFromView(),
+          onTap: () => _showTraineeDetails(trainee),
+          onAccept: _selectedView == 'Pending Applications'
+              ? () => _handleApplicationDecision(
+            trainee: trainee,
+            accept: true,
+          )
+              : null,
+          onReject: _selectedView == 'Pending Applications'
+              ? () => _handleApplicationDecision(
+            trainee: trainee,
+            accept: false,
+          )
+              : null,
+          onStartTraining: _selectedView == 'On-Hold Trainees' || _selectedView == 'Upcoming Trainees'
+              ? () => _updateTraineeStatus(
+            trainee: trainee,
+            newStatus: TraineeStatus.active,
+            reason: 'Training started/resumed',
+          )
+              : null,
+          onCompleteTraining: _selectedView == 'Active Trainees'
+              ? () => _updateTraineeStatus(
+            trainee: trainee,
+            newStatus: TraineeStatus.completed,
+            reason: 'Training completed successfully',
+          )
+              : null,
+        );
+      },
+    );
+  }
+
+  Widget _buildEmptyState(ThemeData theme, Map<String, dynamic> currentView) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: currentView['color'].withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              _searchQuery.isNotEmpty ? Icons.search_off : currentView['icon'],
+              size: 64,
+              color: currentView['color'],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            _searchQuery.isNotEmpty
+                ? 'No matching trainees found'
+                : 'No ${_selectedView.toLowerCase()}',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _searchQuery.isNotEmpty
+                ? 'Try adjusting your search criteria'
+                : 'There are no trainees in this category',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.textTheme.bodyMedium?.color?.withOpacity(0.5),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoadingState(ThemeData theme) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const CircularProgressIndicator(),
+          const SizedBox(height: 16),
+          Text(
+            'Loading trainees...',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.textTheme.bodyMedium?.color?.withOpacity(0.5),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState(ThemeData theme) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 64,
+              color: theme.colorScheme.error,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Error Loading Trainees',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: theme.colorScheme.error,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _error,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: _loadTrainees,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: theme.colorScheme.primary,
+                foregroundColor: theme.colorScheme.onPrimary,
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
+              ),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Keep all your existing methods below (_showStatistics, _syncWithApplication, etc.)
+  void startMigration() async {
     final migrationService = MigrationService(FirebaseAuth.instance.currentUser!.uid);
-    unawaited( migrationService.startMigration().catchError((e,s)
-    {
-      debugPrint("background Task failed with error $e");
-      debugPrintStack(stackTrace: s);
-    }));
+    unawaited(
+      migrationService.startMigration().catchError((e, s) {
+        debugPrint("background Task failed with error $e");
+        debugPrintStack(stackTrace: s);
+      }),
+    );
   }
 
   Future<void> _showStatistics() async {
     try {
       final stats = await _traineeService.getTraineeStatistics(widget.company.id);
+
+      if (!mounted) return;
 
       showDialog(
         context: context,
@@ -690,10 +1259,6 @@ class _StudentListPageState extends State<StudentListPage>
                   _buildStatItem('Average Progress', '${stats['averageProgress'] ?? '0'}%'),
                   _buildStatItem('Completion Rate', '${stats['completionRate'] ?? '0'}%'),
                   _buildStatItem('Active Rate', '${stats['activeRate'] ?? '0'}%'),
-                  const Divider(),
-                  _buildStatItem('Supervised', stats['supervisedCount']?.toString() ?? '0'),
-                  _buildStatItem('Unsupervised', stats['unsupervisedCount']?.toString() ?? '0'),
-                  _buildStatItem('Overdue', stats['overdueCount']?.toString() ?? '0'),
                 ],
               ),
             ),
@@ -707,12 +1272,14 @@ class _StudentListPageState extends State<StudentListPage>
         ),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to load statistics: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load statistics: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -722,19 +1289,16 @@ class _StudentListPageState extends State<StudentListPage>
         _isLoading = true;
         _error = '';
       });
-      await _traineeService.syncTraineesFromApplications(widget.company.id,widget.isAuthority);
-    setState(() {
+      await _traineeService.syncTraineesFromApplications(
+        widget.company.id,
+        widget.isAuthority,
+      );
       _loadTrainees();
-    });
-  }
-    catch(error,stack)
-    {
+    } catch (error, stack) {
       debugPrint("error $error");
       debugPrintStack(stackTrace: stack);
     }
-
   }
-
 
   Future<void> _exportData() async {
     final messenger = ScaffoldMessenger.of(context);
@@ -779,18 +1343,54 @@ class _StudentListPageState extends State<StudentListPage>
     }
   }
 
+
+  Widget _buildStatItem(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  String _generateTraineeReport(List<Map<String, dynamic>> trainees) {
+    final buffer = StringBuffer();
+
+    buffer.writeln("TRAINEE MANAGEMENT REPORT");
+    buffer.writeln("Generated: ${DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now())}");
+    buffer.writeln("Company: ${widget.company.name}");
+    buffer.writeln("Total Trainees: ${trainees.length}");
+    buffer.writeln("=" * 80);
+    buffer.writeln();
+
+    final statusCount = <String, int>{};
+    for (var trainee in trainees) {
+      final status = trainee['status'] as String;
+      statusCount[status] = (statusCount[status] ?? 0) + 1;
+    }
+
+    buffer.writeln("STATUS SUMMARY:");
+    statusCount.forEach((status, count) {
+      buffer.writeln("  $status: $count");
+    });
+    buffer.writeln();
+
+    return buffer.toString();
+  }
+
   Future<String> _saveReportToFile(String report) async {
     try {
       final directory = await getApplicationDocumentsDirectory();
       final fileName = 'trainee_report_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.txt';
       final file = File('${directory.path}/$fileName');
-
       await file.writeAsString(report);
-
-      debugPrint('Report saved to: ${file.path}');
       return file.path;
     } catch (e) {
-      debugPrint('Error saving report to file: $e');
+      debugPrint('Error saving report: $e');
       return '';
     }
   }
@@ -815,15 +1415,13 @@ class _StudentListPageState extends State<StudentListPage>
               if (filePath.isNotEmpty)
                 Container(
                   padding: const EdgeInsets.all(8),
-                  color: isDark
-                      ? Colors.green.withOpacity(0.2)  // Dark mode version
-                      : Colors.green.shade50,           // Light mode version
+                  color: isDark ? Colors.green.withOpacity(0.2) : Colors.green.shade50,
                   child: Row(
                     children: [
                       Icon(
-                          Icons.check_circle,
-                          color: isDark ? Colors.green.shade300 : Colors.green,
-                          size: 16
+                        Icons.check_circle,
+                        color: isDark ? Colors.green.shade300 : Colors.green,
+                        size: 16,
                       ),
                       const SizedBox(width: 8),
                       Expanded(
@@ -843,27 +1441,20 @@ class _StudentListPageState extends State<StudentListPage>
               Expanded(
                 child: Container(
                   decoration: BoxDecoration(
-                    color: isDark
-                        ? Colors.grey.shade900   // Dark background for dark mode
-                        : Colors.grey.shade50,    // Light background for light mode
+                    color: isDark ? Colors.grey.shade900 : Colors.grey.shade50,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                      color: isDark
-                          ? Colors.grey.shade700
-                          : Colors.grey.shade300,
+                      color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
                     ),
                   ),
                   child: SingleChildScrollView(
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      child: SelectableText(
-                        report,
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          fontSize: 11,
-                          color: isDark ? Colors.white : Colors.black, // Text color based on theme
-                          backgroundColor: Colors.transparent, // Explicitly transparent
-                        ),
+                    padding: const EdgeInsets.all(12),
+                    child: SelectableText(
+                      report,
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 11,
+                        color: isDark ? Colors.white : Colors.black,
                       ),
                     ),
                   ),
@@ -903,272 +1494,6 @@ class _StudentListPageState extends State<StudentListPage>
       ),
     );
   }
-  String _generateTraineeReport(List<Map<String, dynamic>> trainees) {
-    final StringBuffer report = StringBuffer();
-
-    // Header
-    report.writeln("TRAINEE MANAGEMENT REPORT");
-    report.writeln("Generated: ${DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now())}");
-    report.writeln("Company: ${widget.company.name}");
-    report.writeln("Total Trainees: ${trainees.length}");
-    report.writeln("=" * 80);
-    report.writeln();
-
-    // Statistics by status
-    final statusCount = <String, int>{};
-    for (var trainee in trainees) {
-      final status = trainee['status'] as String;
-      statusCount[status] = (statusCount[status] ?? 0) + 1;
-    }
-
-    report.writeln("STATUS SUMMARY:");
-    statusCount.forEach((status, count) {
-      report.writeln("  $status: $count");
-    });
-    report.writeln();
-
-    // Department distribution
-    final deptCount = <String, int>{};
-    for (var trainee in trainees) {
-      final dept = trainee['department'] as String? ?? 'Not Assigned';
-      deptCount[dept] = (deptCount[dept] ?? 0) + 1;
-    }
-
-    report.writeln("DEPARTMENT DISTRIBUTION:");
-    deptCount.forEach((dept, count) {
-      report.writeln("  $dept: $count");
-    });
-    report.writeln();
-
-    // Progress statistics
-    double totalProgress = 0;
-    int completedCount = 0;
-    int inProgressCount = 0;
-    int notStartedCount = 0;
-
-    for (var trainee in trainees) {
-      final progress = trainee['progress'] as double? ?? 0;
-      totalProgress += progress;
-
-      if (progress >= 100) {
-        completedCount++;
-      } else if (progress > 0) {
-        inProgressCount++;
-      } else {
-        notStartedCount++;
-      }
-    }
-
-    report.writeln("PROGRESS SUMMARY:");
-    report.writeln("  Average Progress: ${(totalProgress / trainees.length).toStringAsFixed(1)}%");
-    report.writeln("  Completed (100%): $completedCount");
-    report.writeln("  In Progress (>0%): $inProgressCount");
-    report.writeln("  Not Started (0%): $notStartedCount");
-    report.writeln();
-
-    // Detailed trainee list
-    report.writeln("DETAILED TRAINEE LIST:");
-    report.writeln("-" * 80);
-
-    for (int i = 0; i < trainees.length; i++) {
-      final t = trainees[i];
-      report.writeln("${i + 1}. ${t['studentName']}");
-      report.writeln("   ID: ${t['studentId']}");
-      report.writeln("   Status: ${t['status']}");
-      report.writeln("   Department: ${t['department'] ?? 'N/A'}");
-      report.writeln("   Role: ${t['role'] ?? 'N/A'}");
-      report.writeln("   Progress: ${t['progress']}%");
-
-      if (t['startDate'] != null) {
-        report.writeln("   Start Date: ${DateFormat('yyyy-MM-dd').format(DateTime.parse(t['startDate']))}");
-      }
-      if (t['endDate'] != null) {
-        report.writeln("   End Date: ${DateFormat('yyyy-MM-dd').format(DateTime.parse(t['endDate']))}");
-      }
-
-      report.writeln("   Supervisors: ${(t['supervisors'] as List?)?.length ?? 0}");
-      report.writeln("   Milestones: ${t['milestones']}");
-      report.writeln("   Evaluations: ${t['evaluations']}");
-      report.writeln("   Last Updated: ${DateFormat('yyyy-MM-dd').format(DateTime.parse(t['updatedAt']))}");
-      report.writeln();
-    }
-
-    return report.toString();
-  }
-
-
-  Widget _buildStatItem(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTabStats(int tabIndex) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final totalCount = _getTotalCount(tabIndex);
-    final filteredCount = _filteredTrainees[tabIndex]?.length ?? 0;
-    final hasSearch = _searchQueries[tabIndex]?.isNotEmpty == true;
-
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1a2232) : Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          _buildStatItemWidget(
-            hasSearch ? 'Filtered' : 'Total',
-            hasSearch ? filteredCount.toString() : totalCount.toString(),
-            _tabIcons[tabIndex],
-          ),
-          if (hasSearch)
-            _buildStatItemWidget(
-              'Total',
-              totalCount.toString(),
-              Icons.filter_list,
-            ),
-          _buildStatItemWidget(
-            'Status',
-            _getStatusLabel(tabIndex),
-            Icons.info,
-          ),
-        ],
-      ),
-    );
-  }
-
-  int _getTotalCount(int tabIndex) {
-    switch (tabIndex) {
-      case 0: return _pendingTrainees.length;
-      case 1: return _currentTrainees.length;
-      case 2: return _onHoldTrainees.length;
-      case 3: return _upcomingTrainees.length;
-      case 4: return _rejectedTrainees.length;
-      case 5: return _completedTrainees.length;
-      default: return 0;
-    }
-  }
-
-  String _getStatusLabel(int tabIndex) {
-    switch (tabIndex) {
-      case 0: return 'Pending';
-      case 1: return 'Active';
-      case 2: return 'On-Hold';
-      case 3: return 'Upcoming';
-      case 4: return 'Rejected';
-      case 5: return 'Completed';
-      default: return '';
-    }
-  }
-
-  Widget _buildStatItemWidget(String label, String value, IconData icon) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.blue.withOpacity(0.1),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, color: Colors.blue, size: 20),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            color: Colors.grey,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLoadingState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const CircularProgressIndicator(),
-          const SizedBox(height: 16),
-          Text(
-            'Loading trainees...',
-            style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildErrorState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.error_outline,
-              size: 64,
-              color: Colors.red.shade400,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Error Loading Trainees',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Colors.red.shade600,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _error,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.grey.shade600,
-                fontSize: 14,
-              ),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _loadTrainees,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-              ),
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class TraineeCard extends StatelessWidget {
@@ -1201,6 +1526,7 @@ class TraineeCard extends StatelessWidget {
     final statusColor = trainee.status.color;
     final statusText = trainee.status.displayName;
     final statusIcon = trainee.status.icon;
+    debugPrint("status trainee is ${trainee.status.displayName}");
 
     return Card(
       elevation: 4,
