@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/services.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:intl/intl.dart';
 import 'package:itc_institute_admin/backgroundTask/backgroundTask.dart';
@@ -15,6 +16,7 @@ import 'package:itc_institute_admin/model/student.dart';
 import 'package:itc_institute_admin/model/company.dart';
 import 'package:itc_institute_admin/model/traineeRecord.dart';
 import 'package:itc_institute_admin/view/home/student/studentDetails.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../itc_logic/firebase/general_cloud.dart';
 import '../itc_logic/service/tranineeService.dart';
 import '../migrationService/migrationService.dart';
@@ -1314,6 +1316,12 @@ class _StudentListPageState extends State<StudentListPage> {
       // Save to file
       final String filePath = await _saveReportToFile(report);
 
+       if(filePath == 'not-found')
+         {
+           Fluttertoast.showToast(msg: "File not found");
+           return;
+         }
+
       // Show success message with options
       messenger.showSnackBar(
         SnackBar(
@@ -1323,8 +1331,12 @@ class _StudentListPageState extends State<StudentListPage> {
           action: SnackBarAction(
             label: 'VIEW',
             textColor: Colors.white,
-            onPressed: () {
-              _showReportDialog(report, filePath);
+            onPressed: () async {
+              // Close the snackbar first
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+              // Open the file in file explorer
+              await _openFileInExplorer(filePath);
             },
           ),
         ),
@@ -1344,6 +1356,116 @@ class _StudentListPageState extends State<StudentListPage> {
   }
 
 
+  Future<void> _openFileInExplorer(String filePath) async {
+    try {
+      final file = File(filePath);
+
+      if (!await file.exists()) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('File not found'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      // For Android, we need to ensure the file is accessible
+      if (Platform.isAndroid) {
+        // On Android, we can use the file:// scheme
+        final uri = Uri.file(filePath);
+        debugPrint("canluanch ${await canLaunchUrl(uri)}");
+
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri);
+        } else {
+          // Fallback: Show a dialog with the file path
+          _showFileLocationDialog(filePath);
+        }
+      } else if (Platform.isIOS) {
+        // On iOS, files are sandboxed, so we might need to share instead
+        final uri = Uri.file(filePath);
+
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri);
+        } else {
+          _showShareOption(filePath);
+        }
+      } else {
+        // For other platforms (Windows, macOS, Linux)
+        final uri = Uri.file(filePath);
+        await launchUrl(uri);
+      }
+    } catch (e, s) {
+      debugPrint('Error opening file: $e');
+      debugPrintStack(stackTrace: s);
+
+      if (mounted) {
+        // Fallback: Show dialog with file path
+        _showFileLocationDialog(filePath);
+      }
+    }
+  }
+
+  void _showFileLocationDialog(String filePath) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('File Location'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('File saved at:'),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: SelectableText(
+                filePath,
+                style: const TextStyle(fontSize: 12),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+          TextButton(
+            onPressed: () {
+              // Copy to clipboard
+              _copyToClipboard(filePath);
+              Navigator.pop(context);
+            },
+            child: const Text('Copy Path'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showShareOption(String filePath) {
+    // For iOS, you might want to use the share package
+    // But for now, show the file location
+    _showFileLocationDialog(filePath);
+  }
+
+  void _copyToClipboard(String text) {
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Path copied to clipboard'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
   Widget _buildStatItem(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -1358,35 +1480,109 @@ class _StudentListPageState extends State<StudentListPage> {
   }
 
   String _generateTraineeReport(List<Map<String, dynamic>> trainees) {
-    final buffer = StringBuffer();
+    final StringBuffer report = StringBuffer();
 
-    buffer.writeln("TRAINEE MANAGEMENT REPORT");
-    buffer.writeln("Generated: ${DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now())}");
-    buffer.writeln("Company: ${widget.company.name}");
-    buffer.writeln("Total Trainees: ${trainees.length}");
-    buffer.writeln("=" * 80);
-    buffer.writeln();
+    // Header
+    report.writeln("TRAINEE MANAGEMENT REPORT");
+    report.writeln("Generated: ${DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now())}");
+    report.writeln("Company: ${widget.company.name}");
+    report.writeln("Total Trainees: ${trainees.length}");
+    report.writeln("=" * 80);
+    report.writeln();
 
+    // Statistics by status
     final statusCount = <String, int>{};
     for (var trainee in trainees) {
       final status = trainee['status'] as String;
       statusCount[status] = (statusCount[status] ?? 0) + 1;
     }
 
-    buffer.writeln("STATUS SUMMARY:");
+    report.writeln("STATUS SUMMARY:");
     statusCount.forEach((status, count) {
-      buffer.writeln("  $status: $count");
+      report.writeln("  $status: $count");
     });
-    buffer.writeln();
+    report.writeln();
 
-    return buffer.toString();
+    // Department distribution
+    final deptCount = <String, int>{};
+    for (var trainee in trainees) {
+      final dept = trainee['department'] as String? ?? 'Not Assigned';
+      deptCount[dept] = (deptCount[dept] ?? 0) + 1;
+    }
+
+    report.writeln("DEPARTMENT DISTRIBUTION:");
+    deptCount.forEach((dept, count) {
+      report.writeln("  $dept: $count");
+    });
+    report.writeln();
+
+    // Progress statistics
+    double totalProgress = 0;
+    int completedCount = 0;
+    int inProgressCount = 0;
+    int notStartedCount = 0;
+
+    for (var trainee in trainees) {
+      final progress = trainee['progress'] as double? ?? 0;
+      totalProgress += progress;
+
+      if (progress >= 100) {
+        completedCount++;
+      } else if (progress > 0) {
+        inProgressCount++;
+      } else {
+        notStartedCount++;
+      }
+    }
+
+    report.writeln("PROGRESS SUMMARY:");
+    report.writeln("  Average Progress: ${(totalProgress / trainees.length).toStringAsFixed(1)}%");
+    report.writeln("  Completed (100%): $completedCount");
+    report.writeln("  In Progress (>0%): $inProgressCount");
+    report.writeln("  Not Started (0%): $notStartedCount");
+    report.writeln();
+
+    // Detailed trainee list
+    report.writeln("DETAILED TRAINEE LIST:");
+    report.writeln("-" * 80);
+
+    for (int i = 0; i < trainees.length; i++) {
+      final t = trainees[i];
+      report.writeln("${i + 1}. ${t['studentName']}");
+      report.writeln("   ID: ${t['studentId']}");
+      report.writeln("   Status: ${t['status']}");
+      report.writeln("   Department: ${t['department'] ?? 'N/A'}");
+      report.writeln("   Role: ${t['role'] ?? 'N/A'}");
+      report.writeln("   Progress: ${t['progress']}%");
+
+      if (t['startDate'] != null) {
+        report.writeln("   Start Date: ${DateFormat('yyyy-MM-dd').format(DateTime.parse(t['startDate']))}");
+      }
+      if (t['endDate'] != null) {
+        report.writeln("   End Date: ${DateFormat('yyyy-MM-dd').format(DateTime.parse(t['endDate']))}");
+      }
+
+      report.writeln("   Supervisors: ${(t['supervisors'] as List?)?.length ?? 0}");
+      report.writeln("   Milestones: ${t['milestones']}");
+      report.writeln("   Evaluations: ${t['evaluations']}");
+      report.writeln("   Last Updated: ${DateFormat('yyyy-MM-dd').format(DateTime.parse(t['updatedAt']))}");
+      report.writeln();
+    }
+
+    return report.toString();
   }
 
   Future<String> _saveReportToFile(String report) async {
     try {
-      final directory = await getApplicationDocumentsDirectory();
+      final directory = await getExternalStorageDirectory();
+       if(directory == null)
+         {
+           Fluttertoast.showToast(msg: "Directory not found");
+           return "not-found";
+         }
+      debugPrint("directory path ${directory?.path}");
       final fileName = 'trainee_report_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.txt';
-      final file = File('${directory.path}/$fileName');
+      final file = File('${directory?.path}/$fileName');
       await file.writeAsString(report);
       return file.path;
     } catch (e) {
