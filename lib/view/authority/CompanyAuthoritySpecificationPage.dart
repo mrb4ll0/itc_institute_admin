@@ -8,13 +8,13 @@ import 'package:itc_institute_admin/itc_logic/firebase/general_cloud.dart';
 import 'package:itc_institute_admin/model/authority.dart';
 import 'package:itc_institute_admin/model/company.dart';
 
-class CompanyAuthoritySpecificationDialog extends StatefulWidget {
+class CompanyAuthoritySpecificationPage extends StatefulWidget {
   final Company company;
   final ITCFirebaseLogic firebaseLogic;
   final VoidCallback? onSpecificationComplete;
   final bool allowEditing;
 
-  const CompanyAuthoritySpecificationDialog({
+  const CompanyAuthoritySpecificationPage({
     Key? key,
     required this.company,
     required this.firebaseLogic,
@@ -23,10 +23,10 @@ class CompanyAuthoritySpecificationDialog extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  State<CompanyAuthoritySpecificationDialog> createState() => _CompanyAuthoritySpecificationDialogState();
+  State<CompanyAuthoritySpecificationPage> createState() => _CompanyAuthoritySpecificationPageState();
 }
 
-class _CompanyAuthoritySpecificationDialogState extends State<CompanyAuthoritySpecificationDialog> {
+class _CompanyAuthoritySpecificationPageState extends State<CompanyAuthoritySpecificationPage> {
   final AuthorityService _authorityService = AuthorityService(FirebaseAuth.instance.currentUser!.uid);
 
   String _selectedOption = 'not_selected'; // 'standalone', 'under_authority', 'not_selected'
@@ -137,16 +137,17 @@ class _CompanyAuthoritySpecificationDialogState extends State<CompanyAuthoritySp
       }
 
       if (success) {
-        // Close dialog and call callback
+        // Call callback and navigate back
         if (widget.onSpecificationComplete != null) {
           widget.onSpecificationComplete!();
         }
-        Navigator.of(context).pop(true);
 
         Fluttertoast.showToast(
           msg: message,
           toastLength: Toast.LENGTH_LONG,
         );
+
+        Navigator.of(context).pop(true);
       } else {
         Fluttertoast.showToast(msg: message);
       }
@@ -217,9 +218,9 @@ class _CompanyAuthoritySpecificationDialogState extends State<CompanyAuthoritySp
     }
   }
 
-  bool _shouldShowDialog() {
+  bool _shouldShowPage() {
     if (widget.allowEditing) {
-      // Always show dialog if editing is allowed
+      // Always show page if editing is allowed
       return true;
     }
 
@@ -230,162 +231,150 @@ class _CompanyAuthoritySpecificationDialogState extends State<CompanyAuthoritySp
 
   @override
   Widget build(BuildContext context) {
-    if (!_shouldShowDialog() && !widget.allowEditing) {
-      return const SizedBox.shrink();
+    if (!_shouldShowPage() && !widget.allowEditing) {
+      return const Scaffold(
+        body: Center(
+          child: Text('No authority specification needed'),
+        ),
+      );
     }
 
-    final theme = Theme.of(context);
-    final screenSize = MediaQuery.of(context).size;
-    final isSmallScreen = screenSize.width < 600;
-    final dialogWidth = isSmallScreen ? screenSize.width * 0.95 : 650.0;
-
-    return Dialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-      ),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      child: Container(
-        width: dialogWidth,
-        constraints: BoxConstraints(
-          maxHeight: screenSize.height * 0.9,
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Company Authority Setup'),
+        backgroundColor: Theme.of(context).primaryColor,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Header
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: theme.primaryColor,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(20),
-                  topRight: Radius.circular(20),
-                ),
-              ),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    backgroundColor: theme.colorScheme.onPrimary,
-                    child: Icon(
-                      Icons.business,
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Company Authority Setup',
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            color: theme.brightness == Brightness.dark
-                                ? theme.colorScheme.onSurface
-                                : theme.colorScheme.onPrimary,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Specify your company\'s authority relationship',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.brightness == Brightness.dark
-                                ? theme.colorScheme.onSurface
-                                : theme.colorScheme.onPrimary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+      ),
+      body: Column(
+        children: [
+          // Header Banner
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Theme.of(context).primaryColor.withOpacity(0.1),
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(30),
+                bottomRight: Radius.circular(30),
               ),
             ),
-
-            // Content
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Introduction
-                    _buildIntroduction(theme),
-                    const SizedBox(height: 24),
-
-                    // Options Selection
-                    _buildOptionsSelection(theme),
-                    const SizedBox(height: 24),
-
-                    // Authority Selection (only shown if under_authority is selected)
-                    if (_selectedOption == 'under_authority')
-                      _buildAuthoritySelection(theme),
-                  ],
-                ),
-              ),
-            ),
-
-            // Footer
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: theme.dividerColor)),
-                color: theme.cardColor,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  TextButton(
-                    onPressed: _isLoading ? null : () => Navigator.of(context).pop(false),
-                    style: TextButton.styleFrom(
-                      foregroundColor: theme.colorScheme.secondary,
-                    ),
-                    child: const Text('Skip for Now'),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 30,
+                  backgroundColor: Colors.white,
+                  child: Icon(
+                    Icons.business,
+                    size: 30,
+                    color: Theme.of(context).primaryColor,
                   ),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : _saveSpecification,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: theme.brightness == Brightness.dark
-                            ? theme.colorScheme.primaryContainer  // Use primary container in dark theme
-                            : theme.primaryColor,                   // Use primary color in light theme
-                        foregroundColor: theme.brightness == Brightness.dark
-                            ? theme.colorScheme.onPrimaryContainer  // Text color for dark theme
-                            : theme.colorScheme.onPrimary,
-                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.company.name,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                      child: _isLoading
-                          ? SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            theme.colorScheme.onPrimary,
-                          ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Specify your company\'s authority relationship',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey.shade700,
                         ),
-                      )
-                          : const Text('Save & Continue'),
-                    ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Content
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Introduction
+                  _buildIntroduction(),
+                  const SizedBox(height: 24),
+
+                  // Options Selection
+                  _buildOptionsSelection(),
+                  const SizedBox(height: 24),
+
+                  // Authority Selection (only shown if under_authority is selected)
+                  if (_selectedOption == 'under_authority')
+                    _buildAuthoritySelection(),
+
+                  const SizedBox(height: 40),
+
+                  // Action Buttons
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            side: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          child: const Text('Cancel'),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _saveSpecification,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Theme.of(context).primaryColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                          child: _isLoading
+                              ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation(Colors.white),
+                            ),
+                          )
+                              : const Text('Save & Continue'),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildIntroduction(ThemeData theme) {
+  Widget _buildIntroduction() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'Welcome, ${widget.company.name}!',
-          style: theme.textTheme.titleMedium?.copyWith(
+          style: const TextStyle(
+            fontSize: 18,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -393,30 +382,29 @@ class _CompanyAuthoritySpecificationDialogState extends State<CompanyAuthoritySp
         Text(
           'To complete your company setup, please specify your authority relationship. '
               'This helps us provide you with the right features and connections.',
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurface.withOpacity(0.6),
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.grey.shade600,
           ),
         ),
         const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: theme.colorScheme.primary.withOpacity(0.1),
+            color: Colors.blue.shade50,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: theme.colorScheme.primary.withOpacity(0.2)),
+            border: Border.all(color: Colors.blue.shade100),
           ),
           child: Row(
             children: [
-              Icon(
-                Icons.info_outline,
-                color: theme.colorScheme.primary,
-              ),
+              Icon(Icons.info_outline, color: Colors.blue.shade600),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   'This information can be changed later in your company settings.',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.primary,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.blue.shade800,
                   ),
                 ),
               ),
@@ -427,32 +415,33 @@ class _CompanyAuthoritySpecificationDialogState extends State<CompanyAuthoritySp
     );
   }
 
-  Widget _buildOptionsSelection(ThemeData theme) {
+  Widget _buildOptionsSelection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'Select Your Company Type',
-          style: theme.textTheme.titleSmall?.copyWith(
+          style: const TextStyle(
+            fontSize: 16,
             fontWeight: FontWeight.w600,
           ),
         ),
         const SizedBox(height: 12),
         Text(
           'Choose the option that best describes your company:',
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurface.withOpacity(0.6),
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.grey.shade600,
           ),
         ),
         const SizedBox(height: 20),
 
         // Standalone Option
         _buildOptionCard(
-          theme: theme,
           title: 'Standalone Company',
           description: 'Independent organization not linked to any government authority',
           icon: Icons.business_outlined,
-          iconColor: theme.colorScheme.primary,
+          iconColor: Colors.blue,
           value: 'standalone',
           isSelected: _selectedOption == 'standalone',
         ),
@@ -460,11 +449,10 @@ class _CompanyAuthoritySpecificationDialogState extends State<CompanyAuthoritySp
 
         // Under Authority Option
         _buildOptionCard(
-          theme: theme,
           title: 'Government Facility / Under Authority',
           description: 'Company operating under a government authority or ministry',
           icon: Icons.account_balance,
-          iconColor: theme.colorScheme.secondary,
+          iconColor: Colors.green,
           value: 'under_authority',
           isSelected: _selectedOption == 'under_authority',
         ),
@@ -473,7 +461,6 @@ class _CompanyAuthoritySpecificationDialogState extends State<CompanyAuthoritySp
   }
 
   Widget _buildOptionCard({
-    required ThemeData theme,
     required String title,
     required String description,
     required IconData icon,
@@ -497,7 +484,7 @@ class _CompanyAuthoritySpecificationDialogState extends State<CompanyAuthoritySp
           color: isSelected ? iconColor.withOpacity(0.1) : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? iconColor : theme.dividerColor,
+            color: isSelected ? iconColor : Colors.grey.shade300,
             width: isSelected ? 2 : 1,
           ),
         ),
@@ -518,16 +505,18 @@ class _CompanyAuthoritySpecificationDialogState extends State<CompanyAuthoritySp
                 children: [
                   Text(
                     title,
-                    style: theme.textTheme.bodyLarge?.copyWith(
+                    style: TextStyle(
+                      fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: isSelected ? iconColor : theme.colorScheme.onSurface,
+                      color: isSelected ? iconColor : Colors.black,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     description,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurface.withOpacity(0.6),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade600,
                     ),
                   ),
                 ],
@@ -545,21 +534,23 @@ class _CompanyAuthoritySpecificationDialogState extends State<CompanyAuthoritySp
     );
   }
 
-  Widget _buildAuthoritySelection(ThemeData theme) {
+  Widget _buildAuthoritySelection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'Select Parent Authority',
-          style: theme.textTheme.titleSmall?.copyWith(
+          style: const TextStyle(
+            fontSize: 16,
             fontWeight: FontWeight.w600,
           ),
         ),
         const SizedBox(height: 8),
         Text(
           'Choose the government authority your company operates under:',
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurface.withOpacity(0.6),
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.grey.shade600,
           ),
         ),
         const SizedBox(height: 16),
@@ -575,43 +566,36 @@ class _CompanyAuthoritySpecificationDialogState extends State<CompanyAuthoritySp
               borderSide: BorderSide.none,
             ),
             filled: true,
-            fillColor: theme.colorScheme.surfaceVariant,
-            hintStyle: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurface.withOpacity(0.4),
-            ),
+            fillColor: Colors.grey.shade100,
           ),
-          style: theme.textTheme.bodyMedium,
         ),
         const SizedBox(height: 16),
 
         // Authorities List
         if (_isLoadingAuthorities)
-          Center(
+          const Center(
             child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(theme.primaryColor),
-              ),
+              padding: EdgeInsets.all(32),
+              child: CircularProgressIndicator(),
             ),
           )
         else if (_filteredAuthorities.isEmpty)
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceVariant,
+              color: Colors.grey.shade50,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Column(
               children: [
-                Icon(
-                  Icons.search_off,
-                  size: 48,
-                  color: theme.colorScheme.onSurface.withOpacity(0.4),
-                ),
+                Icon(Icons.search_off, size: 48, color: Colors.grey.shade400),
                 const SizedBox(height: 16),
-                Text(
+                const Text(
                   'No authorities found',
-                  style: theme.textTheme.titleSmall,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -619,8 +603,9 @@ class _CompanyAuthoritySpecificationDialogState extends State<CompanyAuthoritySp
                       ? 'No authorities available in the system'
                       : 'No authorities match your search',
                   textAlign: TextAlign.center,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurface.withOpacity(0.6),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
                   ),
                 ),
                 if (_searchController.text.isNotEmpty)
@@ -628,9 +613,6 @@ class _CompanyAuthoritySpecificationDialogState extends State<CompanyAuthoritySp
                     onPressed: () {
                       _searchController.clear();
                     },
-                    style: TextButton.styleFrom(
-                      foregroundColor: theme.primaryColor,
-                    ),
                     child: const Text('Clear Search'),
                   ),
               ],
@@ -642,7 +624,7 @@ class _CompanyAuthoritySpecificationDialogState extends State<CompanyAuthoritySp
               maxHeight: 300,
             ),
             decoration: BoxDecoration(
-              border: Border.all(color: theme.dividerColor),
+              border: Border.all(color: Colors.grey.shade300),
               borderRadius: BorderRadius.circular(12),
             ),
             child: ListView.builder(
@@ -659,40 +641,26 @@ class _CompanyAuthoritySpecificationDialogState extends State<CompanyAuthoritySp
                     radius: 20,
                   )
                       : CircleAvatar(
-                    backgroundColor: theme.colorScheme.secondary.withOpacity(0.1),
-                    child: Icon(
-                      Icons.account_balance,
-                      color: theme.colorScheme.secondary,
-                    ),
+                    backgroundColor: Colors.green.shade100,
+                    child: Icon(Icons.account_balance, color: Colors.green),
                   ),
                   title: Text(
                     authority.name,
-                    style: theme.textTheme.bodyMedium?.copyWith(
+                    style: TextStyle(
                       fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                      color: isSelected ? theme.colorScheme.secondary : theme.colorScheme.onSurface,
+                      color: isSelected ? Colors.green : Colors.black,
                     ),
                   ),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (authority.state != null)
-                        Text(
-                          '${authority.state}',
-                          style: theme.textTheme.bodySmall,
-                        ),
-                      if (authority.localGovernment != null)
-                        Text(
-                          '${authority.localGovernment}',
-                          style: theme.textTheme.bodySmall,
-                        ),
-                      Text(
-                        '${authority.linkedCompanies.length} linked companies',
-                        style: theme.textTheme.bodySmall,
-                      ),
+                      if (authority.state != null) Text('${authority.state}'),
+                      if (authority.localGovernment != null) Text('${authority.localGovernment}'),
+                      Text('${authority.linkedCompanies.length} linked companies'),
                     ],
                   ),
                   trailing: isSelected
-                      ? Icon(Icons.check_circle, color: theme.colorScheme.secondary)
+                      ? Icon(Icons.check_circle, color: Colors.green)
                       : null,
                   onTap: () {
                     setState(() {
@@ -712,16 +680,13 @@ class _CompanyAuthoritySpecificationDialogState extends State<CompanyAuthoritySp
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: theme.colorScheme.secondary.withOpacity(0.1),
+              color: Colors.green.shade50,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: theme.colorScheme.secondary.withOpacity(0.2)),
+              border: Border.all(color: Colors.green.shade100),
             ),
             child: Row(
               children: [
-                Icon(
-                  Icons.check_circle,
-                  color: theme.colorScheme.secondary,
-                ),
+                Icon(Icons.check_circle, color: Colors.green),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -729,13 +694,15 @@ class _CompanyAuthoritySpecificationDialogState extends State<CompanyAuthoritySp
                     children: [
                       Text(
                         'Selected Authority:',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.secondary,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.green.shade800,
                         ),
                       ),
                       Text(
                         _selectedAuthorityName ?? '',
-                        style: theme.textTheme.bodyLarge?.copyWith(
+                        style: const TextStyle(
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -749,10 +716,10 @@ class _CompanyAuthoritySpecificationDialogState extends State<CompanyAuthoritySp
                       _selectedAuthorityName = null;
                     });
                   },
-                  style: TextButton.styleFrom(
-                    foregroundColor: theme.colorScheme.secondary,
+                  child: Text(
+                    'Change',
+                    style: TextStyle(color: Colors.green.shade800),
                   ),
-                  child: const Text('Change'),
                 ),
               ],
             ),
@@ -762,31 +729,33 @@ class _CompanyAuthoritySpecificationDialogState extends State<CompanyAuthoritySp
   }
 }
 
-// Helper function to show the dialog
-void showCompanyAuthoritySpecificationDialog({
+// Helper function to navigate to the page
+Future<void> navigateToCompanyAuthoritySpecificationPage({
   required BuildContext context,
   required Company company,
   required ITCFirebaseLogic firebaseLogic,
   VoidCallback? onSpecificationComplete,
-}) {
-  // Check if we should show the dialog
+}) async {
+  // Check if we should navigate to the page
   if (!company.isUnderAuthority &&
       (company.authorityLinkStatus == "NONE" || company.authorityId == null)) {
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => CompanyAuthoritySpecificationDialog(
-        company: company,
-        firebaseLogic: firebaseLogic,
-        onSpecificationComplete: onSpecificationComplete,
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => CompanyAuthoritySpecificationPage(
+          company: company,
+          firebaseLogic: firebaseLogic,
+          onSpecificationComplete: onSpecificationComplete,
+        ),
       ),
     );
+
+    return result;
   }
 }
 
 // Usage in Company Dashboard or Home Screen
-void checkAndShowAuthoritySpecificationDialog({
+void checkAndNavigateToAuthoritySpecificationPage({
   required BuildContext context,
   required Company company,
   required ITCFirebaseLogic firebaseLogic,
@@ -794,7 +763,7 @@ void checkAndShowAuthoritySpecificationDialog({
   // Show after a delay to ensure proper context
   WidgetsBinding.instance.addPostFrameCallback((_) {
     if (context.mounted) {
-      showCompanyAuthoritySpecificationDialog(
+      navigateToCompanyAuthoritySpecificationPage(
         context: context,
         company: company,
         firebaseLogic: firebaseLogic,
@@ -803,7 +772,7 @@ void checkAndShowAuthoritySpecificationDialog({
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Authority specification saved successfully!'),
-              backgroundColor: Theme.of(context).primaryColor,
+              backgroundColor: Colors.green,
             ),
           );
         },

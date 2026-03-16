@@ -254,7 +254,7 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
       if(widget.isAuthority) {
 
         AcceptanceLetterData acceptanceLetterData = AcceptanceLetterData(
-            id: application.id,
+            id: '${application.id}_${getFormattedDateTime()}',
             studentName: student.fullName,
             studentId: student.matricNumber,
             institutionName: student.institution,
@@ -326,6 +326,16 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
         ),
       );
     }
+  }
+
+  String getFormattedDateTime() {
+    final now = DateTime.now();
+    return '${now.year}${_twoDigits(now.month)}${_twoDigits(now.day)}${_twoDigits(now.hour)}${_twoDigits(now.minute)}${_twoDigits(now.second)}';
+  }
+
+  String _twoDigits(int n) {
+    if (n >= 10) return "$n";
+    return "0$n";
   }
 
   Widget _buildHeader() {

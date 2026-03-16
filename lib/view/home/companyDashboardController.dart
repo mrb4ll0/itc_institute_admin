@@ -9,6 +9,7 @@ import 'package:itc_institute_admin/model/AuthorityRule.dart';
 import 'package:itc_institute_admin/model/authorityCompanyMapper.dart';
 import 'package:itc_institute_admin/notification/view/NotificationPage.dart';
 import 'package:itc_institute_admin/view/acceptanceLetter.dart';
+import 'package:itc_institute_admin/view/authority/CompanyAuthoritySpecificationPage.dart';
 import 'package:itc_institute_admin/view/authorityRule/authorityRule.dart';
 import 'package:itc_institute_admin/view/company/myProfile.dart';
 import 'package:itc_institute_admin/view/home/LinkedCompaniesScreen.dart';
@@ -354,7 +355,7 @@ class _CompanyDashboardControllerState
               await Future.delayed(const Duration(milliseconds: 300));
 
               if (mounted) {
-                await _handleAuthoritySpecification(currentCompany);
+               GeneralMethods.navigateTo(context, CompanyAuthoritySpecificationPage(company: company, firebaseLogic: ITCFirebaseLogic(FirebaseAuth.instance.currentUser?.uid??"")));
               }
             },
           ),

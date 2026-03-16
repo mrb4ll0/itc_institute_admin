@@ -523,7 +523,9 @@ class _StudentListPageState extends State<StudentListPage> {
             Text(
               widget.company.name,
               style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onPrimary.withOpacity(0.8),
+                color: theme.brightness == Brightness.dark
+                    ? theme.colorScheme.onSurface
+                    : theme.colorScheme.onPrimary,
               ),
             ),
           ],
@@ -543,11 +545,6 @@ class _StudentListPageState extends State<StudentListPage> {
               onPressed: _exportData,
               tooltip: 'Export Data',
             ),
-            IconButton(
-              icon: const Icon(Icons.sync),
-              onPressed: _syncWithApplication,
-              tooltip: 'Sync with Applications',
-            ),
           ] else
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert),
@@ -556,8 +553,6 @@ class _StudentListPageState extends State<StudentListPage> {
                   _showStatistics();
                 } else if (value == 'export') {
                   _exportData();
-                } else if (value == 'sync') {
-                  _syncWithApplication();
                 }
               },
               itemBuilder: (context) => [
@@ -578,16 +573,6 @@ class _StudentListPageState extends State<StudentListPage> {
                       Icon(Icons.download, size: 20),
                       SizedBox(width: 8),
                       Text('Export Data'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'sync',
-                  child: Row(
-                    children: [
-                      Icon(Icons.sync, size: 20),
-                      SizedBox(width: 8),
-                      Text('Sync'),
                     ],
                   ),
                 ),
@@ -1286,6 +1271,7 @@ class _StudentListPageState extends State<StudentListPage> {
   }
 
   Future<void> _syncWithApplication() async {
+     return;
     try {
       setState(() {
         _isLoading = true;
