@@ -241,14 +241,11 @@ class _CompanyAuthoritySpecificationPageState extends State<CompanyAuthoritySpec
 
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: const Text('Company Authority Setup'),
         backgroundColor: Theme.of(context).primaryColor,
         foregroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
       ),
       body: Column(
         children: [
@@ -468,6 +465,10 @@ class _CompanyAuthoritySpecificationPageState extends State<CompanyAuthoritySpec
     required String value,
     required bool isSelected,
   }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 600;
     return GestureDetector(
       onTap: () {
         setState(() {
@@ -508,7 +509,7 @@ class _CompanyAuthoritySpecificationPageState extends State<CompanyAuthoritySpec
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: isSelected ? iconColor : Colors.black,
+                      color: isSelected ? iconColor : isDark?Colors.white:Colors.black,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -535,6 +536,12 @@ class _CompanyAuthoritySpecificationPageState extends State<CompanyAuthoritySpec
   }
 
   Widget _buildAuthoritySelection() {
+
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 600;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -680,7 +687,9 @@ class _CompanyAuthoritySpecificationPageState extends State<CompanyAuthoritySpec
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.green.shade50,
+              color: theme.brightness == Brightness.dark
+                  ? theme.colorScheme.secondary.withOpacity(0.2)
+                  : theme.colorScheme.secondary.withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.green.shade100),
             ),
