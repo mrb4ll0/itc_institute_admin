@@ -194,7 +194,7 @@ class _CompanyDashboardControllerState
           UserAccountsDrawerHeader(
             onDetailsPressed: ()
             {
-              GeneralMethods.navigateTo(context, CompanyMyProfilePage(company: company,
+              GeneralMethods.navigateTo(context, CompanyMyProfilePage(company: company, isAuthority: widget.tweetCompany.originalAuthority != null,
               onProfileUpdated: (updatedCompany)
                 {
                    company = updatedCompany;
@@ -261,7 +261,7 @@ class _CompanyDashboardControllerState
             icon: Icons.settings,
             text: 'Settings',
             onTap: () {
-              GeneralMethods.navigateTo(context, CompanyMyProfilePage(company: company, onProfileUpdated: (company)
+              GeneralMethods.navigateTo(context, CompanyMyProfilePage(company: company, isAuthority:widget.tweetCompany.originalAuthority != null,onProfileUpdated: (company)
               {
 
               }));

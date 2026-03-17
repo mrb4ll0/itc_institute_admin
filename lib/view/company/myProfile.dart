@@ -3,10 +3,15 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:itc_institute_admin/itc_logic/admin_task.dart';
+import 'package:itc_institute_admin/itc_logic/firebase/company_cloud.dart';
 import 'package:itc_institute_admin/model/company.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/general_cloud.dart';
 import 'package:intl/intl.dart';
+import 'package:itc_institute_admin/model/student.dart';
+import 'package:itc_institute_admin/model/traineeRecord.dart';
 import 'package:itc_institute_admin/notification/view/companyFormUploadPage.dart';
+import 'package:itc_institute_admin/traineeRecord/traineeRecordService.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:itc_institute_admin/view/company/companyEdit.dart';
 
@@ -15,17 +20,20 @@ import '../../generalmethods/GeneralMethods.dart';
 import '../../itc_logic/help_support/help.dart';
 import '../../migrationService/ui/migrationSettingsPage.dart';
 import '../../notification/view/companyFormsList.dart';
-import '../home/aboutITConnect.dart'; // Add this import
+import '../home/aboutITConnect.dart';
+import 'TraineeListPage.dart'; // Add this import
 
 class CompanyMyProfilePage extends StatefulWidget {
   final Company company;
   final Function(Company)
   onProfileUpdated; // Callback for when profile is updated
+  final bool isAuthority;
 
   const CompanyMyProfilePage({
     Key? key,
     required this.company,
     required this.onProfileUpdated,
+    this.isAuthority = false,
   }) : super(key: key);
 
   @override
@@ -44,8 +52,21 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage>
   void initState() {
     super.initState();
     _tabController = TabController(length: 5, vsync: this);
+    WidgetsBinding.instance.addPostFrameCallback((_)async{
+      loadTrainee();
+    });
   }
 
+  var pontentialTrainee = <Student>[];
+  var trainees = <ITTraineeRecord?>[];
+
+  loadTrainee()async
+  {
+      pontentialTrainee = await AdminCloud(FirebaseAuth.instance.currentUser?.uid??"").getPotentialStudents(
+        company: widget.company
+      );
+
+  }
   @override
   void dispose() {
     _tabController.dispose();
@@ -451,27 +472,45 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Welcome message
+          // Profile Completeness section - Fix the overflowing Row
           Card(
-            elevation: 2,
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Welcome back, ${widget.company.name}!',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(  // Wrap the first Text with Expanded
+                        child: Text(
+                          'Complete your profile to get verified',
+                          style: theme.textTheme.bodyMedium,
+                          maxLines: 2,  // Allow wrapping to 2 lines
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),  // Add some spacing
+                      Text(
+                        '${_calculateProfileCompleteness()}%',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    widget.company.description.isNotEmpty
-                        ? widget.company.description
-                        : 'Complete your company profile to attract more trainees',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
+                  const SizedBox(height: 12),
+                  LinearProgressIndicator(
+                    value: _calculateProfileCompleteness() / 100,
+                    backgroundColor: theme.colorScheme.surfaceVariant,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _buildCompletenessItems(theme),
                   ),
                 ],
               ),
@@ -533,9 +572,11 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage>
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'Complete your profile to get verified',
-                        style: theme.textTheme.bodyMedium,
+                      Expanded(
+                        child: Text(
+                          'Complete your profile to get verified',
+                          style: theme.textTheme.bodyMedium,
+                        ),
                       ),
                       Text(
                         '${_calculateProfileCompleteness()}%',
@@ -610,7 +651,7 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage>
                 label: 'View Trainees',
                 color: Colors.orange,
                 onTap: () {
-                  _tabController.index = 1; // Switch to trainees tab
+                  _tabController.index = 2; // Switch to trainees tab
                 },
                 theme: theme,
               ),
@@ -630,132 +671,298 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage>
 
   // Trainees Tab - Enhanced for company owner
   Widget _buildTraineesTab(ThemeData theme) {
-    final trainees = widget.company.potentialtrainee;
+    final trainees = pontentialTrainee; // Make sure this is accessible
 
-    if (trainees.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.people_outline,
-              size: 80,
-              color: theme.colorScheme.onSurfaceVariant.withOpacity(0.4),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'No Trainees Yet',
-              style: theme.textTheme.titleLarge?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 40),
-              child: Text(
-                'Start attracting trainees by completing your company profile and posting opportunities',
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
+    return Center(
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Header icon
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.people,
+                  size: 60,
+                  color: theme.colorScheme.primary,
                 ),
               ),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: _navigateToEditPage,
-              icon: const Icon(Icons.edit),
-              label: const Text('Complete Profile'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
+        
+              const SizedBox(height: 24),
+        
+              // Title
               Text(
-                'My Trainees (${trainees.length})',
-                style: theme.textTheme.titleMedium?.copyWith(
+                'Trainee Management',
+                style: theme.textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              OutlinedButton.icon(
-                onPressed: () {
-                  // Export trainees list
-                },
-                icon: const Icon(Icons.download, size: 16),
-                label: const Text('Export List'),
+        
+              const SizedBox(height: 12),
+        
+              // Description
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text(
+                  'View and manage all trainees who have shown interest in your company. Track their progress, review applications, and communicate with potential candidates.',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    height: 1.5,
+                  ),
+                ),
+              ),
+        
+              const SizedBox(height: 32),
+        
+              // Stats summary if trainees exist
+              if (trainees.isNotEmpty) ...[
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: theme.colorScheme.outline.withOpacity(0.2),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      // Total trainees
+                      _buildStatColumn(
+                        value: trainees.length.toString(),
+                        label: 'Total Trainees',
+                        icon: Icons.people,
+                        color: Colors.blue,
+                        theme: theme,
+                      ),
+        
+                      Container(
+                        height: 40,
+                        width: 1,
+                        color: theme.colorScheme.outline.withOpacity(0.3),
+                      ),
+        
+                      // New this week (you can calculate this based on your data)
+                      _buildStatColumn(
+                        value: _getNewTraineesCount(trainees).toString(),
+                        label: 'New This Week',
+                        icon: Icons.fiber_new,
+                        color: Colors.green,
+                        theme: theme,
+                      ),
+        
+                      Container(
+                        height: 40,
+                        width: 1,
+                        color: theme.colorScheme.outline.withOpacity(0.3),
+                      ),
+        
+                      // Active now
+                      _buildStatColumn(
+                        value: _getActiveTraineesCount(trainees).toString(),
+                        label: 'Active',
+                        icon: Icons.timelapse,
+                        color: Colors.orange,
+                        theme: theme,
+                      ),
+                    ],
+                  ),
+                ),
+        
+                const SizedBox(height: 32),
+              ],
+        
+              // View trainees button
+              ElevatedButton.icon(
+                onPressed: _navigateToTraineesListPage,
+                icon: const Icon(Icons.visibility),
+                label: Text(
+                  trainees.isEmpty
+                      ? 'Start Viewing Trainees'
+                      : 'View All Trainees (${trainees.length})',
+                ),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  minimumSize: const Size(250, 50),
+                ),
+              ),
+        
+              const SizedBox(height: 16),
+        
+              // Secondary info
+              if (trainees.isEmpty)
+                TextButton.icon(
+                  onPressed: _navigateToEditPage,
+                  icon: const Icon(Icons.edit, size: 18),
+                  label: const Text('Complete your profile to attract trainees'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: theme.colorScheme.primary,
+                  ),
+                ),
+        
+              const SizedBox(height: 24),
+        
+              // Quick tips
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.lightbulb,
+                          size: 20,
+                          color: theme.colorScheme.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'What you can do:',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _buildTipItem(
+                      icon: Icons.search,
+                      text: 'Search and filter through all trainees',
+                      theme: theme,
+                    ),
+                    const SizedBox(height: 8),
+                    _buildTipItem(
+                      icon: Icons.description,
+                      text: 'Review trainee applications and forms',
+                      theme: theme,
+                    ),
+                    const SizedBox(height: 8),
+                    _buildTipItem(
+                      icon: Icons.message,
+                      text: 'Message trainees directly',
+                      theme: theme,
+                    ),
+                    const SizedBox(height: 8),
+                    _buildTipItem(
+                      icon: Icons.download,
+                      text: 'Export trainee data for reports',
+                      theme: theme,
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
         ),
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: trainees.length,
-            itemBuilder: (context, index) {
-              final trainee = trainees[index];
-              return Card(
-                margin: const EdgeInsets.only(bottom: 12),
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
-                    child: Icon(Icons.person, color: theme.colorScheme.primary),
-                  ),
-                  title: Text(
-                    trainee.toString(),
-                    style: theme.textTheme.bodyLarge,
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Trainee ID: ${trainee.toString().substring(0, 8)}...',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.blue.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              'Potential',
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: Colors.blue,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {
-                    // Navigate to trainee profile
-                  },
-                ),
-              );
-            },
+      ),
+    );
+  }
+
+// Helper widget for stat columns
+  Widget _buildStatColumn({
+    required String value,
+    required String label,
+    required IconData icon,
+    required Color color,
+    required ThemeData theme,
+  }) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 4),
+            Text(
+              value,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
       ],
     );
   }
 
+// Helper widget for tip items
+  Widget _buildTipItem({
+    required IconData icon,
+    required String text,
+    required ThemeData theme,
+  }) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          size: 16,
+          color: theme.colorScheme.primary,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            text,
+            style: theme.textTheme.bodyMedium,
+          ),
+        ),
+      ],
+    );
+  }
+
+// Helper methods for stats (implement these based on your data structure)
+  int _getNewTraineesCount(List<dynamic> trainees) {
+    // Calculate trainees added in the last 7 days
+    final now = DateTime.now();
+    final weekAgo = now.subtract(const Duration(days: 7));
+
+    return trainees.where((trainee) {
+      final applicationDate = trainee.applicationDate; // Adjust based on your model
+      return applicationDate != null && applicationDate.isAfter(weekAgo);
+    }).length;
+  }
+
+  int _getActiveTraineesCount(List<dynamic> trainees) {
+    // Count trainees with active status
+    return trainees.where((trainee) {
+      final status = trainee.status?.toLowerCase(); // Adjust based on your model
+      return status == 'active' || status == 'interviewing';
+    }).length;
+  }
+  
+// Navigation method to go to the full trainees list page
+  void _navigateToTraineesListPage() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TraineesListPage(
+          companyId: widget.company.id,
+          companyName: widget.company.name,
+          trainees: pontentialTrainee,
+        ),
+      ),
+    );
+  }
   // Analytics Tab - For company insights
   Widget _buildAnalyticsTab(ThemeData theme) {
     return SingleChildScrollView(
@@ -1055,18 +1262,26 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage>
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
+        child: Container(
+          constraints: const BoxConstraints(
+            minHeight: 80,  // Increase minimum height
+            maxHeight: 100,  // Allow more height
+          ),
+          padding: const EdgeInsets.all(12),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, color: color, size: 32),
-              const SizedBox(height: 8),
+              Icon(icon, color: color, size: 28),
+              const SizedBox(height: 6),
               Text(
                 label,
                 textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.w500,
+                  fontSize: 12,  // Slightly smaller font
                 ),
               ),
             ],
@@ -1545,13 +1760,13 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage>
               pinned: true,
               flexibleSpace: FlexibleSpaceBar(background: _buildHeader(theme)),
               actions: [
-                IconButton(
-                  icon: const Icon(Icons.settings),
-                  onPressed: () {
-                    _tabController.index = 4; // Switch to settings tab
-                  },
-                  tooltip: 'Settings',
-                ),
+                // IconButton(
+                //   icon: const Icon(Icons.settings),
+                //   onPressed: () {
+                //     _tabController.index = 4; // Switch to settings tab
+                //   },
+                //   tooltip: 'Settings',
+                // ),
               ],
             ),
             SliverToBoxAdapter(child: _buildActionButtons(theme)),
