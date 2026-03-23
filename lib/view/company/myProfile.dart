@@ -12,6 +12,7 @@ import 'package:itc_institute_admin/model/student.dart';
 import 'package:itc_institute_admin/model/traineeRecord.dart';
 import 'package:itc_institute_admin/notification/view/companyFormUploadPage.dart';
 import 'package:itc_institute_admin/traineeRecord/traineeRecordService.dart';
+import 'package:itc_institute_admin/view/security/securitySettingsPage.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:itc_institute_admin/view/company/companyEdit.dart';
 
@@ -19,8 +20,10 @@ import '../../auth/login_view.dart';
 import '../../generalmethods/GeneralMethods.dart';
 import '../../itc_logic/help_support/help.dart';
 import '../../migrationService/ui/migrationSettingsPage.dart';
+import '../../notification/settings/notificationSettingsPage.dart';
 import '../../notification/view/companyFormsList.dart';
 import '../home/aboutITConnect.dart';
+import '../privacySettings/privacySettingsPage.dart';
 import 'TraineeListPage.dart'; // Add this import
 
 class CompanyMyProfilePage extends StatefulWidget {
@@ -1070,6 +1073,7 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage>
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                   onTap: () {
                     // Navigate to notification settings
+                    GeneralMethods.navigateTo(context, const NotificationSettingsPage());
                   },
                 ),
                 const Divider(height: 0),
@@ -1078,7 +1082,7 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage>
                   title: const Text('Privacy Settings'),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                   onTap: () {
-                    // Navigate to privacy settings
+                    GeneralMethods.navigateTo(context, const PrivacySettingsPage());
                   },
                 ),
                 const Divider(height: 0),
@@ -1088,6 +1092,7 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage>
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                   onTap: () {
                     // Navigate to security settings
+                    GeneralMethods.navigateTo(context, SecuritySettingsPage());
                   },
                 ),
               ],
