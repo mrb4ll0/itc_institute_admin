@@ -1,52 +1,212 @@
 import 'package:flutter/material.dart';
 
-class NotificationSettings {
+
+enum NotificationType {
   // Notification Channels
-  final bool pushNotifications;
-  final bool emailNotifications;
-  final bool smsNotifications;
-  final bool inAppNotifications;
+  push,
+  email,
+  sms,
+  inApp,
 
   // Trainee & Application Alerts
-  final bool newTraineeApplications;
-  final bool formSubmissions;
-  final bool traineeUpdates;
-  final bool applicationStatus;
+  newTraineeApplications,
+  formSubmissions,
+  traineeUpdates,
+  applicationStatus,
 
   // System Notifications
-  final bool systemUpdates;
-  final bool maintenanceAlerts;
-  final bool securityAlerts;
+  systemUpdates,
+  maintenanceAlerts,
+  securityAlerts,
 
   // Reminders
-  final bool dailyReminders;
-  final bool pendingFormsReminders;
-  final bool profileCompletionReminders;
+  dailyReminders,
+  pendingFormsReminders,
+  profileCompletionReminders,
+}
 
+// Extension for display names and categories
+extension NotificationTypeExtension on NotificationType {
+  String get displayName {
+    switch (this) {
+    // Channels
+      case NotificationType.push:
+        return 'Push Notifications';
+      case NotificationType.email:
+        return 'Email Notifications';
+      case NotificationType.sms:
+        return 'SMS Notifications';
+      case NotificationType.inApp:
+        return 'In-App Notifications';
+
+    // Trainee Alerts
+      case NotificationType.newTraineeApplications:
+        return 'New Trainee Applications';
+      case NotificationType.formSubmissions:
+        return 'Form Submissions';
+      case NotificationType.traineeUpdates:
+        return 'Trainee Updates';
+      case NotificationType.applicationStatus:
+        return 'Application Status';
+
+    // System Alerts
+      case NotificationType.systemUpdates:
+        return 'System Updates';
+      case NotificationType.maintenanceAlerts:
+        return 'Maintenance Alerts';
+      case NotificationType.securityAlerts:
+        return 'Security Alerts';
+
+    // Reminders
+      case NotificationType.dailyReminders:
+        return 'Daily Reminders';
+      case NotificationType.pendingFormsReminders:
+        return 'Pending Forms Reminders';
+      case NotificationType.profileCompletionReminders:
+        return 'Profile Completion Reminders';
+    }
+  }
+
+  NotificationCategory get category {
+    switch (this) {
+      case NotificationType.push:
+      case NotificationType.email:
+      case NotificationType.sms:
+      case NotificationType.inApp:
+        return NotificationCategory.channels;
+
+      case NotificationType.newTraineeApplications:
+      case NotificationType.formSubmissions:
+      case NotificationType.traineeUpdates:
+      case NotificationType.applicationStatus:
+        return NotificationCategory.trainee;
+
+      case NotificationType.systemUpdates:
+      case NotificationType.maintenanceAlerts:
+      case NotificationType.securityAlerts:
+        return NotificationCategory.system;
+
+      case NotificationType.dailyReminders:
+      case NotificationType.pendingFormsReminders:
+      case NotificationType.profileCompletionReminders:
+        return NotificationCategory.reminders;
+    }
+  }
+
+  IconData get icon {
+    switch (this) {
+      case NotificationType.push:
+        return Icons.notifications_active;
+      case NotificationType.email:
+        return Icons.email;
+      case NotificationType.sms:
+        return Icons.sms;
+      case NotificationType.inApp:
+        return Icons.notifications;
+      case NotificationType.newTraineeApplications:
+        return Icons.person_add;
+      case NotificationType.formSubmissions:
+        return Icons.assignment;
+      case NotificationType.traineeUpdates:
+        return Icons.people;
+      case NotificationType.applicationStatus:
+        return Icons.assessment;
+      case NotificationType.systemUpdates:
+        return Icons.system_update;
+      case NotificationType.maintenanceAlerts:
+        return Icons.build;
+      case NotificationType.securityAlerts:
+        return Icons.security;
+      case NotificationType.dailyReminders:
+        return Icons.today;
+      case NotificationType.pendingFormsReminders:
+        return Icons.pending_actions;
+      case NotificationType.profileCompletionReminders:
+        return Icons.person;
+    }
+  }
+}
+
+enum NotificationCategory {
+  channels,
+  trainee,
+  system,
+  reminders,
+}
+
+extension NotificationCategoryExtension on NotificationCategory {
+  String get displayName {
+    switch (this) {
+      case NotificationCategory.channels:
+        return 'Notification Channels';
+      case NotificationCategory.trainee:
+        return 'Trainee & Application Alerts';
+      case NotificationCategory.system:
+        return 'System Notifications';
+      case NotificationCategory.reminders:
+        return 'Reminders';
+    }
+  }
+}
+
+enum NotificationDeliveryStatus {
+  pending,    // Queued to be sent
+  sent,       // Successfully sent
+  delivered,  // Delivered to device/email
+  read,       // User has read/seen it
+  failed,     // Failed to send
+  cancelled,  // Cancelled before sending
+}
+
+extension NotificationDeliveryStatusExtension on NotificationDeliveryStatus {
+  String get displayName {
+    switch (this) {
+      case NotificationDeliveryStatus.pending:
+        return 'Pending';
+      case NotificationDeliveryStatus.sent:
+        return 'Sent';
+      case NotificationDeliveryStatus.delivered:
+        return 'Delivered';
+      case NotificationDeliveryStatus.read:
+        return 'Read';
+      case NotificationDeliveryStatus.failed:
+        return 'Failed';
+      case NotificationDeliveryStatus.cancelled:
+        return 'Cancelled';
+    }
+  }
+
+  IconData get icon {
+    switch (this) {
+      case NotificationDeliveryStatus.pending:
+        return Icons.pending;
+      case NotificationDeliveryStatus.sent:
+        return Icons.send;
+      case NotificationDeliveryStatus.delivered:
+        return Icons.check_circle;
+      case NotificationDeliveryStatus.read:
+        return Icons.mark_email_read;
+      case NotificationDeliveryStatus.failed:
+        return Icons.error;
+      case NotificationDeliveryStatus.cancelled:
+        return Icons.cancel;
+    }
+  }
+}
+
+class NotificationSettings {
+
+  final Map<NotificationType, bool> enabledNotifications;
   // Quiet Hours
   final bool quietHoursEnabled;
   final TimeOfDay quietStartTime;
   final TimeOfDay quietEndTime;
-
   // Sound & Vibration
   final bool soundEnabled;
   final bool vibrationEnabled;
 
   NotificationSettings({
-    required this.pushNotifications,
-    required this.emailNotifications,
-    required this.smsNotifications,
-    required this.inAppNotifications,
-    required this.newTraineeApplications,
-    required this.formSubmissions,
-    required this.traineeUpdates,
-    required this.applicationStatus,
-    required this.systemUpdates,
-    required this.maintenanceAlerts,
-    required this.securityAlerts,
-    required this.dailyReminders,
-    required this.pendingFormsReminders,
-    required this.profileCompletionReminders,
+    required this.enabledNotifications,
     required this.quietHoursEnabled,
     required this.quietStartTime,
     required this.quietEndTime,
@@ -57,20 +217,29 @@ class NotificationSettings {
   // Create default settings
   factory NotificationSettings.defaultSettings() {
     return NotificationSettings(
-      pushNotifications: true,
-      emailNotifications: true,
-      smsNotifications: false,
-      inAppNotifications: true,
-      newTraineeApplications: true,
-      formSubmissions: true,
-      traineeUpdates: true,
-      applicationStatus: true,
-      systemUpdates: true,
-      maintenanceAlerts: false,
-      securityAlerts: true,
-      dailyReminders: false,
-      pendingFormsReminders: true,
-      profileCompletionReminders: true,
+      enabledNotifications: {
+        // Channels
+        NotificationType.push: true,
+        NotificationType.email: true,
+        NotificationType.sms: false,
+        NotificationType.inApp: true,
+
+        // Trainee Alerts
+        NotificationType.newTraineeApplications: true,
+        NotificationType.formSubmissions: true,
+        NotificationType.traineeUpdates: true,
+        NotificationType.applicationStatus: true,
+
+        // System Alerts
+        NotificationType.systemUpdates: true,
+        NotificationType.maintenanceAlerts: false,
+        NotificationType.securityAlerts: true,
+
+        // Reminders
+        NotificationType.dailyReminders: false,
+        NotificationType.pendingFormsReminders: true,
+        NotificationType.profileCompletionReminders: true,
+      },
       quietHoursEnabled: false,
       quietStartTime: const TimeOfDay(hour: 22, minute: 0),
       quietEndTime: const TimeOfDay(hour: 8, minute: 0),
@@ -79,31 +248,47 @@ class NotificationSettings {
     );
   }
 
+  // Helper methods for working with enums
+  bool isEnabled(NotificationType type) {
+    return enabledNotifications[type] ?? false;
+  }
+
+  void setEnabled(NotificationType type, bool enabled) {
+    enabledNotifications[type] = enabled;
+  }
+
+  List<NotificationType> getEnabledTypes() {
+    return enabledNotifications.entries
+        .where((entry) => entry.value)
+        .map((entry) => entry.key)
+        .toList();
+  }
+
+  List<NotificationType> getEnabledTypesByCategory(NotificationCategory category) {
+    return enabledNotifications.entries
+        .where((entry) => entry.value && entry.key.category == category)
+        .map((entry) => entry.key)
+        .toList();
+  }
+
+  bool hasAnyEnabledInCategory(NotificationCategory category) {
+    return enabledNotifications.entries
+        .any((entry) => entry.value && entry.key.category == category);
+  }
+
+  int getEnabledCountByCategory(NotificationCategory category) {
+    return enabledNotifications.entries
+        .where((entry) => entry.value && entry.key.category == category)
+        .length;
+  }
+
+
   // Convert to Map for storage
   Map<String, dynamic> toMap() {
     return {
-      // Notification Channels
-      'pushNotifications': pushNotifications,
-      'emailNotifications': emailNotifications,
-      'smsNotifications': smsNotifications,
-      'inAppNotifications': inAppNotifications,
-
-      // Trainee & Application Alerts
-      'newTraineeApplications': newTraineeApplications,
-      'formSubmissions': formSubmissions,
-      'traineeUpdates': traineeUpdates,
-      'applicationStatus': applicationStatus,
-
-      // System Notifications
-      'systemUpdates': systemUpdates,
-      'maintenanceAlerts': maintenanceAlerts,
-      'securityAlerts': securityAlerts,
-
-      // Reminders
-      'dailyReminders': dailyReminders,
-      'pendingFormsReminders': pendingFormsReminders,
-      'profileCompletionReminders': profileCompletionReminders,
-
+      'enabledNotifications': enabledNotifications.map(
+              (key, value) => MapEntry(key.name, value)
+      ),
       // Quiet Hours
       'quietHoursEnabled': quietHoursEnabled,
       'quietStartHour': quietStartTime.hour,
@@ -119,21 +304,22 @@ class NotificationSettings {
 
   // Create from Map
   factory NotificationSettings.fromMap(Map<String, dynamic> map) {
+
+    Map<NotificationType, bool> enabledNotifications = {};
+    if (map['enabledNotifications'] != null) {
+      (map['enabledNotifications'] as Map).forEach((key, value) {
+        try {
+          enabledNotifications[NotificationType.values.firstWhere(
+                  (e) => e.name == key
+          )] = value as bool;
+        } catch (e) {
+          // Handle unknown notification types
+        }
+      });
+    }
+
     return NotificationSettings(
-      pushNotifications: map['pushNotifications'] ?? true,
-      emailNotifications: map['emailNotifications'] ?? true,
-      smsNotifications: map['smsNotifications'] ?? false,
-      inAppNotifications: map['inAppNotifications'] ?? true,
-      newTraineeApplications: map['newTraineeApplications'] ?? true,
-      formSubmissions: map['formSubmissions'] ?? true,
-      traineeUpdates: map['traineeUpdates'] ?? true,
-      applicationStatus: map['applicationStatus'] ?? true,
-      systemUpdates: map['systemUpdates'] ?? true,
-      maintenanceAlerts: map['maintenanceAlerts'] ?? false,
-      securityAlerts: map['securityAlerts'] ?? true,
-      dailyReminders: map['dailyReminders'] ?? false,
-      pendingFormsReminders: map['pendingFormsReminders'] ?? true,
-      profileCompletionReminders: map['profileCompletionReminders'] ?? true,
+      enabledNotifications: enabledNotifications,
       quietHoursEnabled: map['quietHoursEnabled'] ?? false,
       quietStartTime: TimeOfDay(
         hour: map['quietStartHour'] ?? 22,
@@ -150,6 +336,7 @@ class NotificationSettings {
 
   // Create a copy with updated values
   NotificationSettings copyWith({
+    Map<NotificationType, bool>? enabledNotifications,
     bool? pushNotifications,
     bool? emailNotifications,
     bool? smsNotifications,
@@ -171,20 +358,7 @@ class NotificationSettings {
     bool? vibrationEnabled,
   }) {
     return NotificationSettings(
-      pushNotifications: pushNotifications ?? this.pushNotifications,
-      emailNotifications: emailNotifications ?? this.emailNotifications,
-      smsNotifications: smsNotifications ?? this.smsNotifications,
-      inAppNotifications: inAppNotifications ?? this.inAppNotifications,
-      newTraineeApplications: newTraineeApplications ?? this.newTraineeApplications,
-      formSubmissions: formSubmissions ?? this.formSubmissions,
-      traineeUpdates: traineeUpdates ?? this.traineeUpdates,
-      applicationStatus: applicationStatus ?? this.applicationStatus,
-      systemUpdates: systemUpdates ?? this.systemUpdates,
-      maintenanceAlerts: maintenanceAlerts ?? this.maintenanceAlerts,
-      securityAlerts: securityAlerts ?? this.securityAlerts,
-      dailyReminders: dailyReminders ?? this.dailyReminders,
-      pendingFormsReminders: pendingFormsReminders ?? this.pendingFormsReminders,
-      profileCompletionReminders: profileCompletionReminders ?? this.profileCompletionReminders,
+      enabledNotifications: enabledNotifications ?? Map.from(this.enabledNotifications),
       quietHoursEnabled: quietHoursEnabled ?? this.quietHoursEnabled,
       quietStartTime: quietStartTime ?? this.quietStartTime,
       quietEndTime: quietEndTime ?? this.quietEndTime,
@@ -193,13 +367,8 @@ class NotificationSettings {
     );
   }
 
-  // Check if any notifications are enabled
-  bool get hasAnyNotificationsEnabled {
-    return pushNotifications ||
-        emailNotifications ||
-        smsNotifications ||
-        inAppNotifications;
-  }
+
+
 
   // Check if quiet hours are currently active
   bool isQuietHoursActive(DateTime now) {
@@ -226,87 +395,15 @@ class NotificationSettings {
     }
   }
 
-  // Get summary of enabled notification types
-  List<String> getEnabledNotificationTypes() {
-    final enabled = <String>[];
-    if (pushNotifications) enabled.add('Push');
-    if (emailNotifications) enabled.add('Email');
-    if (smsNotifications) enabled.add('SMS');
-    if (inAppNotifications) enabled.add('In-App');
-    return enabled;
-  }
 
-  // Get count of enabled notification categories
-  Map<String, int> getEnabledCategoriesCount() {
-    return {
-      'channels': [
-        pushNotifications,
-        emailNotifications,
-        smsNotifications,
-        inAppNotifications
-      ].where((e) => e).length,
-      'trainee': [
-        newTraineeApplications,
-        formSubmissions,
-        traineeUpdates,
-        applicationStatus
-      ].where((e) => e).length,
-      'system': [
-        systemUpdates,
-        maintenanceAlerts,
-        securityAlerts
-      ].where((e) => e).length,
-      'reminders': [
-        dailyReminders,
-        pendingFormsReminders,
-        profileCompletionReminders
-      ].where((e) => e).length,
-    };
-  }
 
-  @override
-  String toString() {
-    return 'NotificationSettings(\n'
-        '  pushNotifications: $pushNotifications,\n'
-        '  emailNotifications: $emailNotifications,\n'
-        '  smsNotifications: $smsNotifications,\n'
-        '  inAppNotifications: $inAppNotifications,\n'
-        '  newTraineeApplications: $newTraineeApplications,\n'
-        '  formSubmissions: $formSubmissions,\n'
-        '  traineeUpdates: $traineeUpdates,\n'
-        '  applicationStatus: $applicationStatus,\n'
-        '  systemUpdates: $systemUpdates,\n'
-        '  maintenanceAlerts: $maintenanceAlerts,\n'
-        '  securityAlerts: $securityAlerts,\n'
-        '  dailyReminders: $dailyReminders,\n'
-        '  pendingFormsReminders: $pendingFormsReminders,\n'
-        '  profileCompletionReminders: $profileCompletionReminders,\n'
-        '  quietHoursEnabled: $quietHoursEnabled,\n'
-        '  quietStartTime: ${quietStartTime.format(const Locale('en') as BuildContext)},\n'
-        '  quietEndTime: ${quietEndTime.format(const Locale('en') as BuildContext)},\n'
-        '  soundEnabled: $soundEnabled,\n'
-        '  vibrationEnabled: $vibrationEnabled,\n'
-        ')';
-  }
+
+
 
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     return other is NotificationSettings &&
-        other.pushNotifications == pushNotifications &&
-        other.emailNotifications == emailNotifications &&
-        other.smsNotifications == smsNotifications &&
-        other.inAppNotifications == inAppNotifications &&
-        other.newTraineeApplications == newTraineeApplications &&
-        other.formSubmissions == formSubmissions &&
-        other.traineeUpdates == traineeUpdates &&
-        other.applicationStatus == applicationStatus &&
-        other.systemUpdates == systemUpdates &&
-        other.maintenanceAlerts == maintenanceAlerts &&
-        other.securityAlerts == securityAlerts &&
-        other.dailyReminders == dailyReminders &&
-        other.pendingFormsReminders == pendingFormsReminders &&
-        other.profileCompletionReminders == profileCompletionReminders &&
         other.quietHoursEnabled == quietHoursEnabled &&
         other.quietStartTime == quietStartTime &&
         other.quietEndTime == quietEndTime &&
@@ -317,20 +414,6 @@ class NotificationSettings {
   @override
   int get hashCode {
     return Object.hash(
-      pushNotifications,
-      emailNotifications,
-      smsNotifications,
-      inAppNotifications,
-      newTraineeApplications,
-      formSubmissions,
-      traineeUpdates,
-      applicationStatus,
-      systemUpdates,
-      maintenanceAlerts,
-      securityAlerts,
-      dailyReminders,
-      pendingFormsReminders,
-      profileCompletionReminders,
       quietHoursEnabled,
       quietStartTime,
       quietEndTime,
@@ -338,4 +421,32 @@ class NotificationSettings {
       vibrationEnabled,
     );
   }
+
+  NotificationSettings toggleNotification(NotificationType type) {
+    final newSettings = Map<NotificationType, bool>.from(enabledNotifications);
+    newSettings[type] = !(newSettings[type] ?? false);
+    return copyWith(enabledNotifications: newSettings);
+  }
+
+  // Enable/disable all notifications in a category
+  NotificationSettings setCategoryEnabled(NotificationCategory category, bool enabled) {
+    final newSettings = Map<NotificationType, bool>.from(enabledNotifications);
+    for (var type in NotificationType.values) {
+      if (type.category == category) {
+        newSettings[type] = enabled;
+      }
+    }
+    return copyWith(enabledNotifications: newSettings);
+  }
+
+  // Enable/disable all notifications
+  NotificationSettings setAllNotificationsEnabled(bool enabled) {
+    final newSettings = Map<NotificationType, bool>.from(enabledNotifications);
+    for (var type in NotificationType.values) {
+      newSettings[type] = enabled;
+    }
+    return copyWith(enabledNotifications: newSettings);
+  }
 }
+
+

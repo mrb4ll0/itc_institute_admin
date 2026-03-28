@@ -292,6 +292,7 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
 
       await fireStoreNotification.sendNotificationToStudent(
         studentUid: student.uid,
+        fcmToken: student.fcmToken??"",
         title: application.internship.company.name,
         imageUrl: pdfUrl,
         body: "Your application for ${application.internship.title} is ${GeneralMethods.normalizeApplicationStatus(newStatus).toUpperCase()}",

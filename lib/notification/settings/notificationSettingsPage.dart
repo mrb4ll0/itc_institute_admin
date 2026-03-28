@@ -157,7 +157,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
               theme,
               title: 'Push Notifications',
               subtitle: 'Receive notifications on your device',
-              value: _settings.pushNotifications,
+              value: _settings.isEnabled(NotificationType.push),
               onChanged: (value) {
                 setState(() {
                   _settings = _settings.copyWith(pushNotifications: value);
@@ -170,7 +170,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
               theme,
               title: 'Email Notifications',
               subtitle: 'Get updates via email',
-              value: _settings.emailNotifications,
+              value: _settings.isEnabled(NotificationType.email),
               onChanged: (value) {
                 setState(() {
                   _settings = _settings.copyWith(emailNotifications: value);
@@ -183,8 +183,8 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
               theme,
               title: 'SMS Notifications',
               subtitle: 'Receive text messages',
-              value: _settings.smsNotifications,
-              onChanged: (value) {
+              value: _settings.isEnabled(NotificationType.sms),
+              onChanged: null == null?null:(value) {
                 setState(() {
                   _settings = _settings.copyWith(smsNotifications: value);
                 });
@@ -196,7 +196,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
               theme,
               title: 'In-App Notifications',
               subtitle: 'Show notifications while using the app',
-              value: _settings.inAppNotifications,
+              value: _settings.isEnabled(NotificationType.inApp),
               onChanged: (value) {
                 setState(() {
                   _settings = _settings.copyWith(inAppNotifications: value);
@@ -219,7 +219,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
               theme,
               title: 'New Trainee Applications',
               subtitle: 'When trainees apply to your company',
-              value: _settings.newTraineeApplications,
+              value: _settings.isEnabled(NotificationType.newTraineeApplications),
               onChanged: (value) {
                 setState(() {
                   _settings = _settings.copyWith(newTraineeApplications: value);
@@ -233,7 +233,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
               theme,
               title: 'Form Submissions',
               subtitle: 'When trainees submit IT forms',
-              value: _settings.formSubmissions,
+              value: _settings.isEnabled(NotificationType.formSubmissions),
               onChanged: (value) {
                 setState(() {
                   _settings = _settings.copyWith(formSubmissions: value);
@@ -247,7 +247,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
               theme,
               title: 'Trainee Profile Updates',
               subtitle: 'When trainees update their profiles',
-              value: _settings.traineeUpdates,
+              value: _settings.isEnabled(NotificationType.traineeUpdates),
               onChanged: (value) {
                 setState(() {
                   _settings = _settings.copyWith(traineeUpdates: value);
@@ -261,7 +261,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
               theme,
               title: 'Application Status Changes',
               subtitle: 'When trainee applications are reviewed',
-              value: _settings.applicationStatus,
+              value: _settings.isEnabled(NotificationType.applicationStatus),
               onChanged: (value) {
                 setState(() {
                   _settings = _settings.copyWith(applicationStatus: value);
@@ -285,7 +285,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
               theme,
               title: 'System Updates',
               subtitle: 'New features and improvements',
-              value: _settings.systemUpdates,
+              value: _settings.isEnabled(NotificationType.systemUpdates),
               onChanged: (value) {
                 setState(() {
                   _settings = _settings.copyWith(systemUpdates: value);
@@ -299,7 +299,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
               theme,
               title: 'Maintenance Alerts',
               subtitle: 'Scheduled maintenance and downtime',
-              value: _settings.maintenanceAlerts,
+              value: _settings.isEnabled(NotificationType.maintenanceAlerts),
               onChanged: (value) {
                 setState(() {
                   _settings = _settings.copyWith(maintenanceAlerts: value);
@@ -313,7 +313,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
               theme,
               title: 'Security Alerts',
               subtitle: 'Important security notifications',
-              value: _settings.securityAlerts,
+              value: _settings.isEnabled(NotificationType.securityAlerts),
               onChanged: (value) {
                 setState(() {
                   _settings = _settings.copyWith(securityAlerts: value);
@@ -333,7 +333,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
               theme,
               title: 'Daily Reminders',
               subtitle: 'Get daily tips and updates',
-              value: _settings.dailyReminders,
+              value: _settings.isEnabled(NotificationType.dailyReminders),
               onChanged: (value) {
                 setState(() {
                   _settings = _settings.copyWith(dailyReminders: value);
@@ -346,7 +346,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
               theme,
               title: 'Pending Forms Reminders',
               subtitle: 'Remind you about incomplete forms',
-              value: _settings.pendingFormsReminders,
+              value: _settings.isEnabled(NotificationType.pendingFormsReminders),
               onChanged: (value) {
                 setState(() {
                   _settings = _settings.copyWith(pendingFormsReminders: value);
@@ -360,7 +360,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
               theme,
               title: 'Profile Completion Reminders',
               subtitle: 'Complete your company profile',
-              value: _settings.profileCompletionReminders,
+              value: _settings.isEnabled(NotificationType.profileCompletionReminders),
               onChanged: (value) {
                 setState(() {
                   _settings = _settings.copyWith(
@@ -547,7 +547,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
     required String title,
     required String subtitle,
     required bool value,
-    required ValueChanged<bool> onChanged,
+    required ValueChanged<bool>? onChanged,
     required IconData icon,
     Color? iconColor,
     bool isLast = false,

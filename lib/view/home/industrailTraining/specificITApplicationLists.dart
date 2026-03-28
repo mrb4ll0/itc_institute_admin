@@ -1998,6 +1998,7 @@ class _SpecificITStudentApplicationsPageState
               );
 
               await fireStoreNotification.sendNotificationToStudent(
+                fcmToken: student.fcmToken??"",
                 studentUid: student.uid,
                 title: application.internship.company.name,
                 imageUrl: pdfUrl,

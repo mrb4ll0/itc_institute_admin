@@ -66,8 +66,10 @@ class FireStoreNotification {
     String? imageUrl,
     String? action,
     Map<String, dynamic>? data,
+    required String fcmToken
   }) async {
     final notification = NotificationModel(
+      fcmToken: fcmToken,
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       title: title,
       body: body,
@@ -95,8 +97,10 @@ class FireStoreNotification {
     String? imageUrl,
     String? action,
     Map<String, dynamic>? data,
+    required String fcmToken
   }) async {
     final notification = NotificationModel(
+      fcmToken: fcmToken,
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       title: title,
       body: body,
@@ -125,11 +129,13 @@ class FireStoreNotification {
     String? imageUrl,
     String? action,
     Map<String, dynamic>? data,
+    required String fcmToken
   }) async {
     final batch = FirebaseFirestore.instance.batch();
 
     for (final studentUid in studentUids) {
       final notification = NotificationModel(
+        fcmToken: fcmToken,
         id: '${DateTime.now().millisecondsSinceEpoch}_$studentUid',
         title: title,
         body: body,
@@ -207,6 +213,7 @@ class FireStoreNotification {
     }
 
     await sendNotificationToStudent(
+      fcmToken: sender.fcmToken??"",
       studentUid: receiverUid,
       title: title,
       body: body,

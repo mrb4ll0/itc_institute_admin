@@ -12,6 +12,7 @@ class NotificationModel {
   final String? targetStudentId;
   final String? targetAudience; // For general notifications
   final bool read;
+  final String  fcmToken;
 
   NotificationModel({
     required this.id,
@@ -25,10 +26,12 @@ class NotificationModel {
     this.targetStudentId,
     this.targetAudience,
     this.read = false,
+    required this.fcmToken,
   });
 
   factory NotificationModel.fromMap(Map<String, dynamic> map) {
     return NotificationModel(
+      fcmToken: map['fcmToken'],
       id: map['id'] ?? '',
       title: map['title'] ?? map['status'] ?? 'No Title',
       body: map['body'] ?? map['message'] ?? 'No Message',
@@ -59,6 +62,7 @@ class NotificationModel {
       'targetStudentId': targetStudentId,
       'targetAudience': targetAudience,
       'read': read,
+      'fcmToken':fcmToken,
     };
   }
 }
