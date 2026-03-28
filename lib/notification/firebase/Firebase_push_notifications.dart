@@ -107,7 +107,7 @@ class NotificationService {
     Map<String, dynamic>? data,
   }) async {
     final url = Uri.parse(
-      'https://sendpushnotification-6nik2g7gkq-uc.a.run.app',
+      'https://api-aysosigsha-uc.a.run.app',
     );
     final response = await http.post(
       url,

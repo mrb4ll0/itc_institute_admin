@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:itc_institute_admin/auth/signup.dart';
 import 'package:itc_institute_admin/backgroundTask/backgroundTask.dart';
 import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
+import 'package:itc_institute_admin/itc_logic/localDB/sharedPreference.dart';
 import 'package:itc_institute_admin/itc_logic/notification/notitification_service.dart';
 import 'package:itc_institute_admin/migrationService/migrationManager.dart';
 import 'package:itc_institute_admin/migrationService/migrationService.dart';
@@ -22,6 +23,7 @@ import '../migrationService/migrationSettingsStrorage.dart';
 import '../model/authority.dart';
 import '../model/company.dart';
 import '../view/home/companyDashboardController.dart';
+import 'authService/emailChoosingPage.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -114,6 +116,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
         debugPrint("after the backgroundTaskManger line");
          // User has a company, navigate to dashboard
+         String? accessToken = await UserPreferences.getAccessToken(currentUser.email??"");
+          if(accessToken == null)
+            {
+              await showEmailAccountSetup(context);
+            }
+
+
         if (mounted) {
           GeneralMethods.replaceNavigationTo(
             context,
@@ -218,7 +227,12 @@ class _LoginScreenState extends State<LoginScreen> {
       debugPrint("trigger is ${trigger.displayName}");
 
       MigrationManager().doMigration(trigger);
+      String? accessToken = await UserPreferences.getAccessToken(currentUser?.email??"");
 
+      if(accessToken == null)
+      {
+        await showEmailAccountSetup(context);
+      }
       debugPrint("after the backgroundTaskManger line");
       if (mounted) {
         GeneralMethods.replaceNavigationTo(

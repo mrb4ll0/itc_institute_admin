@@ -250,7 +250,7 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
           _messageController.text.trim(),
           body: _messageController.text.trim(),
           type: "message",
-          title: _company?.name ?? "Company__",
+          title: "${_company?.name ?? "Company__"} sent you message",
         );
       }
 

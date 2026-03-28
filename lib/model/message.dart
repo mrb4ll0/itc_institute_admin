@@ -28,7 +28,7 @@ class Message {
 
   factory Message.fromMap(Map<String, dynamic> map, String documentId) {
     // Handle both single image and multiple images
-    debugPrint("messageMap is ${map.toString()}");
+    //debugPrint("messageMap is ${map.toString()}");
     List<String>? imageUrls;
 
     if (map['imageUrls'] != null) {

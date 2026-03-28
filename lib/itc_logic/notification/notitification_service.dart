@@ -8,9 +8,13 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
+import 'package:itc_institute_admin/itc_logic/localDB/sharedPreference.dart';
 import 'package:itc_institute_admin/itc_logic/notification/fireStoreNotification.dart';
 import 'package:mailer/mailer.dart' as mailer;
 import 'package:mailer/smtp_server/gmail.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../auth/authService/authService.dart';
 
 class NotificationService {
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
@@ -113,7 +117,7 @@ class NotificationService {
     Map<String, dynamic>? data,
   }) async {
 
-    final url = Uri.parse('https://sendpushnotification-6nik2g7gkq-uc.a.run.app');
+    final url = Uri.parse('https://api-aysosigsha-uc.a.run.app');
     final response = await http.post(
       url,
       headers: {'Content-Type': 'application/json'},
@@ -217,19 +221,23 @@ class NotificationService {
         debugPrint('No authenticated user found to send email');
         return false;
       }
+  debugPrint("to is $to and subject is $subject and body is $body and fromEmail is $fromEmail and fromName is $fromName");
 
-
-      final accessToken = await user.getIdToken();
+      final accessToken = "vmwq lbjy huaa tula";
+      final email = "im511569@gmail.com";
+        if(accessToken == null)
+          {
+            return false;
+          }
+      debugPrint("access token is $accessToken");
       if (accessToken == null) {
         debugPrint('Failed to get access token for email sending');
         return false;
       }
 
       // Configure SMTP server with OAuth2
-      final smtpServer = gmailSaslXoauth2(
-        user.email ?? 'itconnect010@gmail.com',
-        accessToken,
-      );
+      debugPrint("email is ${user.email} ");
+      final smtpServer = gmail(email, accessToken);
 
       // Build email message
       final message = mailer.Message()
