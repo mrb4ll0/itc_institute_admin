@@ -1,6 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:itc_institute_admin/itc_logic/admin_task.dart';
+import '../../../model/localNotification.dart';
 import '../../../model/message.dart';
+import '../../../model/notificationModel.dart';
+import '../../notification/notificationPanel/notificationPanelService.dart';
 import '../../notification/notification_sender.dart';
 import '../../notification/notitification_service.dart';
 import '../general_cloud.dart';
@@ -126,28 +130,31 @@ class ChatService extends ChangeNotifier {
     } catch (_) {}
 
     // Fetch device tokens for all members except sender
-    final tokens = <String>[];
-    for (final memberId in members) {
-      if (memberId == senderId) continue;
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc('students')
-          .collection('students')
-          .doc(memberId)
-          .get();
-      final data = userDoc.data();
-      if (data != null && data['deviceToken'] != null) {
-        tokens.add(data['deviceToken']);
-      }
-    }
-    if (tokens.isNotEmpty) {
-      for (final token in tokens) {
-        await NotificationService().sendNotificationToUser(
-          fcmToken: token,
+    final usersInfo = await ITCFirebaseLogic(globalUserId).getAllUserContactInfo();
+
+    if (usersInfo.isNotEmpty) {
+      for (final info in usersInfo) {
+        // await NotificationService().sendNotificationToUser(
+        //   fcmToken: token,
+        //   title: groupName,
+        //   body: '$senderName: $content',
+        //   data: {'groupId': groupId},
+        // );
+
+        NotificationModel notification = NotificationModel(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
           title: groupName,
           body: '$senderName: $content',
-          data: {'groupId': groupId},
+          timestamp: DateTime.now(),
+          read: false,
+          targetAudience: info.email,
+          targetStudentId: info.userId,
+          fcmToken: info.fcmToken??"",
+          type: NotificationType.announcement.name,
         );
+
+        NotificationPanelService.sendNotificationToAllEnabledChannelsWithSummary(notification);
+
       }
     }
   }

@@ -24,9 +24,11 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../../itc_logic/firebase/AuthorityRulesHelper.dart';
 import '../../../../itc_logic/notification/fireStoreNotification.dart';
+import '../../../../itc_logic/notification/notificationPanel/notificationPanelService.dart';
 import '../../../../itc_logic/notification/notitification_service.dart';
 import '../../../../letterGenerator/GenerateAcceptanceLetter.dart';
 import '../../../../model/authority.dart';
+import '../../../../model/notificationModel.dart';
 import '../../../../model/student.dart';
 import '../../../../model/studentApplication.dart';
 
@@ -282,21 +284,38 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
             pdfFileUrl: pdfUrl,
             isAuthority: widget.isAuthority);
       }
-      bool notificationSent = await notificationService.sendNotificationToUser(
-        fcmToken: student.fcmToken ?? "",
+      // bool notificationSent = await notificationService.sendNotificationToUser(
+      //   fcmToken: student.fcmToken ?? "",
+      //   title: application.internship.company.name,
+      //   body: "Your application for ${application.internship.title} is ${GeneralMethods.normalizeApplicationStatus(newStatus).toUpperCase()}",
+      // );
+
+
+      NotificationModel notification = NotificationModel(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
         title: application.internship.company.name,
         body: "Your application for ${application.internship.title} is ${GeneralMethods.normalizeApplicationStatus(newStatus).toUpperCase()}",
+        timestamp: DateTime.now(),
+        read: false,
+        targetAudience: student.email,
+        targetStudentId: student.uid,
+        imageUrl: pdfUrl,
+        fcmToken: student.fcmToken??"",
+        type: NotificationType.announcement.name,
       );
+
+      NotificationPanelService.sendNotificationToAllEnabledChannelsWithSummary(notification);
+
 
       debugPrint("pdf url is $pdfUrl");
 
-      await fireStoreNotification.sendNotificationToStudent(
-        studentUid: student.uid,
-        fcmToken: student.fcmToken??"",
-        title: application.internship.company.name,
-        imageUrl: pdfUrl,
-        body: "Your application for ${application.internship.title} is ${GeneralMethods.normalizeApplicationStatus(newStatus).toUpperCase()}",
-      );
+      // await fireStoreNotification.sendNotificationToStudent(
+      //   studentUid: student.uid,
+      //   fcmToken: student.fcmToken??"",
+      //   title: application.internship.company.name,
+      //   imageUrl: pdfUrl,
+      //   body: "Your application for ${application.internship.title} is ${GeneralMethods.normalizeApplicationStatus(newStatus).toUpperCase()}",
+      // );
 
       GeneralMethods.hideLoading(context);
 

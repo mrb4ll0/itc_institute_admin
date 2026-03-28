@@ -11,14 +11,20 @@ import 'package:itc_institute_admin/model/studentApplication.dart';
 import 'package:itc_institute_admin/view/home/studentApplications/studentApplicationDetail.dart';
 
 import '../../../extensions/extensions.dart';
+import '../../../itc_logic/notification/notificationPanel/notificationPanelService.dart';
 import '../../../letterGenerator/GenerateAcceptanceLetter.dart';
 import '../../../model/authority.dart';
+import '../../../model/notificationModel.dart';
 import '../../../model/student.dart';
 
 class SpecificITStudentApplicationsPage extends StatefulWidget {
   final String itId;
   final bool isAuthority;
-  const SpecificITStudentApplicationsPage({super.key, required this.itId,required this.isAuthority});
+  const SpecificITStudentApplicationsPage({
+    super.key,
+    required this.itId,
+    required this.isAuthority,
+  });
 
   @override
   State<SpecificITStudentApplicationsPage> createState() =>
@@ -29,12 +35,18 @@ class _SpecificITStudentApplicationsPageState
     extends State<SpecificITStudentApplicationsPage>
     with AutomaticKeepAliveClientMixin {
   final TextEditingController _searchController = TextEditingController();
-  final Company_Cloud company_cloud = Company_Cloud(FirebaseAuth.instance.currentUser!.uid);
+  final Company_Cloud company_cloud = Company_Cloud(
+    FirebaseAuth.instance.currentUser!.uid,
+  );
   final NotificationService notificationService = NotificationService();
   ActionLogger actionLogger = ActionLogger();
-  final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
+  final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic(
+    FirebaseAuth.instance.currentUser!.uid,
+  );
   int applicationCount = 0;
-  final Company_Cloud companyCloud = Company_Cloud(FirebaseAuth.instance.currentUser!.uid);
+  final Company_Cloud companyCloud = Company_Cloud(
+    FirebaseAuth.instance.currentUser!.uid,
+  );
   bool _isRefreshing = false;
   bool _isDataLoaded = false;
   DateTime? _lastRefreshTime;
@@ -74,7 +86,11 @@ class _SpecificITStudentApplicationsPageState
   @override
   initState() {
     super.initState();
-    canAcceptOrReject = widget.isAuthority?true:AuthorityRulesHelper.canAcceptStudents(FirebaseAuth.instance.currentUser!.uid);
+    canAcceptOrReject = widget.isAuthority
+        ? true
+        : AuthorityRulesHelper.canAcceptStudents(
+            FirebaseAuth.instance.currentUser!.uid,
+          );
     debugPrint("canAcceptOrReject: $canAcceptOrReject");
     _loadSupervisors();
     _loadInitialData();
@@ -89,11 +105,16 @@ class _SpecificITStudentApplicationsPageState
       if (currentUser == null) return;
 
       String companyId = currentUser.uid;
-       authority = await _itcFirebaseLogic.getAuthority(companyId);
+      authority = await _itcFirebaseLogic.getAuthority(companyId);
 
       // Get initial data without showing loading indicator
       final applicationsStream = company_cloud
-          .studentInternshipApplicationsForSpecificITStream(companyId: companyId, itId:widget.itId,isAuthority: widget.isAuthority, companyIds: authority?.linkedCompanies??[]);
+          .studentInternshipApplicationsForSpecificITStream(
+            companyId: companyId,
+            itId: widget.itId,
+            isAuthority: widget.isAuthority,
+            companyIds: authority?.linkedCompanies ?? [],
+          );
 
       final applications = await applicationsStream.first;
 
@@ -150,12 +171,13 @@ class _SpecificITStudentApplicationsPageState
       String companyId = currentUser.uid;
 
       // Get the stream first
-      final applicationsStream = company_cloud.
-      studentInternshipApplicationsForSpecificITStream(
-        companyId:currentUser.uid, itId:widget.itId,
-        isAuthority: widget.isAuthority,
-        companyIds: authority?.linkedCompanies??[],
-      );
+      final applicationsStream = company_cloud
+          .studentInternshipApplicationsForSpecificITStream(
+            companyId: currentUser.uid,
+            itId: widget.itId,
+            isAuthority: widget.isAuthority,
+            companyIds: authority?.linkedCompanies ?? [],
+          );
 
       // Extract the data from the stream ONCE to populate _allApplications
       final applications = await applicationsStream.first;
@@ -1078,9 +1100,10 @@ class _SpecificITStudentApplicationsPageState
 
     return StreamBuilder<List<StudentApplication>?>(
       stream: company_cloud.studentInternshipApplicationsForSpecificITStream(
-        companyId:currentUser.uid, itId:widget.itId,
+        companyId: currentUser.uid,
+        itId: widget.itId,
         isAuthority: widget.isAuthority,
-        companyIds: authority?.linkedCompanies??[],
+        companyIds: authority?.linkedCompanies ?? [],
       ),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -1233,7 +1256,10 @@ class _SpecificITStudentApplicationsPageState
           // Navigate to application details
           GeneralMethods.navigateTo(
             context,
-            StudentApplicationDetailsPage(application: application,isAuthority: widget.isAuthority,),
+            StudentApplicationDetailsPage(
+              application: application,
+              isAuthority: widget.isAuthority,
+            ),
           );
         },
         borderRadius: BorderRadius.circular(12),
@@ -1452,31 +1478,32 @@ class _SpecificITStudentApplicationsPageState
                       ),
                     ),
                   ), // Delete  Button
-                  if(widget.isAuthority?true:canAcceptOrReject)OutlinedButton.icon(
-                    onPressed: () {
-                      _deleteApplication(context, application);
-                    },
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
+                  if (widget.isAuthority ? true : canAcceptOrReject)
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        _deleteApplication(context, application);
+                      },
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        side: BorderSide(
+                          color: colorScheme.outline.withOpacity(0.3),
+                        ),
                       ),
-                      side: BorderSide(
-                        color: colorScheme.outline.withOpacity(0.3),
-                      ),
-                    ),
-                    icon: Icon(
-                      Icons.delete_forever,
-                      size: 14,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                    label: Text(
-                      'Delete',
-                      style: theme.textTheme.labelSmall?.copyWith(
+                      icon: Icon(
+                        Icons.delete_forever,
+                        size: 14,
                         color: colorScheme.onSurfaceVariant,
                       ),
+                      label: Text(
+                        'Delete',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
                     ),
-                  ),
                 ],
               ),
             ],
@@ -1920,14 +1947,21 @@ class _SpecificITStudentApplicationsPageState
     BuildContext context,
     StudentApplication application,
     String action,
-  )async {
-
+  ) async {
     bool isCompany = !widget.isAuthority;
-    canAcceptOrReject = widget.isAuthority?true:AuthorityRulesHelper.canAcceptStudents(FirebaseAuth.instance.currentUser!.uid);
+    canAcceptOrReject = widget.isAuthority
+        ? true
+        : AuthorityRulesHelper.canAcceptStudents(
+            FirebaseAuth.instance.currentUser!.uid,
+          );
     // Implement your action logic here
-    if(!canAcceptOrReject && isCompany) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("You are not authorized to perform this action")));
-          return ;
+    if (!canAcceptOrReject && isCompany) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("You are not authorized to perform this action"),
+        ),
+      );
+      return;
     }
     showDialog(
       context: context,
@@ -1956,71 +1990,83 @@ class _SpecificITStudentApplicationsPageState
 
               var pdfUrl = '';
 
-              if(widget.isAuthority) {
+              if (widget.isAuthority) {
                 debugPrint("is authority");
-                AcceptanceLetterData acceptanceLetterData = AcceptanceLetterData(
-                    id: application.id,
-                    studentName: student.fullName,
-                    studentId: student.uid,
-                    institutionName: student.institution,
-                    institutionAddress: "",
-                    institutionPhone: "",
-                    institutionEmail: "",
-                    authorityName: authority?.name ?? "",
-                    companyName: application.internship.company.name,
-                    companyAddress: application.internship.company.address,
-                    startDate: application.durationDetails['startDate'],
-                    endDate: application.durationDetails['endDate'],
-                    authorizedSignatoryName: authority?.name ?? "",
-                    acceptedAt: DateTime.now(),
-                    authorizedSignatoryPosition: "");
-                pdfUrl =
-                await runPdfGeneration(acceptanceLetterData, userId: student.uid,);
+                AcceptanceLetterData acceptanceLetterData =
+                    AcceptanceLetterData(
+                      id: application.id,
+                      studentName: student.fullName,
+                      studentId: student.uid,
+                      institutionName: student.institution,
+                      institutionAddress: "",
+                      institutionPhone: "",
+                      institutionEmail: "",
+                      authorityName: authority?.name ?? "",
+                      companyName: application.internship.company.name,
+                      companyAddress: application.internship.company.address,
+                      startDate: application.durationDetails['startDate'],
+                      endDate: application.durationDetails['endDate'],
+                      authorizedSignatoryName: authority?.name ?? "",
+                      acceptedAt: DateTime.now(),
+                      authorizedSignatoryPosition: "",
+                    );
+                pdfUrl = await runPdfGeneration(
+                  acceptanceLetterData,
+                  userId: student.uid,
+                );
 
                 await company_cloud.storeAcceptanceLetter(
                   studentId: application.student.uid,
-                    acceptanceLetterData: acceptanceLetterData,
-                    internshipId: application.internship.id!,
-                    internshipTitle: application.internship.title,
-                    companyId: application.internship.company.id,
-                    applicationId: application.id,
-                    pdfFileUrl: pdfUrl,
-                    isAuthority: widget.isAuthority);
+                  acceptanceLetterData: acceptanceLetterData,
+                  internshipId: application.internship.id!,
+                  internshipTitle: application.internship.title,
+                  companyId: application.internship.company.id,
+                  applicationId: application.id,
+                  pdfFileUrl: pdfUrl,
+                  isAuthority: widget.isAuthority,
+                );
               }
 
-
-              bool
-              notificationSent = await notificationService.sendNotificationToUser(
-                fcmToken: student.fcmToken ?? "",
+              // bool
+              // notificationSent = await notificationService.sendNotificationToUser(
+              //   fcmToken: student.fcmToken ?? "",
+              //   title: application.internship.company.name,
+              //   body:
+              //       "Your application for ${application.internship.title} is ${GeneralMethods.normalizeApplicationStatus(action).toUpperCase()}",
+              // );
+              //
+              // await fireStoreNotification.sendNotificationToStudent(
+              //   fcmToken: student.fcmToken??"",
+              //   studentUid: student.uid,
+              //   title: application.internship.company.name,
+              //   imageUrl: pdfUrl,
+              //   body:
+              //       "Your application for ${application.internship.title} is ${GeneralMethods.normalizeApplicationStatus(action).toUpperCase()}",
+              // );
+              NotificationModel notification = NotificationModel(
+                id: DateTime.now().millisecondsSinceEpoch.toString(),
                 title: application.internship.company.name,
                 body:
                     "Your application for ${application.internship.title} is ${GeneralMethods.normalizeApplicationStatus(action).toUpperCase()}",
-              );
-
-              await fireStoreNotification.sendNotificationToStudent(
-                fcmToken: student.fcmToken??"",
-                studentUid: student.uid,
-                title: application.internship.company.name,
+                timestamp: DateTime.now(),
+                read: false,
                 imageUrl: pdfUrl,
-                body:
-                    "Your application for ${application.internship.title} is ${GeneralMethods.normalizeApplicationStatus(action).toUpperCase()}",
+                targetAudience: student.email,
+                targetStudentId: student.uid,
+                fcmToken: student.fcmToken ?? "",
+                type: NotificationType.announcement.name,
               );
 
-              if (!notificationSent) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Failed to send notification'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Notification sent successfully'),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              }
+              NotificationPanelService.sendNotificationToAllEnabledChannelsWithSummary(
+                notification,
+              );
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Sending  Notification....'),
+                  backgroundColor: Colors.green,
+                ),
+              );
 
               GeneralMethods.hideLoading(context);
               Navigator.pop(context); // Close confirmation dialog

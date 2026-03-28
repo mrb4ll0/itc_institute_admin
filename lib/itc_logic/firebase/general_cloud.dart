@@ -729,122 +729,122 @@ class ITCFirebaseLogic {
 
   // ---------------------- UPDATE FCM TOKEN METHODS ----------------------
 
-  Future<List<String>> getAllFCMTokens({String? specificUserId}) async {
-    List<String> allTokens = [];
-
-    try {
-      // 1. Get all student tokens
-      final studentSnapshot = await _firebaseFirestore
-          .collection(usersCollection)
-          .doc('students')
-          .collection('students')
-          .get();
-
-      for (var doc in studentSnapshot.docs) {
-        final data = doc.data();
-        final token = data['fcmToken'] as String?;
-        final userId = doc.id;
-
-        if (specificUserId != null) {
-          if (userId == specificUserId && token != null && token.isNotEmpty) {
-            allTokens.add(token);
-            break;
-          }
-        } else if (token != null && token.isNotEmpty) {
-          allTokens.add(token);
-        }
-      }
-
-      if (specificUserId != null && allTokens.isNotEmpty) {
-        return allTokens;
-      }
-
-      // 2. Get all company tokens
-      final companySnapshot = await _firebaseFirestore
-          .collection(usersCollection)
-          .doc('companies')
-          .collection('companies')
-          .get();
-
-      for (var doc in companySnapshot.docs) {
-        final data = doc.data();
-        final token = data['fcmToken'] as String?;
-        final userId = doc.id;
-
-        if (specificUserId != null) {
-          if (userId == specificUserId && token != null && token.isNotEmpty) {
-            allTokens.add(token);
-            break;
-          }
-        } else if (token != null && token.isNotEmpty) {
-          allTokens.add(token);
-        }
-      }
-
-      if (specificUserId != null && allTokens.isNotEmpty) {
-        return allTokens;
-      }
-
-      // 🔽 NEW: 3. Get all authority tokens
-      final authoritySnapshot = await _firebaseFirestore
-          .collection(usersCollection)
-          .doc('authorities')
-          .collection('authorities')
-          .get();
-
-      for (var doc in authoritySnapshot.docs) {
-        final data = doc.data();
-        final token = data['fcmToken'] as String?;
-        final userId = doc.id;
-
-        if (specificUserId != null) {
-          if (userId == specificUserId && token != null && token.isNotEmpty) {
-            allTokens.add(token);
-            break;
-          }
-        } else if (token != null && token.isNotEmpty) {
-          allTokens.add(token);
-        }
-      }
-
-      if (specificUserId != null && allTokens.isNotEmpty) {
-        return allTokens;
-      }
-
-      // 4. Get all admin tokens
-      final adminSnapshot = await _firebaseFirestore
-          .collection('admins')
-          .get();
-
-      for (var doc in adminSnapshot.docs) {
-        final data = doc.data();
-        final token = data['fcmToken'] as String?;
-        final userId = doc.id;
-
-        if (specificUserId != null) {
-          if ((userId == specificUserId ||
-              "admin_$userId" == specificUserId) &&
-              token != null && token.isNotEmpty) {
-            allTokens.add(token);
-            break;
-          }
-        } else if (token != null && token.isNotEmpty) {
-          allTokens.add(token);
-        }
-      }
-
-      // Remove duplicates
-      allTokens = allTokens.toSet().toList();
-
-      debugPrint('✅ Retrieved ${allTokens.length} FCM tokens');
-      return allTokens;
-
-    } catch (e, s) {
-      debugPrint('❌ Error fetching FCM tokens: $e');
-      debugPrint('Stack trace: $s');
-      return allTokens;
-    }
-  }
+  // Future<List<String>> getAllFCMTokens({String? specificUserId}) async {
+  //   List<String> allTokens = [];
+  //
+  //   try {
+  //     // 1. Get all student tokens
+  //     final studentSnapshot = await _firebaseFirestore
+  //         .collection(usersCollection)
+  //         .doc('students')
+  //         .collection('students')
+  //         .get();
+  //
+  //     for (var doc in studentSnapshot.docs) {
+  //       final data = doc.data();
+  //       final token = data['fcmToken'] as String?;
+  //       final userId = doc.id;
+  //
+  //       if (specificUserId != null) {
+  //         if (userId == specificUserId && token != null && token.isNotEmpty) {
+  //           allTokens.add(token);
+  //           break;
+  //         }
+  //       } else if (token != null && token.isNotEmpty) {
+  //         allTokens.add(token);
+  //       }
+  //     }
+  //
+  //     if (specificUserId != null && allTokens.isNotEmpty) {
+  //       return allTokens;
+  //     }
+  //
+  //     // 2. Get all company tokens
+  //     final companySnapshot = await _firebaseFirestore
+  //         .collection(usersCollection)
+  //         .doc('companies')
+  //         .collection('companies')
+  //         .get();
+  //
+  //     for (var doc in companySnapshot.docs) {
+  //       final data = doc.data();
+  //       final token = data['fcmToken'] as String?;
+  //       final userId = doc.id;
+  //
+  //       if (specificUserId != null) {
+  //         if (userId == specificUserId && token != null && token.isNotEmpty) {
+  //           allTokens.add(token);
+  //           break;
+  //         }
+  //       } else if (token != null && token.isNotEmpty) {
+  //         allTokens.add(token);
+  //       }
+  //     }
+  //
+  //     if (specificUserId != null && allTokens.isNotEmpty) {
+  //       return allTokens;
+  //     }
+  //
+  //     // 🔽 NEW: 3. Get all authority tokens
+  //     final authoritySnapshot = await _firebaseFirestore
+  //         .collection(usersCollection)
+  //         .doc('authorities')
+  //         .collection('authorities')
+  //         .get();
+  //
+  //     for (var doc in authoritySnapshot.docs) {
+  //       final data = doc.data();
+  //       final token = data['fcmToken'] as String?;
+  //       final userId = doc.id;
+  //
+  //       if (specificUserId != null) {
+  //         if (userId == specificUserId && token != null && token.isNotEmpty) {
+  //           allTokens.add(token);
+  //           break;
+  //         }
+  //       } else if (token != null && token.isNotEmpty) {
+  //         allTokens.add(token);
+  //       }
+  //     }
+  //
+  //     if (specificUserId != null && allTokens.isNotEmpty) {
+  //       return allTokens;
+  //     }
+  //
+  //     // 4. Get all admin tokens
+  //     final adminSnapshot = await _firebaseFirestore
+  //         .collection('admins')
+  //         .get();
+  //
+  //     for (var doc in adminSnapshot.docs) {
+  //       final data = doc.data();
+  //       final token = data['fcmToken'] as String?;
+  //       final userId = doc.id;
+  //
+  //       if (specificUserId != null) {
+  //         if ((userId == specificUserId ||
+  //             "admin_$userId" == specificUserId) &&
+  //             token != null && token.isNotEmpty) {
+  //           allTokens.add(token);
+  //           break;
+  //         }
+  //       } else if (token != null && token.isNotEmpty) {
+  //         allTokens.add(token);
+  //       }
+  //     }
+  //
+  //     // Remove duplicates
+  //     allTokens = allTokens.toSet().toList();
+  //
+  //     debugPrint('✅ Retrieved ${allTokens.length} FCM tokens');
+  //     return allTokens;
+  //
+  //   } catch (e, s) {
+  //     debugPrint('❌ Error fetching FCM tokens: $e');
+  //     debugPrint('Stack trace: $s');
+  //     return allTokens;
+  //   }
+  // }
 
   Future<List<String>> getFCMTokensByRole(String role) async {
     List<String> tokens = [];
@@ -1011,6 +1011,251 @@ class ITCFirebaseLogic {
     } catch (e) {
       rethrow;
     }
+
+
   }
 
+
+  // Method to get all user contact info (FCM token, email, and ID)
+  Future<List<UserContactInfo>> getAllUserContactInfo({String? specificUserId}) async {
+    List<UserContactInfo> allUsers = [];
+
+    try {
+      // 1. Get all students
+      final studentSnapshot = await _firebaseFirestore
+          .collection(usersCollection)
+          .doc('students')
+          .collection('students')
+          .get();
+
+      for (var doc in studentSnapshot.docs) {
+        final data = doc.data();
+        final userId = doc.id;
+        final fcmToken = data['fcmToken'] as String?;
+        final email = data['email'] as String?;
+
+        if (specificUserId != null) {
+          if (userId == specificUserId) {
+            allUsers.add(UserContactInfo(
+              userId: userId,
+              fcmToken: fcmToken,
+              email: email,
+              userType: 'student',
+            ));
+            break;
+          }
+        } else {
+          allUsers.add(UserContactInfo(
+            userId: userId,
+            fcmToken: fcmToken,
+            email: email,
+            userType: 'student',
+          ));
+        }
+      }
+
+      if (specificUserId != null && allUsers.isNotEmpty) {
+        return allUsers;
+      }
+
+      // 2. Get all companies
+      final companySnapshot = await _firebaseFirestore
+          .collection(usersCollection)
+          .doc('companies')
+          .collection('companies')
+          .get();
+
+      for (var doc in companySnapshot.docs) {
+        final data = doc.data();
+        final userId = doc.id;
+        final fcmToken = data['fcmToken'] as String?;
+        final email = data['email'] as String?;
+
+        if (specificUserId != null) {
+          if (userId == specificUserId) {
+            allUsers.add(UserContactInfo(
+              userId: userId,
+              fcmToken: fcmToken,
+              email: email,
+              userType: 'company',
+            ));
+            break;
+          }
+        } else {
+          allUsers.add(UserContactInfo(
+            userId: userId,
+            fcmToken: fcmToken,
+            email: email,
+            userType: 'company',
+          ));
+        }
+      }
+
+      if (specificUserId != null && allUsers.isNotEmpty) {
+        return allUsers;
+      }
+
+      // 3. Get all authorities
+      final authoritySnapshot = await _firebaseFirestore
+          .collection(usersCollection)
+          .doc('authorities')
+          .collection('authorities')
+          .get();
+
+      for (var doc in authoritySnapshot.docs) {
+        final data = doc.data();
+        final userId = doc.id;
+        final fcmToken = data['fcmToken'] as String?;
+        final email = data['email'] as String?;
+
+        if (specificUserId != null) {
+          if (userId == specificUserId) {
+            allUsers.add(UserContactInfo(
+              userId: userId,
+              fcmToken: fcmToken,
+              email: email,
+              userType: 'authority',
+            ));
+            break;
+          }
+        } else {
+          allUsers.add(UserContactInfo(
+            userId: userId,
+            fcmToken: fcmToken,
+            email: email,
+            userType: 'authority',
+          ));
+        }
+      }
+
+      if (specificUserId != null && allUsers.isNotEmpty) {
+        return allUsers;
+      }
+
+      // 4. Get all admins
+      final adminSnapshot = await _firebaseFirestore
+          .collection('admins')
+          .get();
+
+      for (var doc in adminSnapshot.docs) {
+        final data = doc.data();
+        final userId = doc.id;
+        final fcmToken = data['fcmToken'] as String?;
+        final email = data['email'] as String?;
+
+        if (specificUserId != null) {
+          if (userId == specificUserId || "admin_$userId" == specificUserId) {
+            allUsers.add(UserContactInfo(
+              userId: userId,
+              fcmToken: fcmToken,
+              email: email,
+              userType: 'admin',
+            ));
+            break;
+          }
+        } else {
+          allUsers.add(UserContactInfo(
+            userId: userId,
+            fcmToken: fcmToken,
+            email: email,
+            userType: 'admin',
+          ));
+        }
+      }
+
+      // Remove duplicates by userId
+      final uniqueUsers = <String, UserContactInfo>{};
+      for (var user in allUsers) {
+        if (!uniqueUsers.containsKey(user.userId)) {
+          uniqueUsers[user.userId] = user;
+        }
+      }
+      allUsers = uniqueUsers.values.toList();
+
+      debugPrint('✅ Retrieved ${allUsers.length} users with contact info');
+      return allUsers;
+
+    } catch (e, s) {
+      debugPrint('❌ Error fetching user contact info: $e');
+      debugPrint('Stack trace: $s');
+      return allUsers;
+    }
+  }
+
+// Helper method to get only FCM tokens (for backward compatibility)
+  Future<List<String>> getAllFCMTokens({String? specificUserId}) async {
+    List<String> allTokens = [];
+
+    final users = await getAllUserContactInfo(specificUserId: specificUserId);
+
+    for (var user in users) {
+      if (user.fcmToken != null && user.fcmToken!.isNotEmpty) {
+        allTokens.add(user.fcmToken!);
+      }
+    }
+
+    return allTokens;
+  }
+
+// Helper method to get only emails
+  Future<List<String>> getAllEmails({String? specificUserId}) async {
+    List<String> allEmails = [];
+
+    final users = await getAllUserContactInfo(specificUserId: specificUserId);
+
+    for (var user in users) {
+      if (user.email != null && user.email!.isNotEmpty) {
+        allEmails.add(user.email!);
+      }
+    }
+
+    return allEmails;
+  }
+
+// Helper method to get user contact info by type
+  Future<List<UserContactInfo>> getUserContactInfoByType({
+    required String userType, // 'student', 'company', 'authority', 'admin'
+    String? specificUserId,
+  }) async {
+    List<UserContactInfo> filteredUsers = [];
+
+    final allUsers = await getAllUserContactInfo(specificUserId: specificUserId);
+
+    for (var user in allUsers) {
+      if (user.userType == userType) {
+        filteredUsers.add(user);
+      }
+    }
+
+    return filteredUsers;
+  }
+}
+
+
+class UserContactInfo {
+  final String userId;
+  final String? fcmToken;
+  final String? email;
+  final String userType; // 'student', 'company', 'authority', 'admin'
+
+  UserContactInfo({
+    required this.userId,
+    this.fcmToken,
+    this.email,
+    required this.userType,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'userId': userId,
+      'fcmToken': fcmToken,
+      'email': email,
+      'userType': userType,
+    };
+  }
+
+  @override
+  String toString() {
+    return 'UserContactInfo(userId: $userId, fcmToken: ${fcmToken != null ? 'present' : 'null'}, email: $email, userType: $userType)';
+  }
 }

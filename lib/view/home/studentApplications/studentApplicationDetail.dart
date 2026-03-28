@@ -13,10 +13,12 @@ import '../../../extensions/extensions.dart';
 import '../../../generalmethods/GeneralMethods.dart';
 import '../../../itc_logic/firebase/AuthorityRulesHelper.dart';
 import '../../../itc_logic/firebase/company_cloud.dart';
+import '../../../itc_logic/notification/notificationPanel/notificationPanelService.dart';
 import '../../../itc_logic/notification/notitification_service.dart';
 import '../../../letterGenerator/GenerateAcceptanceLetter.dart';
 import '../../../model/authority.dart';
 import '../../../model/company.dart';
+import '../../../model/notificationModel.dart';
 import '../../../model/student.dart';
 import '../../../model/studentApplication.dart';
 import '../industrailTraining/fileDetails.dart';
@@ -899,37 +901,47 @@ class _StudentApplicationDetailsPageState
 
               }
               
-              bool
-              notificationSent = await notificationService.sendNotificationToUser(
-                fcmToken: student.fcmToken ?? "",
+              // bool
+              // notificationSent = await notificationService.sendNotificationToUser(
+              //   fcmToken: student.fcmToken ?? "",
+              //   title: application.internship.company.name,
+              //   body:
+              //       "Your application for ${application.internship.title} is ${GeneralMethods.normalizeApplicationStatus(action).toUpperCase()}",
+              // );
+              //
+              // await fireStoreNotification.sendNotificationToStudent(
+              //   fcmToken: student.fcmToken??"",
+              //   studentUid: student.uid,
+              //   title: application.internship.company.name,
+              //   imageUrl: pdfUrl,
+              //   body:
+              //       "Your application for ${application.internship.title} is ${GeneralMethods.normalizeApplicationStatus(action).toUpperCase()}",
+              // );
+
+
+              NotificationModel notification = NotificationModel(
+                id: DateTime.now().millisecondsSinceEpoch.toString(),
                 title: application.internship.company.name,
-                body:
-                    "Your application for ${application.internship.title} is ${GeneralMethods.normalizeApplicationStatus(action).toUpperCase()}",
+                body: "Your application for ${application.internship.title} is ${GeneralMethods.normalizeApplicationStatus(action).toUpperCase()}",
+                timestamp: DateTime.now(),
+                read: false,
+                targetAudience: student.email,
+                targetStudentId: student.uid,
+                imageUrl: pdfUrl,
+                fcmToken: student.fcmToken??"",
+                type: NotificationType.announcement.name,
               );
 
-              await fireStoreNotification.sendNotificationToStudent(
-                fcmToken: student.fcmToken??"",
-                studentUid: student.uid,
-                title: application.internship.company.name,
-                imageUrl: pdfUrl,
-                body:
-                    "Your application for ${application.internship.title} is ${GeneralMethods.normalizeApplicationStatus(action).toUpperCase()}",
-              );
-              if (!notificationSent) {
+              NotificationPanelService.sendNotificationToAllEnabledChannelsWithSummary(notification);
+
+
+
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Failed to send notification'),
+                    content: Text('Sending Notification....'),
                     backgroundColor: Colors.red,
                   ),
                 );
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Notification sent successfully'),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              }
 
               GeneralMethods.hideLoading(context);
               Navigator.pop(context); // Close confirmation dialog

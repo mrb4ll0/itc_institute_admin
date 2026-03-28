@@ -3,9 +3,12 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/general_cloud.dart';
+import 'package:itc_institute_admin/itc_logic/notification/fireStoreNotification.dart';
+import 'package:itc_institute_admin/itc_logic/notification/notificationPanel/notificationPanelService.dart';
 import 'package:itc_institute_admin/itc_logic/notification/notitification_service.dart';
 import 'package:itc_institute_admin/itc_logic/service/ConverterUserService.dart';
 import 'package:itc_institute_admin/model/company.dart';
+import 'package:itc_institute_admin/model/notificationModel.dart';
 import 'package:itc_institute_admin/model/userProfile.dart';
 
 import '../itc_logic/firebase/tweet/tweet_cloud.dart';
@@ -263,8 +266,22 @@ class TweetProvider extends ChangeNotifier {
 
 
 
-      await notificationService.sendNotificationToUser(
-          fcmToken: student.fcmToken, title: "New Comment from ${student.displayName}", body: content.trim());
+      // await notificationService.sendNotificationToUser(
+      //     fcmToken: student.fcmToken, title: "New Comment from ${student.displayName}", body: content.trim());
+
+      NotificationModel notification = NotificationModel(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        title: "New Comment from ${student.displayName}",
+        body: content.trim(),
+        timestamp: DateTime.now(),
+        read: false,
+        targetAudience: student.email,
+        targetStudentId: student.uid,
+        fcmToken: student.fcmToken,
+        type: NotificationType.tweetComment.name,
+      );
+
+      NotificationPanelService.sendNotificationToAllEnabledChannelsWithSummary(notification);
 
 
     // Update main tweets list
@@ -308,8 +325,22 @@ class TweetProvider extends ChangeNotifier {
     //final fcmTokens = await itcFirebaseLogic.getAllFCMTokens();
 
 
-       notificationService.sendNotificationToUser(
-          fcmToken: company.fcmToken, title: "New reply from ${company.displayName}", body: content.trim());
+       // notificationService.sendNotificationToUser(
+       //    fcmToken: company.fcmToken, title: "New reply from ${company.displayName}", body: content.trim());
+
+    NotificationModel notification = NotificationModel(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      title: "New reply from ${company.displayName}",
+      body: content.trim(),
+      timestamp: DateTime.now(),
+      read: false,
+      targetAudience: company.email,
+      targetStudentId: company.uid,
+      fcmToken: company.fcmToken,
+      type: NotificationType.commentReply.name,
+    );
+
+    NotificationPanelService.sendNotificationToAllEnabledChannelsWithSummary(notification);
 
 
     // Update main tweets list
@@ -369,12 +400,32 @@ class TweetProvider extends ChangeNotifier {
         FirebaseAuth.instance.currentUser!.uid,
         text.trim(),
       );
-       final fcmTokens = await itcFirebaseLogic.getAllFCMTokens();
+       final usersInfo = await itcFirebaseLogic.getAllUserContactInfo();
 
-       for(final fcmToken in fcmTokens) {
-         await notificationService.sendNotificationToUser(
-             fcmToken: fcmToken, title: "New Feeds", body: text.trim());
+       for(final userInfo in usersInfo) {
+         // await notificationService.sendNotificationToUser(
+         //     fcmToken: fcmToken, title: "New Feeds", body: text.trim());
+
+         NotificationModel notification = NotificationModel(
+           id: DateTime.now().millisecondsSinceEpoch.toString(),
+           title: "New Feeds",
+           body: text.trim(),
+           timestamp: DateTime.now(),
+           read: false,
+           targetAudience: userInfo.email,
+           targetStudentId: userInfo.userId,
+           fcmToken: userInfo.fcmToken??"",
+           type: NotificationType.announcement.name,
+         );
+
+         NotificationPanelService.sendNotificationToAllEnabledChannelsWithSummary(notification);
+
+
+
        }
+
+
+
       // Now use the actual tweet returned from Firestore
       final newTweet = TweetModel(
         createdAt: DateTime.now(),
