@@ -3,6 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+// Add enum for 2FA method
+enum TwoFactorMethod {
+  sms,
+  password,
+  none,
+}
+
 class PrivacySettings {
   // Profile Privacy
   final bool profileVisibility;
@@ -17,7 +24,7 @@ class PrivacySettings {
   final bool personalizedAds;
 
   // Account Security
-  final bool twoFactorAuth;
+  bool twoFactorAuth;
   final bool loginAlerts;
   final bool deviceManagement;
   final bool sessionTimeout;
@@ -41,6 +48,11 @@ class PrivacySettings {
   // Metadata
   final DateTime? lastUpdated;
   final String? updatedBy;
+
+  // Two-Factor Authentication
+  final List<EnrolledFactor>? enrolledFactors; // For SMS 2FA
+  final DateTime? twoFactorEnabledAt;
+  final TwoFactorMethod twoFactorMethod; // New: tracks which method is used
 
   PrivacySettings({
     // Profile Privacy
@@ -80,7 +92,51 @@ class PrivacySettings {
     // Metadata
     this.lastUpdated,
     this.updatedBy,
+
+    this.enrolledFactors,
+    this.twoFactorEnabledAt,
+    this.twoFactorMethod = TwoFactorMethod.none, // Default to none
   });
+
+  // Helper method to check if 2FA is actually enrolled (SMS)
+  bool get isSmsTwoFactorEnrolled => enrolledFactors != null && enrolledFactors!.isNotEmpty;
+
+  // Helper method to check if password 2FA is enabled (from Firestore)
+  // This would be stored separately in your twoFactorPasswords collection
+  bool isPasswordTwoFactorEnabled(String userId) {
+    // This should check the twoFactorPasswords collection
+    // For now, return false - will be checked by service
+    return twoFactorAuth && twoFactorMethod == TwoFactorMethod.password;
+  }
+
+  // Helper method to get the active 2FA method
+  TwoFactorMethod get activeTwoFactorMethod {
+    if (!twoFactorAuth) return TwoFactorMethod.none;
+    return twoFactorMethod;
+  }
+
+  // Helper method to check if ANY 2FA is enrolled
+  bool get isAnyTwoFactorEnrolled {
+    if (!twoFactorAuth) return false;
+    return twoFactorMethod != TwoFactorMethod.none;
+  }
+
+  // Check if user should be prompted to enroll 2FA
+  bool shouldEnrollTwoFactor(String? viewerId, String profileOwnerId) {
+    // Only the profile owner can see/enroll 2FA
+    if (viewerId != null && viewerId == profileOwnerId) {
+      return twoFactorAuth && !isAnyTwoFactorEnrolled;
+    }
+    return false;
+  }
+
+  // Check if 2FA is required for login
+  bool isTwoFactorRequired(String? viewerId, String profileOwnerId) {
+    if (viewerId != null && viewerId == profileOwnerId) {
+      return twoFactorAuth && isAnyTwoFactorEnrolled;
+    }
+    return false;
+  }
 
   // Create default settings
   factory PrivacySettings.defaultSettings() {
@@ -109,6 +165,7 @@ class PrivacySettings {
       showActivityStatus: true,
       lastUpdated: DateTime.now(),
       updatedBy: FirebaseAuth.instance.currentUser?.uid,
+      twoFactorMethod: TwoFactorMethod.none,
     );
   }
 
@@ -129,6 +186,7 @@ class PrivacySettings {
 
       // Account Security
       'twoFactorAuth': twoFactorAuth,
+      'twoFactorMethod': twoFactorMethod.name, // Store as int
       'loginAlerts': loginAlerts,
       'deviceManagement': deviceManagement,
       'sessionTimeout': sessionTimeout,
@@ -159,6 +217,20 @@ class PrivacySettings {
   factory PrivacySettings.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
 
+    // Parse enrolled factors if present
+    List<EnrolledFactor>? enrolledFactors;
+    if (data['enrolledFactors'] != null) {
+      enrolledFactors = (data['enrolledFactors'] as List)
+          .map((factor) => EnrolledFactor.fromJson(factor))
+          .toList();
+    }
+
+    // Parse two factor method
+    TwoFactorMethod twoFactorMethod = TwoFactorMethod.none;
+    if (data['twoFactorMethod'] != null) {
+      twoFactorMethod = TwoFactorMethod.values[data['twoFactorMethod']];
+    }
+
     return PrivacySettings(
       profileVisibility: data['profileVisibility'] ?? true,
       showEmail: data['showEmail'] ?? true,
@@ -184,6 +256,9 @@ class PrivacySettings {
       showActivityStatus: data['showActivityStatus'] ?? true,
       lastUpdated: (data['lastUpdated'] as Timestamp?)?.toDate(),
       updatedBy: data['updatedBy'],
+      enrolledFactors: enrolledFactors,
+      twoFactorEnabledAt: (data['twoFactorEnabledAt'] as Timestamp?)?.toDate(),
+      twoFactorMethod: twoFactorMethod,
     );
   }
 
@@ -213,6 +288,7 @@ class PrivacySettings {
     bool? showActivityStatus,
     DateTime? lastUpdated,
     String? updatedBy,
+    TwoFactorMethod? twoFactorMethod,
   }) {
     return PrivacySettings(
       profileVisibility: profileVisibility ?? this.profileVisibility,
@@ -239,6 +315,104 @@ class PrivacySettings {
       showActivityStatus: showActivityStatus ?? this.showActivityStatus,
       lastUpdated: lastUpdated ?? this.lastUpdated,
       updatedBy: updatedBy ?? this.updatedBy,
+      twoFactorMethod: twoFactorMethod ?? this.twoFactorMethod,
     );
   }
+
+  // Helper method to check if email should be shown to a viewer
+  bool shouldShowEmail(String? viewerId, String profileOwnerId) {
+    if (viewerId != null && viewerId == profileOwnerId) {
+      return true;
+    }
+    return showEmail;
+  }
+
+  // Helper method to check if phone number should be shown to a viewer
+  bool shouldShowPhoneNumber(String? viewerId, String profileOwnerId) {
+    if (viewerId != null && viewerId == profileOwnerId) {
+      return true;
+    }
+    return showPhoneNumber;
+  }
+
+  // Helper method to check if location should be shown to a viewer
+  bool shouldShowLocation(String? viewerId, String profileOwnerId) {
+    if (viewerId != null && viewerId == profileOwnerId) {
+      return true;
+    }
+    return showLocation;
+  }
+
+  // Helper method to check if company info should be shown to a viewer
+  bool shouldShowCompanyInfo(String? viewerId, String profileOwnerId) {
+    if (viewerId != null && viewerId == profileOwnerId) {
+      return true;
+    }
+    return showCompanyInfo;
+  }
+
+  // Helper method to check if profile is visible to a viewer
+  bool shouldShowProfile(String? viewerId, String profileOwnerId) {
+    if (viewerId != null && viewerId == profileOwnerId) {
+      return true;
+    }
+    return profileVisibility;
+  }
+
+  // Helper method to get all visible contact information
+  Map<String, bool> getVisibleContactInfo(String? viewerId, String profileOwnerId) {
+    return {
+      'email': shouldShowEmail(viewerId, profileOwnerId),
+      'phone': shouldShowPhoneNumber(viewerId, profileOwnerId),
+      'location': shouldShowLocation(viewerId, profileOwnerId),
+      'companyInfo': shouldShowCompanyInfo(viewerId, profileOwnerId),
+    };
+  }
+
+  // Helper method to check if ANY contact info should be shown
+  bool hasAnyVisibleContactInfo(String? viewerId, String profileOwnerId) {
+    return shouldShowEmail(viewerId, profileOwnerId) ||
+        shouldShowPhoneNumber(viewerId, profileOwnerId) ||
+        shouldShowLocation(viewerId, profileOwnerId);
+  }
+
+  // Helper method to check if ANY profile info should be shown
+  bool hasAnyVisibleProfileInfo(String? viewerId, String profileOwnerId) {
+    return shouldShowProfile(viewerId, profileOwnerId) ||
+        shouldShowCompanyInfo(viewerId, profileOwnerId);
+  }
+}
+
+class EnrolledFactor {
+  final String uid;
+  final String phoneNumber;
+  final String displayName;
+  final DateTime enrollmentTime;
+  final String factorId; // 'phone' for SMS
+
+  EnrolledFactor({
+    required this.uid,
+    required this.phoneNumber,
+    required this.displayName,
+    required this.enrollmentTime,
+    required this.factorId,
+  });
+
+  factory EnrolledFactor.fromJson(Map<String, dynamic> json) {
+    return EnrolledFactor(
+      uid: json['uid'],
+      phoneNumber: json['phoneNumber'],
+      displayName: json['displayName'] ?? '',
+      enrollmentTime: DateTime.parse(json['enrollmentTime']),
+      factorId: json['factorId'],
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'uid': uid,
+    'phoneNumber': phoneNumber,
+    'displayName': displayName,
+    'enrollmentTime': enrollmentTime.toIso8601String(),
+    'factorId': factorId,
+  };
 }

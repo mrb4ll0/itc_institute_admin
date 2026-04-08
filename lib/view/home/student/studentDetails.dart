@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../generalmethods/GeneralMethods.dart';
 import '../../../itc_logic/firebase/message/message_service.dart';
+import '../../../itc_logic/service/privacySettingsService.dart';
 import '../../../itc_logic/service/userService.dart';
 import '../../../model/student.dart';
 import '../chat/chartPage.dart';
@@ -34,13 +35,62 @@ class _StudentProfilePageState extends State<StudentProfilePage>
   final UserService _userService = UserService();
   String? _currentUserId;
   bool _isLoading = false;
+  bool _hasAccess = false;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: _currentUserId == widget.student.uid?4:3, vsync: this);
-    _getCurrentUser();
+    _checkAccessAndInitialize();
   }
+
+
+  Future<void> _checkAccessAndInitialize() async {
+    // check if user can view profile
+    final hasAccess = await canViewProfile();
+
+    if (!mounted) return;
+
+    if (hasAccess) {
+      setState(() {
+        _hasAccess = true;
+        _isLoading = false;
+      });
+
+      // Only initialize tab controller if access is granted
+      _tabController = TabController(
+        length: _currentUserId == widget.student.uid ? 4 : 3,
+        vsync: this,
+      );
+      _getCurrentUser();
+    } else {
+      // No access, dialog will be shown by canViewProfile
+      setState(() {
+        _isLoading = false;
+        _hasAccess = false;
+      });
+    }
+  }
+
+
+  canViewProfile() async {
+    User? userId = FirebaseAuth.instance.currentUser;
+    if (userId == null) {
+      if (!mounted) return;
+      GeneralMethods.showErrorDialog(context, "Error: kindly login again");
+      Navigator.pop(context);
+      return;
+    }
+
+    final privacy = await PrivacySettingsService.canViewProfile(userId.uid, widget.student.uid);
+
+    if (!privacy) {
+      if (!mounted) return;
+      GeneralMethods.showErrorDialog(context, "You are not allowed to view this profile");
+      Navigator.pop(context);
+      return;
+    }
+  }
+
 
   @override
   void dispose() {

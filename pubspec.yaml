@@ -81,6 +81,8 @@ dependencies:
   qr_flutter: ^4.1.0
   mailer: ^6.4.1
   flutter_email_sender: ^7.0.0
+  firebase_auth_platform_interface: ^7.7.3
+  cloud_functions: ^5.6.2
 
 dev_dependencies:
   flutter_test:

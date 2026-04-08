@@ -1,6 +1,7 @@
 // services/privacy_settings_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../model/privacySettingModel.dart';
 
@@ -23,7 +24,8 @@ class PrivacySettingsService {
         await savePrivacySettings(userId, defaultSettings);
         return defaultSettings;
       }
-    } catch (e) {
+    } catch (e,s) {
+      debugPrintStack(stackTrace: s);
       print('Error getting privacy settings: $e');
       return PrivacySettings.defaultSettings();
     }

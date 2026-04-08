@@ -11,10 +11,12 @@ import 'package:itc_institute_admin/backgroundTask/backgroundTask.dart';
 import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
 import 'package:itc_institute_admin/itc_logic/localDB/sharedPreference.dart';
 import 'package:itc_institute_admin/itc_logic/notification/notitification_service.dart';
+import 'package:itc_institute_admin/itc_logic/service/privacySettingsService.dart';
 import 'package:itc_institute_admin/migrationService/migrationManager.dart';
 import 'package:itc_institute_admin/migrationService/migrationService.dart';
 import 'package:itc_institute_admin/migrationService/ui/migrationSettingsPage.dart';
 import 'package:itc_institute_admin/model/authorityCompanyMapper.dart';
+import 'package:itc_institute_admin/model/privacySettingModel.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../backgroundTask/backgroundTaskRegistry.dart';
@@ -23,6 +25,7 @@ import '../migrationService/migrationSettingsStrorage.dart';
 import '../model/authority.dart';
 import '../model/company.dart';
 import '../view/home/companyDashboardController.dart';
+import '../view/twoFactorAuthentication/TwoFactorVerificationScreen.dart';
 import 'authService/emailChoosingPage.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -65,7 +68,6 @@ class _LoginScreenState extends State<LoginScreen> {
           _isCheckingAuth = false;
         });
         return;
-
       }
       // final firebaseToken = await currentUser?.getIdToken();
       // final response = await http.post(
@@ -92,51 +94,114 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() {
         _isLoading = true;
       });
+      PrivacySettings privacySettings =
+          await PrivacySettingsService.getUserPrivacySettings(currentUser.uid);
 
-      Company? company;
-       company = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid).getCompany(currentUser.uid);
-       if(company == null)
-         {
-           Authority? authority = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid).getAuthority(currentUser.uid);
-           if(authority != null)
-             {
-               company = AuthorityCompanyMapper.createCompanyFromAuthority(authority: authority);
-             }
-         }
+      if (privacySettings.twoFactorAuth) {
+        GeneralMethods.navigateTo(
+          context,
+          TwoFactorVerificationScreen(
+            privacySettings: privacySettings,
+            email: currentUser.email ?? "",
+            onSuccess: (credential,user) async {
+              Company? company;
+              company = await ITCFirebaseLogic(
+                FirebaseAuth.instance.currentUser!.uid,
+              ).getCompany(currentUser.uid);
+              if (company == null) {
+                Authority? authority = await ITCFirebaseLogic(
+                  FirebaseAuth.instance.currentUser!.uid,
+                ).getAuthority(currentUser.uid);
+                if (authority != null) {
+                  company = AuthorityCompanyMapper.createCompanyFromAuthority(
+                    authority: authority,
+                  );
+                }
+              }
 
-      if (company != null) {
+              if (company != null) {
+                final settings = await MigrationSettingsStorage.loadSettings();
 
-        final settings = await MigrationSettingsStorage.loadSettings();
+                MigrationTrigger trigger = settings["trigger"];
 
-        MigrationTrigger trigger = settings["trigger"];
+                debugPrint("trigger is ${trigger.displayName}");
 
-        debugPrint("trigger is ${trigger.displayName}");
+                MigrationManager().doMigration(trigger);
 
-             MigrationManager().doMigration(trigger);
+                debugPrint("after the backgroundTaskManger line");
+                // User has a company, navigate to dashboard
+                // String? accessToken = await UserPreferences.getAccessToken(
+                //   currentUser.email ?? "",
+                // );
+                // if (accessToken == null) {
+                //   await showEmailAccountSetup(context);
+                // }
 
-        debugPrint("after the backgroundTaskManger line");
-         // User has a company, navigate to dashboard
-         String? accessToken = await UserPreferences.getAccessToken(currentUser.email??"");
-          if(accessToken == null)
-            {
-              await showEmailAccountSetup(context);
-            }
-
-
-        if (mounted) {
-          GeneralMethods.replaceNavigationTo(
-            context,
-            CompanyDashboardController(tweetCompany: company),
-          );
-        }
+                if (mounted) {
+                  GeneralMethods.replaceNavigationTo(
+                    context,
+                    CompanyDashboardController(tweetCompany: company),
+                  );
+                }
+              } else {
+                // User logged in but no company found - show login screen
+                setState(() {
+                  _isCheckingAuth = false;
+                  _isLoading = false;
+                });
+              }
+            },
+          ),
+        );
       } else {
-        // User logged in but no company found - show login screen
-        setState(() {
-          _isCheckingAuth = false;
-          _isLoading = false;
-        });
+        Company? company;
+        company = await ITCFirebaseLogic(
+          FirebaseAuth.instance.currentUser!.uid,
+        ).getCompany(currentUser.uid);
+        if (company == null) {
+          Authority? authority = await ITCFirebaseLogic(
+            FirebaseAuth.instance.currentUser!.uid,
+          ).getAuthority(currentUser.uid);
+          if (authority != null) {
+            company = AuthorityCompanyMapper.createCompanyFromAuthority(
+              authority: authority,
+            );
+          }
+        }
+
+        if (company != null) {
+          final settings = await MigrationSettingsStorage.loadSettings();
+
+          MigrationTrigger trigger = settings["trigger"];
+
+          debugPrint("trigger is ${trigger.displayName}");
+
+          MigrationManager().doMigration(trigger);
+
+          debugPrint("after the backgroundTaskManger line");
+          // User has a company, navigate to dashboard
+          // String? accessToken = await UserPreferences.getAccessToken(
+          //   currentUser.email ?? "",
+          // );
+          // if (accessToken == null) {
+          //   await showEmailAccountSetup(context);
+          // }
+
+          if (mounted) {
+            GeneralMethods.replaceNavigationTo(
+              context,
+              CompanyDashboardController(tweetCompany: company),
+            );
+          }
+        } else {
+          // User logged in but no company found - show login screen
+          setState(() {
+            _isCheckingAuth = false;
+            _isLoading = false;
+          });
+        }
       }
-    } catch (e,s) {
+    } catch (e, s) {
       // Error checking auth, show login screen
       debugPrintStack(stackTrace: s);
       debugPrint("Error checking auth: $e");
@@ -146,7 +211,6 @@ class _LoginScreenState extends State<LoginScreen> {
       });
     }
   }
-
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) {
@@ -164,96 +228,149 @@ class _LoginScreenState extends State<LoginScreen> {
             email: _emailController.text.trim(),
             password: _passwordController.text.trim(),
           );
-   final currentUser = FirebaseAuth.instance.currentUser;
-   debugPrint("currentUser is $currentUser");
 
-      // final firebaseToken = await currentUser?.getIdToken();
-      //
-      // final response = await http.post(
-      //   Uri.parse('https://taswreiddfnunhczxmqn.supabase.co/functions/v1/firebase-to-supabase'),
-      //   headers: {'Content-Type': 'application/json',},
-      //   body: jsonEncode({'firebaseToken': firebaseToken}),
-      // );
-      // debugPrint('Status code: ${response.statusCode}');
-      // debugPrint('Body: ${response.body}');
-      // final supabaseJwt = jsonDecode(response.body)['supabaseJwt'];
-      // final supabase = Supabase.instance.client;
-      // await supabase.auth.setSession(
-      //   supabaseJwt,
-      // );
-      //
-      // final session = supabase.auth.currentSession;
-      // if (session == null) {
-      //   Fluttertoast.showToast(msg: "Internal Error you can't upload an image");
-      // } else {
-      //   Fluttertoast.showToast(msg: "Image upload activated");
-      // }
-
-
-      // Check if user has a company
-      Company? company;
-       company = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid).getCompany(
-        userCredential.user!.uid,
-      );
-
-       if(company == null)
-         {
-           Authority? authority = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid).getAuthority(userCredential.user!.uid);
-           if(authority != null)
-             {
-               company = AuthorityCompanyMapper.createCompanyFromAuthority(authority: authority);
-             }
-
-         }
-
-
-      if (company == null) {
-        _showError("Company or Authority profile not found. Please contact support.");
+      if (userCredential.user == null) {
+        _showError("User is null");
         setState(() {
           _isLoading = false;
-          _currentStep = 1; // Go back to password step on error
+          _currentStep = 1;
         });
         return;
       }
 
-      debugPrint('company is $company and ${company.originalAuthority == null}');
-      await notificationService.saveTokenToFirestore();
-      // Successfully logged in with company, navigate to dashboard
+      // Check if user has 2FA enabled in their privacy settings
+      PrivacySettings privacy =
+          await PrivacySettingsService.getUserPrivacySettings(
+            userCredential.user!.uid,
+          );
 
-      final settings = await MigrationSettingsStorage.loadSettings();
+      if (privacy.twoFactorAuth) {
+        // User has 2FA enabled - always go to 2FA verification screen
+        setState(() {
+          _isLoading = false;
+          _currentStep = 1;
+        });
 
-      MigrationTrigger trigger = settings["trigger"];
-
-      debugPrint("trigger is ${trigger.displayName}");
-
-      MigrationManager().doMigration(trigger);
-      String? accessToken = await UserPreferences.getAccessToken(currentUser?.email??"");
-
-      if(accessToken == null)
-      {
-        await showEmailAccountSetup(context);
+        if (mounted) {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => TwoFactorVerificationScreen(
+                forcedType: TwoFactorType.sms,
+                privacySettings: privacy,
+                resolver: null, // No resolver for password-based 2FA
+                email: _emailController.text.trim(),
+                onSuccess: (userCredential,user) async {
+                  await _handleSuccessfulLogin(userCredential);
+                },
+              ),
+            ),
+          );
+        }
+      } else {
+        // No 2FA required
+        await _handleSuccessfulLogin(userCredential);
       }
-      debugPrint("after the backgroundTaskManger line");
+    } on FirebaseAuthMultiFactorException catch (e) {
+      // SMS 2FA is required (Firebase-enforced)
+      debugPrint('SMS 2FA required for user');
+      setState(() {
+        _isLoading = false;
+        _currentStep = 1;
+      });
+
       if (mounted) {
-        GeneralMethods.replaceNavigationTo(
+        await Navigator.push(
           context,
-          CompanyDashboardController(tweetCompany: company),
+          MaterialPageRoute(
+            builder: (context) => TwoFactorVerificationScreen(
+              forcedType: TwoFactorType.sms,
+              resolver: e.resolver,
+              email: _emailController.text.trim(),
+              onSuccess: (userCredential,user) async {
+                if(userCredential == null)
+                {
+                  Fluttertoast.showToast(msg: "Error: User Credential is null");
+                  return;
+                }
+                await _handleSuccessfulLogin(userCredential);
+              },
+            ),
+          ),
         );
       }
     } on FirebaseAuthException catch (e) {
       _showError(_getAuthErrorMessage(e.code));
       setState(() {
         _isLoading = false;
-        _currentStep = 1; // Go back to password step on error
+        _currentStep = 1;
       });
-    } catch (e,s) {
+    } catch (e, s) {
       debugPrintStack(stackTrace: s);
       debugPrint("error is $e");
       _showError("An unexpected error occurred. Please try again.");
       setState(() {
         _isLoading = false;
-        _currentStep = 1; // Go back to password step on error
+        _currentStep = 1;
       });
+    }
+  }
+
+  // Extract successful login logic to a separate method
+  Future<void> _handleSuccessfulLogin(UserCredential? userCredential) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    debugPrint("currentUser is $currentUser");
+
+    // Check if user has a company
+    Company? company;
+    company = await ITCFirebaseLogic(
+      FirebaseAuth.instance.currentUser!.uid,
+    ).getCompany(currentUser!.uid);
+
+    if (company == null) {
+      Authority? authority = await ITCFirebaseLogic(
+        FirebaseAuth.instance.currentUser!.uid,
+      ).getAuthority(currentUser.uid);
+      if (authority != null) {
+        company = AuthorityCompanyMapper.createCompanyFromAuthority(
+          authority: authority,
+        );
+      }
+    }
+
+    if (company == null) {
+      _showError(
+        "Company or Authority profile not found. Please contact support.",
+      );
+      setState(() {
+        _isLoading = false;
+        _currentStep = 1;
+      });
+      return;
+    }
+
+    debugPrint('company is $company and ${company.originalAuthority == null}');
+    await notificationService.saveTokenToFirestore();
+
+    final settings = await MigrationSettingsStorage.loadSettings();
+    MigrationTrigger trigger = settings["trigger"];
+    debugPrint("trigger is ${trigger.displayName}");
+    MigrationManager().doMigration(trigger);
+
+    // String? accessToken = await UserPreferences.getAccessToken(
+    //   currentUser?.email ?? "",
+    // );
+    // if (accessToken == null) {
+    //   await showEmailAccountSetup(context);
+    // }
+
+    debugPrint("after the backgroundTaskManger line");
+
+    if (mounted) {
+      GeneralMethods.replaceNavigationTo(
+        context,
+        CompanyDashboardController(tweetCompany: company),
+      );
     }
   }
 
@@ -272,7 +389,7 @@ class _LoginScreenState extends State<LoginScreen> {
         return 'Too many attempts. Please try again later.';
       case 'network-request-failed':
         return 'Network error. Please check your connection.';
-        case 'invalid-credential':
+      case 'invalid-credential':
         return 'Invalid credentials. Please ensure you entered the right email and password.';
       default:
         return 'Login failed. Please try again.';
@@ -326,7 +443,7 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Container(
               padding: EdgeInsets.symmetric(
                 horizontal: size.width > 600 ? 80 : 24,
-                vertical: 20,  // Reduced from 40
+                vertical: 20, // Reduced from 40
               ),
               // Remove fixed height constraint
               constraints: BoxConstraints(
@@ -382,7 +499,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-// Break down into smaller widgets for better organization
+  // Break down into smaller widgets for better organization
   Widget _buildHeader(ThemeData theme, bool isDarkMode) {
     return Column(
       children: [
@@ -481,42 +598,37 @@ class _LoginScreenState extends State<LoginScreen> {
           style: ElevatedButton.styleFrom(
             backgroundColor: theme.colorScheme.primary,
             foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(
-              horizontal: 32,
-              vertical: 14,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
           ),
           child: _isLoading
               ? const SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: Colors.white,
-            ),
-          )
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
               : Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                _currentStep == 0
-                    ? "Continue"
-                    : _currentStep == 1
-                    ? "Sign In"
-                    : "Processing",
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _currentStep == 0
+                          ? "Continue"
+                          : _currentStep == 1
+                          ? "Sign In"
+                          : "Processing",
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    if (_currentStep < 2 && !_isLoading) ...[
+                      const SizedBox(width: 8),
+                      const Icon(Icons.arrow_forward, size: 18),
+                    ],
+                  ],
                 ),
-              ),
-              if (_currentStep < 2 && !_isLoading) ...[
-                const SizedBox(width: 8),
-                const Icon(Icons.arrow_forward, size: 18),
-              ],
-            ],
-          ),
         ),
       ],
     );
@@ -541,16 +653,11 @@ class _LoginScreenState extends State<LoginScreen> {
       children: [
         Text(
           "Don't have an account? ",
-          style: TextStyle(
-            color: theme.colorScheme.onSurface.withOpacity(0.6),
-          ),
+          style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6)),
         ),
         TextButton(
           onPressed: () {
-            GeneralMethods.navigateTo(
-              context,
-              CompanySignupScreen(),
-            );
+            GeneralMethods.navigateTo(context, CompanySignupScreen());
           },
           child: Text(
             "Sign Up",

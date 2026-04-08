@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../itc_logic/service/privacySettingsService.dart';
 import '../../model/privacySettingModel.dart';
+import '../twoFactorAuthentication/twoFactorEnrollmentScreen.dart';
 
 
 class PrivacySettingsPage extends StatefulWidget {
@@ -817,6 +818,120 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
   Future<void> _updateSetting(String field, dynamic value) async {
     if (_userId == null) return;
 
+    // Special handling for Two-Factor Authentication
+    if (field == 'twoFactorAuth') {
+      if (value == true) {
+        // Enabling 2FA - navigate to enrollment screen
+        final result = await Navigator.push<bool>(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const TwoFactorEnrollmentScreen(),
+          ),
+        );
+
+        if (result != true) {
+          // User cancelled or failed to enroll, revert the toggle
+          setState(() {
+            _settings?.twoFactorAuth = false;
+          });
+          return;
+        }
+
+        // 2FA successfully enabled, update local state
+        setState(() {
+          _settings?.twoFactorAuth = true;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Two-Factor Authentication enabled successfully!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      } else {
+        // Disabling 2FA - show confirmation dialog first
+        final shouldDisable = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Disable Two-Factor Authentication'),
+            content: const Text(
+                'Disabling 2FA will make your account less secure. '
+                    'Are you sure you want to continue?'
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Disable'),
+              ),
+            ],
+          ),
+        );
+
+        if (shouldDisable != true) {
+          // User cancelled, revert the toggle
+          setState(() {
+            _settings?.twoFactorAuth = true;
+          });
+          return;
+        }
+
+        // Show loading
+        setState(() => _isLoading = true);
+
+        try {
+          // Get enrolled factors and unenroll them
+          final user = FirebaseAuth.instance.currentUser;
+          if (user != null) {
+            await user.reload();
+            final factors = await user.multiFactor.getEnrolledFactors();
+
+            for (final factor in factors) {
+              await user.multiFactor.unenroll(factorUid: factor.uid);
+            }
+          }
+
+          // Update Firestore
+          await PrivacySettingsService.updatePrivacySetting(_userId!, field, value);
+
+          setState(() {
+            _settings?.twoFactorAuth = false;
+            _isLoading = false;
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Two-Factor Authentication disabled'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        } catch (e) {
+          setState(() {
+            _settings?.twoFactorAuth = true; // Revert
+            _isLoading = false;
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error disabling 2FA: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+      return;
+    }
+
+    // Normal update for other fields
     try {
       await PrivacySettingsService.updatePrivacySetting(_userId!, field, value);
 

@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:itc_institute_admin/itc_logic/service/privacySettingsService.dart';
+import 'package:itc_institute_admin/model/privacySettingModel.dart';
 import 'package:itc_institute_admin/view/home/chat/chartPage.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -34,6 +36,9 @@ class _CompanyDetailPageState extends State<CompanyDetailPage>
   final FirebaseAuth _auth = FirebaseAuth.instance;
   late TabController _tabController;
   double _rating = 0.0;
+  bool _isCheckingPermission = true;
+  late final PrivacySettings _privacySettings;
+  String userId = "";
 
   final List<Map<String, dynamic>> _features = [
     {'icon': Icons.verified_user, 'label': 'Verified'},
@@ -42,11 +47,60 @@ class _CompanyDetailPageState extends State<CompanyDetailPage>
     {'icon': Icons.location_city, 'label': 'Corporate'},
   ];
 
+  bool _hasAccess = false;
+
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-    _loadCompanyRating();
+    _checkPermissionAndInitialize();
+  }
+
+  Future<void> _checkPermissionAndInitialize() async {
+    final hasAccess = await canViewProfile();
+
+    if (!mounted) return;
+
+    if (hasAccess) {
+      setState(() {
+        _hasAccess = true;
+        _isCheckingPermission = false;
+      });
+
+      // Only initialize these if access is granted
+      _tabController = TabController(length: 3, vsync: this);
+      _loadCompanyRating();
+    } else {
+      setState(() {
+        _hasAccess = false;
+        _isCheckingPermission = false;
+      });
+      // No access, dialog will be shown by canViewProfile
+    }
+  }
+
+  Future<bool> canViewProfile() async {
+    User? userId = FirebaseAuth.instance.currentUser;
+
+
+    if (userId == null) {
+      if (mounted) {
+         GeneralMethods.showErrorDialog(context, "Error: kindly login again");
+        if (mounted) Navigator.pop(context);
+      }
+      return false;
+    }
+
+    this.userId = userId.uid;
+     _privacySettings = await PrivacySettingsService.getUserPrivacySettings(userId.uid);
+
+
+    if (!_privacySettings.profileVisibility && mounted) {
+       GeneralMethods.showErrorDialog(context, "You are not allowed to view this profile");
+      if (mounted) Navigator.pop(context);
+      return false;
+    }
+
+    return true;
   }
 
   Future<void> _loadCompanyRating() async {
@@ -72,7 +126,10 @@ class _CompanyDetailPageState extends State<CompanyDetailPage>
       const Color(0xFF764ba2),
     ];
 
-    return Scaffold(
+    return _isCheckingPermission?
+    CircularProgressIndicator()
+        :
+    Scaffold(
       backgroundColor:
       isDark ? const Color(0xFF121212) : const Color(0xFFf8fafc),
       body: NestedScrollView(
@@ -439,6 +496,7 @@ class _CompanyDetailPageState extends State<CompanyDetailPage>
     );
   }
 
+
   Widget _buildActionMenu(BuildContext context) {
     return PopupMenuButton<String>(
       shape: RoundedRectangleBorder(
@@ -530,7 +588,7 @@ class _CompanyDetailPageState extends State<CompanyDetailPage>
             ),
           ),
           const SizedBox(height: 12),
-          _buildInfoCard(
+          if(_privacySettings.shouldShowCompanyInfo(userId, widget.company.id))_buildInfoCard(
             theme,
             Icons.location_on_rounded,
             'Location',
@@ -628,7 +686,7 @@ class _CompanyDetailPageState extends State<CompanyDetailPage>
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
-          _buildContactOption(
+          if(_privacySettings.shouldShowEmail(userId, widget.company.id))_buildContactOption(
             theme,
             Icons.email_rounded,
             'Email',
@@ -636,7 +694,7 @@ class _CompanyDetailPageState extends State<CompanyDetailPage>
                 () => _launchEmail(widget.company.email),
           ),
           const SizedBox(height: 16),
-          _buildContactOption(
+          if(_privacySettings.shouldShowPhoneNumber(userId, widget.company.id))_buildContactOption(
             theme,
             Icons.phone_rounded,
             'Phone',

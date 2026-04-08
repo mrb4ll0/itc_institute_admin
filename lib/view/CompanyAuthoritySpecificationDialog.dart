@@ -164,7 +164,7 @@ class _CompanyAuthoritySpecificationDialogState extends State<CompanyAuthoritySp
 
   Future<bool> _updateToStandalone() async {
     try {
-      final companyRef = FirebaseFirestore.instance.collection('companies').doc(widget.company.id);
+      final companyRef = FirebaseFirestore.instance.collection('users').doc("companies").collection("companies").doc(widget.company.id);
 
       await companyRef.update({
         'isUnderAuthority': false,

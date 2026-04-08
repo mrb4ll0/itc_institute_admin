@@ -770,4 +770,651 @@ class GeneralMethods {
       return 'Large Desktop';
     }
   }
+
+
+  // Add these methods to your GeneralMethods class
+
+// ==================== DIALOG METHODS ====================
+
+  /// Show success dialog
+  static void showSuccessDialog(
+      BuildContext context,
+      String message, {
+        String title = 'Success',
+        VoidCallback? onOkPressed,
+        Duration autoDismissDuration = const Duration(seconds: 2),
+        bool autoDismiss = true,
+      }) {
+    _showStyledDialog(
+      context: context,
+      title: title,
+      message: message,
+      icon: Icons.check_circle,
+      iconColor: Colors.green,
+      backgroundColor: Colors.white,
+      onOkPressed: onOkPressed,
+      autoDismiss: autoDismiss,
+      autoDismissDuration: autoDismissDuration,
+    );
+  }
+
+  /// Show error dialog
+  static void showErrorDialog(
+      BuildContext context,
+      String message, {
+        String title = 'Error',
+        VoidCallback? onOkPressed,
+        Duration autoDismissDuration = const Duration(seconds: 3),
+        bool autoDismiss = false,
+      }) {
+    _showStyledDialog(
+      context: context,
+      title: title,
+      message: message,
+      icon: Icons.error,
+      iconColor: Colors.red,
+      backgroundColor: Colors.white,
+      onOkPressed: onOkPressed,
+      autoDismiss: autoDismiss,
+      autoDismissDuration: autoDismissDuration,
+    );
+  }
+
+  /// Show warning dialog
+  static void showWarningDialog(
+      BuildContext context,
+      String message, {
+        String title = 'Warning',
+        VoidCallback? onOkPressed,
+        VoidCallback? onCancelPressed,
+        Duration autoDismissDuration = const Duration(seconds: 3),
+        bool autoDismiss = false,
+      }) {
+    _showStyledDialog(
+      context: context,
+      title: title,
+      message: message,
+      icon: Icons.warning,
+      iconColor: Colors.orange,
+      backgroundColor: Colors.white,
+      onOkPressed: onOkPressed,
+      onCancelPressed: onCancelPressed,
+      autoDismiss: autoDismiss,
+      autoDismissDuration: autoDismissDuration,
+    );
+  }
+
+  /// Show info dialog
+  static void showInfoDialog(
+      BuildContext context,
+      String message, {
+        String title = 'Information',
+        VoidCallback? onOkPressed,
+        Duration autoDismissDuration = const Duration(seconds: 2),
+        bool autoDismiss = true,
+      }) {
+    _showStyledDialog(
+      context: context,
+      title: title,
+      message: message,
+      icon: Icons.info,
+      iconColor: Colors.blue,
+      backgroundColor: Colors.white,
+      onOkPressed: onOkPressed,
+      autoDismiss: autoDismiss,
+      autoDismissDuration: autoDismissDuration,
+    );
+  }
+
+  /// Show confirmation dialog (Yes/No)
+  static Future<bool?> showConfirmationDialog(
+      BuildContext context,
+      String message, {
+        String title = 'Confirm',
+        String confirmText = 'Yes',
+        String cancelText = 'No',
+        IconData? icon,
+        Color confirmColor = Colors.red,
+        Color cancelColor = Colors.grey,
+      }) async {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Row(
+            children: [
+              if (icon != null) ...[
+                Icon(icon, color: confirmColor, size: 28),
+                const SizedBox(width: 12),
+              ],
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            message,
+            style: const TextStyle(fontSize: 16),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              style: TextButton.styleFrom(foregroundColor: cancelColor),
+              child: Text(cancelText),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: confirmColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: Text(confirmText),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Show loading dialog with custom message
+  static void showLoadingDialog(
+      BuildContext context, {
+        String message = 'Loading...',
+        bool barrierDismissible = false,
+      }) {
+    showDialog(
+      context: context,
+      barrierDismissible: barrierDismissible,
+      builder: (BuildContext context) {
+        return PopScope(
+          canPop: !barrierDismissible,
+          child: Dialog(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CircularProgressIndicator(),
+                    const SizedBox(height: 16),
+                    Text(
+                      message,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.black87,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Show custom dialog with actions
+  static Future<T?> showCustomDialog<T>({
+    required BuildContext context,
+    required String title,
+    required String message,
+    String? positiveButtonText,
+    VoidCallback? onPositivePressed,
+    String? negativeButtonText,
+    VoidCallback? onNegativePressed,
+    String? neutralButtonText,
+    VoidCallback? onNeutralPressed,
+    IconData? icon,
+    Color? iconColor,
+    bool barrierDismissible = true,
+    List<Widget>? additionalContent,
+  }) async {
+    return showDialog<T>(
+      context: context,
+      barrierDismissible: barrierDismissible,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Row(
+            children: [
+              if (icon != null) ...[
+                Icon(icon, color: iconColor ?? Colors.blue, size: 28),
+                const SizedBox(width: 12),
+              ],
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(message, style: const TextStyle(fontSize: 16)),
+              if (additionalContent != null) ...additionalContent,
+            ],
+          ),
+          actions: [
+            if (negativeButtonText != null)
+              TextButton(
+                onPressed: () {
+                  if (onNegativePressed != null) {
+                    onNegativePressed();
+                  } else {
+                    Navigator.of(context).pop();
+                  }
+                },
+                child: Text(negativeButtonText),
+              ),
+            if (neutralButtonText != null)
+              TextButton(
+                onPressed: () {
+                  if (onNeutralPressed != null) {
+                    onNeutralPressed();
+                  } else {
+                    Navigator.of(context).pop();
+                  }
+                },
+                child: Text(neutralButtonText),
+              ),
+            if (positiveButtonText != null)
+              ElevatedButton(
+                onPressed: () {
+                  if (onPositivePressed != null) {
+                    onPositivePressed();
+                  } else {
+                    Navigator.of(context).pop();
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: Text(positiveButtonText),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Show violation/warning dialog (for form validation, policy violations, etc.)
+  static void showViolationDialog(
+      BuildContext context,
+      String message, {
+        String title = 'Violation',
+        String? violationType, // e.g., 'Password Policy', 'Terms & Conditions', etc.
+        VoidCallback? onOkPressed,
+        VoidCallback? onViewDetails,
+      }) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Row(
+            children: [
+              const Icon(Icons.gavel, color: Colors.red, size: 28),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Violation',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (violationType != null) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.red.shade200),
+                  ),
+                  child: Text(
+                    violationType,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.red.shade700,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              Text(
+                message,
+                style: const TextStyle(fontSize: 16),
+              ),
+            ],
+          ),
+          actions: [
+            if (onViewDetails != null)
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  onViewDetails();
+                },
+                style: TextButton.styleFrom(foregroundColor: Colors.blue),
+                child: const Text('View Details'),
+              ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                if (onOkPressed != null) onOkPressed();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Show snackbar (lightweight alternative to dialog)
+  static void showSnackBar(
+      BuildContext context,
+      String message, {
+        Duration duration = const Duration(seconds: 3),
+        Color? backgroundColor,
+        IconData? icon,
+      }) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            if (icon != null) ...[
+              Icon(icon, color: Colors.white, size: 20),
+              const SizedBox(width: 12),
+            ],
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(fontSize: 14),
+              ),
+            ),
+          ],
+        ),
+        duration: duration,
+        backgroundColor: backgroundColor ?? Colors.black87,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
+  /// Show success snackbar
+  static void showSuccessSnackBar(BuildContext context, String message) {
+    showSnackBar(
+      context,
+      message,
+      backgroundColor: Colors.green,
+      icon: Icons.check_circle,
+    );
+  }
+
+  /// Show error snackbar
+  static void showErrorSnackBar(BuildContext context, String message) {
+    showSnackBar(
+      context,
+      message,
+      backgroundColor: Colors.red,
+      icon: Icons.error,
+    );
+  }
+
+  /// Show warning snackbar
+  static void showWarningSnackBar(BuildContext context, String message) {
+    showSnackBar(
+      context,
+      message,
+      backgroundColor: Colors.orange,
+      icon: Icons.warning,
+    );
+  }
+
+  /// Show info snackbar
+  static void showInfoSnackBar(BuildContext context, String message) {
+    showSnackBar(
+      context,
+      message,
+      backgroundColor: Colors.blue,
+      icon: Icons.info,
+    );
+  }
+
+  /// Show bottom sheet dialog
+  static Future<T?> showBottomSheetDialog<T>(
+      BuildContext context, {
+        required Widget child,
+        String? title,
+        bool isDismissible = true,
+        double initialChildSize = 0.5,
+        double minChildSize = 0.25,
+        double maxChildSize = 0.9,
+      }) {
+    return showModalBottomSheet<T>(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: isDismissible,
+      enableDrag: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return DraggableScrollableSheet(
+          initialChildSize: initialChildSize,
+          minChildSize: minChildSize,
+          maxChildSize: maxChildSize,
+          builder: (_, scrollController) {
+            return Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(20),
+                  topRight: Radius.circular(20),
+                ),
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    margin: const EdgeInsets.only(top: 12),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  if (title != null) ...[
+                    const SizedBox(height: 12),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const Divider(height: 24),
+                  ],
+                  Expanded(
+                    child: SingleChildScrollView(
+                      controller: scrollController,
+                      padding: const EdgeInsets.all(16),
+                      child: child,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+// ==================== PRIVATE HELPER METHOD ====================
+
+  /// Private method to show styled dialog (used by success, error, warning, info)
+  static void _showStyledDialog({
+    required BuildContext context,
+    required String title,
+    required String message,
+    required IconData icon,
+    required Color iconColor,
+    required Color backgroundColor,
+    VoidCallback? onOkPressed,
+    VoidCallback? onCancelPressed,
+    bool autoDismiss = false,
+    Duration autoDismissDuration = const Duration(seconds: 2),
+  }) {
+    showDialog(
+      context: context,
+      barrierDismissible: autoDismiss,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          backgroundColor: backgroundColor,
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: iconColor.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    icon,
+                    color: iconColor,
+                    size: 48,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: iconColor,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  message,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: Colors.black87,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (onCancelPressed != null) ...[
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          onCancelPressed();
+                        },
+                        child: const Text('Cancel'),
+                      ),
+                      const SizedBox(width: 12),
+                    ],
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        if (onOkPressed != null) onOkPressed();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: iconColor,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text('OK'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (autoDismiss) {
+      Future.delayed(autoDismissDuration, () {
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+      });
+    }
+  }
+
 }
