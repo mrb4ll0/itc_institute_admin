@@ -225,10 +225,22 @@ class PrivacySettings {
           .toList();
     }
 
-    // Parse two factor method
+    // Parse two factor method - FIXED for String values
     TwoFactorMethod twoFactorMethod = TwoFactorMethod.none;
     if (data['twoFactorMethod'] != null) {
-      twoFactorMethod = TwoFactorMethod.values[data['twoFactorMethod']];
+      final methodValue = data['twoFactorMethod'];
+
+      // Handle both String and int for backward compatibility
+      if (methodValue is String) {
+        // New format: string value ("sms", "password", "none")
+        twoFactorMethod = TwoFactorMethod.values.firstWhere(
+              (e) => e.name == methodValue,
+          orElse: () => TwoFactorMethod.none,
+        );
+      } else if (methodValue is int) {
+        // Old format: integer index (0, 1, 2)
+        twoFactorMethod = TwoFactorMethod.values[methodValue];
+      }
     }
 
     return PrivacySettings(
@@ -261,7 +273,6 @@ class PrivacySettings {
       twoFactorMethod: twoFactorMethod,
     );
   }
-
   // Create a copy with updated values
   PrivacySettings copyWith({
     bool? profileVisibility,

@@ -2,9 +2,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/services.dart';
 
 import '../../itc_logic/service/2FactorAuthService.dart';
-import '../../model/privacySettingModel.dart'; // Add this import
+import '../../model/privacySettingModel.dart';
 
 class TwoFactorEnrollmentScreen extends StatefulWidget {
   const TwoFactorEnrollmentScreen({Key? key}) : super(key: key);
@@ -24,12 +25,14 @@ class _TwoFactorEnrollmentScreenState extends State<TwoFactorEnrollmentScreen> {
   // Password 2FA Controllers
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
+  final TextEditingController _existingPasswordController = TextEditingController(); // For confirmation
 
   String? _verificationId;
   bool _isLoading = false;
   bool _codeSent = false;
   bool _hasExistingPassword = false;
-  TwoFactorMethod _selectedMethod = TwoFactorMethod.sms; // Use the model's enum
+  bool _isVerifyingExistingPassword = false; // Track verification state
+  TwoFactorMethod _selectedMethod = TwoFactorMethod.sms;
 
   @override
   void initState() {
@@ -92,6 +95,7 @@ class _TwoFactorEnrollmentScreenState extends State<TwoFactorEnrollmentScreen> {
               setState(() {
                 _selectedMethod = value!;
                 _codeSent = false;
+                _isVerifyingExistingPassword = false;
               });
             },
             secondary: const Icon(Icons.sms, color: Colors.blue),
@@ -106,6 +110,7 @@ class _TwoFactorEnrollmentScreenState extends State<TwoFactorEnrollmentScreen> {
               setState(() {
                 _selectedMethod = value!;
                 _codeSent = false;
+                _isVerifyingExistingPassword = false;
               });
             },
             secondary: const Icon(Icons.lock, color: Colors.green),
@@ -186,6 +191,11 @@ class _TwoFactorEnrollmentScreenState extends State<TwoFactorEnrollmentScreen> {
   }
 
   Widget _buildPasswordMethod() {
+    // Show password verification screen if verifying existing password
+    if (_isVerifyingExistingPassword) {
+      return _buildVerifyExistingPasswordScreen();
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -237,7 +247,12 @@ class _TwoFactorEnrollmentScreenState extends State<TwoFactorEnrollmentScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: _isLoading ? null : _enableExistingPassword,
+                    onPressed: _isLoading ? null : () {
+                      setState(() {
+                        _isVerifyingExistingPassword = true;
+                        _existingPasswordController.clear();
+                      });
+                    },
                     icon: const Icon(Icons.verified),
                     label: const Text('Use Existing Backup Password'),
                     style: ElevatedButton.styleFrom(
@@ -324,6 +339,113 @@ class _TwoFactorEnrollmentScreenState extends State<TwoFactorEnrollmentScreen> {
     );
   }
 
+  // New screen for verifying existing password
+  Widget _buildVerifyExistingPasswordScreen() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.amber.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.amber.shade200),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.security, color: Colors.amber),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Please enter your existing backup password to confirm you still remember it.',
+                  style: TextStyle(fontSize: 14),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        TextField(
+          controller: _existingPasswordController,
+          obscureText: true,
+          decoration: const InputDecoration(
+            labelText: 'Existing Backup Password',
+            hintText: 'Enter your current backup password',
+            prefixIcon: Icon(Icons.lock),
+            helperText: 'Enter the password you previously set for 2FA',
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _isLoading ? null : () {
+                  setState(() {
+                    _isVerifyingExistingPassword = false;
+                    _existingPasswordController.clear();
+                  });
+                },
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+                child: const Text('Back'),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: ElevatedButton(
+                onPressed: _isLoading ? null : _verifyAndEnableExistingPassword,
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  backgroundColor: Colors.green,
+                ),
+                child: _isLoading
+                    ? const CircularProgressIndicator()
+                    : const Text('Verify & Enable'),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Future<void> _verifyAndEnableExistingPassword() async {
+    final existingPassword = _existingPasswordController.text;
+
+    if (existingPassword.isEmpty) {
+      _showSnackBar('Please enter your existing backup password', Colors.red);
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      // Verify the existing password
+      final isValid = await _twoFactorService.verifyTwoFactorPassword(existingPassword);
+
+      if (isValid) {
+        // Password is correct - enable 2FA
+        await _updatePrivacySettings(TwoFactorMethod.password);
+
+        if (mounted) {
+          _showSnackBar('2FA Backup Password enabled successfully!', Colors.green);
+          Navigator.pop(context, true);
+        }
+      } else {
+        setState(() => _isLoading = false);
+        _showSnackBar('Invalid password. Please try again.', Colors.red);
+        _existingPasswordController.clear();
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showSnackBar('Error: $e', Colors.red);
+    }
+  }
+
   Future<void> _enableExistingPassword() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -350,20 +472,10 @@ class _TwoFactorEnrollmentScreenState extends State<TwoFactorEnrollmentScreen> {
     );
 
     if (confirmed == true) {
-      setState(() => _isLoading = true);
-
-      try {
-        // Update privacy settings to enable 2FA with password method
-        await _updatePrivacySettings(TwoFactorMethod.password);
-
-        if (mounted) {
-          _showSnackBar('2FA Backup Password enabled successfully!', Colors.green);
-          Navigator.pop(context, true);
-        }
-      } catch (e) {
-        setState(() => _isLoading = false);
-        _showSnackBar('Error: $e', Colors.red);
-      }
+      setState(() => {
+        _isVerifyingExistingPassword = true,
+        _existingPasswordController.clear(),
+      });
     }
   }
 
@@ -447,13 +559,18 @@ class _TwoFactorEnrollmentScreenState extends State<TwoFactorEnrollmentScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Set password in cloud function (encrypted)
-      await _twoFactorService.setTwoFactorPassword(password);
+      // Set password - this already generates backup codes internally
+      final backupCodes = await _twoFactorService.setTwoFactorPassword(password);
 
       // Update privacy settings
       await _updatePrivacySettings(TwoFactorMethod.password);
 
       if (mounted) {
+        // Show backup codes if any were generated
+        if (backupCodes.isNotEmpty) {
+          await _showBackupCodesDialog(backupCodes);
+        }
+
         _showSnackBar('2FA Backup Password enabled successfully!', Colors.green);
         Navigator.pop(context, true);
       }
@@ -461,6 +578,94 @@ class _TwoFactorEnrollmentScreenState extends State<TwoFactorEnrollmentScreen> {
       setState(() => _isLoading = false);
       _showSnackBar('Error: $e', Colors.red);
     }
+  }
+
+  Future<void> _showBackupCodesDialog(List<String> codes) async {
+    return showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Save Your Backup Codes'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'These backup codes can be used to access your account if you forget your 2FA password. '
+                    'Each code can only be used once.',
+                style: TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: Column(
+                  children: codes.asMap().entries.map((entry) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 30,
+                            child: Text(
+                              '${entry.key + 1}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              entry.value,
+                              style: const TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.copy, size: 18),
+                            onPressed: () {
+                              Clipboard.setData(ClipboardData(text: entry.value));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Code copied!')),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                '⚠️ Make sure to save these codes in a secure place. '
+                    'You will not be able to see them again!',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.orange,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+            },
+            child: const Text('I Have Saved Them'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _updatePrivacySettings(TwoFactorMethod method) async {
@@ -471,7 +676,7 @@ class _TwoFactorEnrollmentScreenState extends State<TwoFactorEnrollmentScreen> {
           .doc(userId)
           .update({
         'twoFactorAuth': true,
-        'twoFactorMethod': method.name, // Store as int
+        'twoFactorMethod': method.name,
         'twoFactorEnabledAt': FieldValue.serverTimestamp(),
       });
     }
@@ -494,6 +699,7 @@ class _TwoFactorEnrollmentScreenState extends State<TwoFactorEnrollmentScreen> {
     _displayNameController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _existingPasswordController.dispose();
     super.dispose();
   }
 }

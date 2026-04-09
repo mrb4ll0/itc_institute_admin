@@ -1,11 +1,12 @@
 // pages/privacy_settings_page.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/services.dart';
 
 import '../../itc_logic/service/privacySettingsService.dart';
+import '../../itc_logic/service/2FactorAuthService.dart';
 import '../../model/privacySettingModel.dart';
 import '../twoFactorAuthentication/twoFactorEnrollmentScreen.dart';
-
 
 class PrivacySettingsPage extends StatefulWidget {
   const PrivacySettingsPage({super.key});
@@ -19,6 +20,9 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
   bool _isLoading = true;
   String? _userId;
   Stream<PrivacySettings>? _settingsStream;
+
+  // Add TwoFactorAuthService
+  final TwoFactorAuthService _twoFactorService = TwoFactorAuthService();
 
   @override
   void initState() {
@@ -126,72 +130,7 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Header Banner
-                Container(
-                  margin: const EdgeInsets.all(16),
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        theme.colorScheme.primary.withOpacity(0.2),
-                        theme.colorScheme.primary.withOpacity(0.1),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: theme.colorScheme.primary.withOpacity(0.3),
-                      width: 1,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.primary.withOpacity(0.2),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.privacy_tip,
-                          color: theme.colorScheme.primary,
-                          size: 24,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Privacy Controls',
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Manage who can see your information and how your data is used',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                            if (settings.lastUpdated != null)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 8),
-                                child: Text(
-                                  'Last updated: ${_formatDate(settings.lastUpdated!)}',
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                _buildHeaderBanner(theme, settings),
 
                 // Profile Privacy
                 _buildSectionHeader(
@@ -199,7 +138,6 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                   title: 'Profile Privacy',
                   icon: Icons.person,
                 ),
-
                 _buildSwitchTile(
                   theme,
                   title: 'Profile Visibility',
@@ -210,7 +148,6 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                   },
                   icon: Icons.visibility,
                 ),
-
                 _buildSwitchTile(
                   theme,
                   title: 'Show Email Address',
@@ -221,7 +158,6 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                   },
                   icon: Icons.email,
                 ),
-
                 _buildSwitchTile(
                   theme,
                   title: 'Show Phone Number',
@@ -232,7 +168,6 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                   },
                   icon: Icons.phone,
                 ),
-
                 _buildSwitchTile(
                   theme,
                   title: 'Show Location',
@@ -243,7 +178,6 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                   },
                   icon: Icons.location_on,
                 ),
-
                 _buildSwitchTile(
                   theme,
                   title: 'Show Company Information',
@@ -264,7 +198,6 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                   title: 'Data Sharing & Analytics',
                   icon: Icons.share,
                 ),
-
                 _buildSwitchTile(
                   theme,
                   title: 'Share Analytics',
@@ -275,7 +208,6 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                   },
                   icon: Icons.analytics,
                 ),
-
                 _buildSwitchTile(
                   theme,
                   title: 'Share with Partners',
@@ -286,7 +218,6 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                   },
                   icon: Icons.business_center,
                 ),
-
                 _buildSwitchTile(
                   theme,
                   title: 'Personalized Ads',
@@ -307,7 +238,6 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                   title: 'Account Security',
                   icon: Icons.security,
                 ),
-
                 _buildSwitchTile(
                   theme,
                   title: 'Two-Factor Authentication',
@@ -319,7 +249,6 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                   icon: Icons.security,
                   iconColor: Colors.green,
                 ),
-
                 _buildSwitchTile(
                   theme,
                   title: 'Login Alerts',
@@ -330,7 +259,6 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                   },
                   icon: Icons.notifications_active,
                 ),
-
                 _buildSwitchTile(
                   theme,
                   title: 'Device Management',
@@ -341,7 +269,6 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                   },
                   icon: Icons.devices,
                 ),
-
                 _buildSwitchTile(
                   theme,
                   title: 'Session Timeout',
@@ -352,7 +279,6 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                   },
                   icon: Icons.timer,
                 ),
-
                 if (settings.sessionTimeout)
                   _buildSliderTile(
                     theme,
@@ -371,13 +297,18 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
 
                 const SizedBox(height: 24),
 
+                // Backup Codes Section (Only show if 2FA is enabled)
+                if (settings.twoFactorAuth && settings.activeTwoFactorMethod == TwoFactorMethod.password)
+                  _buildBackupCodesSection(theme),
+
+                const SizedBox(height: 24),
+
                 // Data Management
                 _buildSectionHeader(
                   theme,
                   title: 'Data Management',
                   icon: Icons.storage,
                 ),
-
                 _buildSwitchTile(
                   theme,
                   title: 'Data Backup',
@@ -388,7 +319,6 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                   },
                   icon: Icons.backup,
                 ),
-
                 _buildSwitchTile(
                   theme,
                   title: 'Auto-Delete Data',
@@ -399,7 +329,6 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                   },
                   icon: Icons.delete_sweep,
                 ),
-
                 if (settings.autoDeleteData)
                   _buildSliderTile(
                     theme,
@@ -424,7 +353,6 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                   title: 'Content Privacy',
                   icon: Icons.content_copy,
                 ),
-
                 _buildSwitchTile(
                   theme,
                   title: 'Hide from Search',
@@ -435,7 +363,6 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                   },
                   icon: Icons.search_off,
                 ),
-
                 _buildSwitchTile(
                   theme,
                   title: 'Block Unknown Users',
@@ -446,7 +373,6 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                   },
                   icon: Icons.block,
                 ),
-
                 _buildSwitchTile(
                   theme,
                   title: 'Message Privacy',
@@ -467,7 +393,6 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                   title: 'Activity Privacy',
                   icon: Icons.timeline,
                 ),
-
                 _buildSwitchTile(
                   theme,
                   title: 'Show Online Status',
@@ -478,7 +403,6 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                   },
                   icon: Icons.circle,
                 ),
-
                 _buildSwitchTile(
                   theme,
                   title: 'Show Last Seen',
@@ -489,7 +413,6 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                   },
                   icon: Icons.access_time,
                 ),
-
                 _buildSwitchTile(
                   theme,
                   title: 'Show Activity Status',
@@ -592,6 +515,302 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildHeaderBanner(ThemeData theme, PrivacySettings settings) {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            theme.colorScheme.primary.withOpacity(0.2),
+            theme.colorScheme.primary.withOpacity(0.1),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.colorScheme.primary.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.privacy_tip,
+              color: theme.colorScheme.primary,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Privacy Controls',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Manage who can see your information and how your data is used',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                if (settings.lastUpdated != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      'Last updated: ${_formatDate(settings.lastUpdated!)}',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Add Backup Codes Section
+  Widget _buildBackupCodesSection(ThemeData theme) {
+    return FutureBuilder<int>(
+      future: _twoFactorService.getRemainingBackupCodesCount(),
+      builder: (context, snapshot) {
+        final remaining = snapshot.data ?? 0;
+
+        return Column(
+          children: [
+            _buildSectionHeader(
+              theme,
+              title: 'Backup Codes',
+              icon: Icons.code,
+            ),
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Remaining backup codes:'),
+                      Text(
+                        '$remaining / 10',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: remaining < 3 ? Colors.orange : Colors.green,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _viewBackupCodes,
+                          icon: const Icon(Icons.visibility),
+                          label: const Text('View Codes'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: _regenerateBackupCodes,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Regenerate'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _viewBackupCodes() async {
+    // First, regenerate to show new codes (since we can't retrieve old ones)
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('View Backup Codes'),
+        content: const Text(
+            'For security reasons, existing backup codes cannot be viewed again. '
+                'Would you like to generate new backup codes?'
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+            ),
+            child: const Text('Generate New Codes'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _regenerateBackupCodes();
+    }
+  }
+
+  Future<void> _regenerateBackupCodes() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Regenerate Backup Codes'),
+        content: const Text(
+            'Regenerating backup codes will invalidate your old codes. '
+                'Make sure to save the new codes. Continue?'
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+            ),
+            child: const Text('Regenerate'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() => _isLoading = true);
+      try {
+        final newCodes = await _twoFactorService.regenerateBackupCodes();
+        await _showBackupCodesDialog(newCodes);
+        // Refresh the count
+        setState(() {});
+      } catch (e) {
+        _showSnackBar('Error: $e', Colors.red);
+      } finally {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _showBackupCodesDialog(List<String> codes) async {
+    return showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Save Your Backup Codes'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'These backup codes can be used to access your account if you forget your 2FA password. '
+                    'Each code can only be used once.',
+                style: TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: Column(
+                  children: codes.asMap().entries.map((entry) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 30,
+                            child: Text(
+                              '${entry.key + 1}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              entry.value,
+                              style: const TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.copy, size: 18),
+                            onPressed: () {
+                              Clipboard.setData(ClipboardData(text: entry.value));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Code copied!')),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                '⚠️ Make sure to save these codes in a secure place. '
+                    'You will not be able to see them again!',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.orange,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+            },
+            child: const Text('I Have Saved Them'),
+          ),
+        ],
       ),
     );
   }
@@ -815,6 +1034,16 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
     return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
   }
 
+  void _showSnackBar(String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: color,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
   Future<void> _updateSetting(String field, dynamic value) async {
     if (_userId == null) return;
 
@@ -842,13 +1071,7 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
           _settings?.twoFactorAuth = true;
         });
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Two-Factor Authentication enabled successfully!'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 3),
-          ),
-        );
+        _showSnackBar('Two-Factor Authentication enabled successfully!', Colors.green);
       } else {
         // Disabling 2FA - show confirmation dialog first
         final shouldDisable = await showDialog<bool>(
@@ -899,6 +1122,13 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
             }
           }
 
+          // Also remove password-based 2FA if exists
+          try {
+            await _twoFactorService.removeTwoFactorPassword();
+          } catch (e) {
+            // Ignore if no password 2FA exists
+          }
+
           // Update Firestore
           await PrivacySettingsService.updatePrivacySetting(_userId!, field, value);
 
@@ -907,25 +1137,14 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
             _isLoading = false;
           });
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Two-Factor Authentication disabled'),
-              backgroundColor: Colors.orange,
-              duration: Duration(seconds: 2),
-            ),
-          );
+          _showSnackBar('Two-Factor Authentication disabled', Colors.orange);
         } catch (e) {
           setState(() {
             _settings?.twoFactorAuth = true; // Revert
             _isLoading = false;
           });
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error disabling 2FA: $e'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          _showSnackBar('Error disabling 2FA: $e', Colors.red);
         }
       }
       return;
@@ -934,22 +1153,9 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
     // Normal update for other fields
     try {
       await PrivacySettingsService.updatePrivacySetting(_userId!, field, value);
-
-      // Show success indicator
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Setting updated'),
-          duration: const Duration(seconds: 1),
-          backgroundColor: Colors.green,
-        ),
-      );
+      _showSnackBar('Setting updated', Colors.green);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error updating setting: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showSnackBar('Error updating setting: $e', Colors.red);
     }
   }
 
@@ -1002,21 +1208,10 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
         await PrivacySettingsService.resetPrivacySettings(_userId!);
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Settings reset to default'),
-              backgroundColor: Colors.orange,
-              duration: Duration(seconds: 2),
-            ),
-          );
+          _showSnackBar('Settings reset to default', Colors.orange);
         }
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error resetting settings: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        _showSnackBar('Error resetting settings: $e', Colors.red);
       }
     }
   }
@@ -1102,6 +1297,13 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                   // Delete privacy settings from Firestore
                   await PrivacySettingsService.deletePrivacySettings(_userId!);
 
+                  // Delete backup codes
+                  try {
+                    await _twoFactorService.removeTwoFactorPassword();
+                  } catch (e) {
+                    // Ignore
+                  }
+
                   // Delete user account from Firebase Auth
                   final user = FirebaseAuth.instance.currentUser;
                   if (user != null) {
@@ -1117,12 +1319,7 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                     );
                   }
                 } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Error deleting account: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
+                  _showSnackBar('Error deleting account: $e', Colors.red);
                 }
               }
             },

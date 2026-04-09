@@ -184,27 +184,41 @@ class TwoFactorAuthService {
 
   // ========== Password-based 2FA Methods (Cloud Functions) ==========
 
-  /// Set a password-based 2FA fallback
-  Future<void> setTwoFactorPassword(String password) async {
+
+  /// Set a password-based 2FA fallback and return backup codes
+  Future<List<String>> setTwoFactorPassword(String password) async {
     if (password.length < 6) {
       throw Exception('Password must be at least 6 characters');
     }
 
     try {
       final callable = _functions.httpsCallable('setTwoFactorPassword');
-      final result = await callable.call({'password': password});
+      final result = await callable.call({
+        'password': password,
+        'generateBackupCodes': true,
+      });
       final data = result.data as Map<String, dynamic>;
-      if (!data['success']) {
+
+      if (data['success'] != true) {
         throw Exception(data['message'] ?? 'Failed to set 2FA password');
       }
-      debugPrint('2FA password set successfully');
+
+      // Return backup codes if available
+      if (data['backupCodes'] != null && data['backupCodes'] is List) {
+        return List<String>.from(data['backupCodes']);
+      }
+
+      return [];
+
+    } on FirebaseFunctionsException catch (e) {
+      debugPrint('FirebaseFunctionsException: ${e.code} - ${e.message}');
+      throw Exception('Failed to set 2FA password: ${e.message}');
     } catch (e, s) {
       debugPrintStack(stackTrace: s);
       debugPrint('Error setting 2FA password: $e');
       throw Exception('Failed to set 2FA password: $e');
     }
   }
-
   /// Verify a password-based 2FA fallback
   Future<bool> verifyTwoFactorPassword(String password) async {
     try {
@@ -243,6 +257,57 @@ class TwoFactorAuthService {
     } catch (e) {
       debugPrint('Error removing 2FA password: $e');
       throw Exception('Failed to remove 2FA password: $e');
+    }
+  }
+
+  // Add these methods to your TwoFactorAuthService class
+
+  /// Generate backup codes for 2FA
+  Future<List<String>> generateBackupCodes() async {
+    try {
+      final callable = _functions.httpsCallable('generateBackupCodes');
+      final result = await callable.call();
+      final data = result.data as Map<String, dynamic>;
+      return List<String>.from(data['codes']);
+    } catch (e,s) {
+      debugPrintStack(stackTrace: s);
+      throw Exception('Failed to generate backup codes: $e');
+    }
+  }
+
+  /// Verify a backup code
+  Future<bool> verifyBackupCode(String backupCode) async {
+    try {
+      final callable = _functions.httpsCallable('verifyBackupCode');
+      final result = await callable.call({'backupCode': backupCode});
+      final data = result.data as Map<String, dynamic>;
+      return data['isValid'] ?? false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Get remaining backup codes count
+  Future<int> getRemainingBackupCodesCount() async {
+    try {
+      final callable = _functions.httpsCallable('getRemainingBackupCodesCount');
+      final result = await callable.call();
+      final data = result.data as Map<String, dynamic>;
+      return data['count'] ?? 0;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  /// Regenerate backup codes
+  Future<List<String>> regenerateBackupCodes() async {
+    try {
+      final callable = _functions.httpsCallable('regenerateBackupCodes');
+      final result = await callable.call();
+      final data = result.data as Map<String, dynamic>;
+      return List<String>.from(data['codes']);
+    } catch (e) {
+      throw Exception('Failed to regenerate backup codes: $e');
     }
   }
 }

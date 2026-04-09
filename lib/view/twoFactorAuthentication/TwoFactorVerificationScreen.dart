@@ -2,20 +2,17 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../itc_logic/service/2FactorAuthService.dart';
-import '../../model/privacySettingModel.dart'; // Add this import
+import '../../model/privacySettingModel.dart';
 
 // Keep enum for backward compatibility
-enum TwoFactorType {
-  sms,
-  password,
-}
+enum TwoFactorType { sms, password }
 
 class TwoFactorVerificationScreen extends StatefulWidget {
   final MultiFactorResolver? resolver;
   final String email;
   final Function(UserCredential?, User?) onSuccess;
-  final PrivacySettings? privacySettings; // Add privacy settings parameter
-  final TwoFactorType? forcedType; // Optional forced type (overrides auto-detection)
+  final PrivacySettings? privacySettings;
+  final TwoFactorType? forcedType;
 
   const TwoFactorVerificationScreen({
     Key? key,
@@ -27,13 +24,16 @@ class TwoFactorVerificationScreen extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  State<TwoFactorVerificationScreen> createState() => _TwoFactorVerificationScreenState();
+  State<TwoFactorVerificationScreen> createState() =>
+      _TwoFactorVerificationScreenState();
 }
 
-class _TwoFactorVerificationScreenState extends State<TwoFactorVerificationScreen> {
+class _TwoFactorVerificationScreenState
+    extends State<TwoFactorVerificationScreen> {
   final TwoFactorAuthService _twoFactorService = TwoFactorAuthService();
   final TextEditingController _codeController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _backupCodeController = TextEditingController();
 
   bool _isLoading = false;
   bool _isDeterminingType = true;
@@ -41,6 +41,10 @@ class _TwoFactorVerificationScreenState extends State<TwoFactorVerificationScree
   String? _verificationId;
   PhoneMultiFactorInfo? _selectedFactor;
   bool _isPasswordVisible = false;
+  bool _useBackupCode = false;
+
+  // Add missing getter
+  bool get _isSmsTwoFactor => _determinedType == TwoFactorType.sms;
 
   @override
   void initState() {
@@ -73,7 +77,8 @@ class _TwoFactorVerificationScreenState extends State<TwoFactorVerificationScree
     }
 
     // Otherwise, use privacy settings to determine the method
-    if (widget.privacySettings != null && widget.privacySettings!.twoFactorAuth) {
+    if (widget.privacySettings != null &&
+        widget.privacySettings!.twoFactorAuth) {
       switch (widget.privacySettings!.activeTwoFactorMethod) {
         case TwoFactorMethod.sms:
           setState(() {
@@ -89,10 +94,11 @@ class _TwoFactorVerificationScreenState extends State<TwoFactorVerificationScree
           });
           break;
         case TwoFactorMethod.none:
-        // No 2FA method found - go back
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('No 2FA method configured for this account')),
+              const SnackBar(
+                content: Text('No 2FA method configured for this account'),
+              ),
             );
             Navigator.pop(context);
           }
@@ -101,17 +107,19 @@ class _TwoFactorVerificationScreenState extends State<TwoFactorVerificationScree
     } else {
       // Check if user has password backup (fallback)
       try {
-        final hasPasswordBackup = await _twoFactorService.hasTwoFactorPassword();
+        final hasPasswordBackup = await _twoFactorService
+            .hasTwoFactorPassword();
         if (hasPasswordBackup) {
           setState(() {
             _determinedType = TwoFactorType.password;
             _isDeterminingType = false;
           });
         } else {
-          // No 2FA method found
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('No 2FA method configured for this account')),
+              const SnackBar(
+                content: Text('No 2FA method configured for this account'),
+              ),
             );
             Navigator.pop(context);
           }
@@ -134,8 +142,9 @@ class _TwoFactorVerificationScreenState extends State<TwoFactorVerificationScree
     setState(() => _isLoading = true);
 
     try {
-      // Get the first phone factor
-      final factors = widget.resolver!.hints.whereType<PhoneMultiFactorInfo>().toList();
+      final factors = widget.resolver!.hints
+          .whereType<PhoneMultiFactorInfo>()
+          .toList();
 
       if (factors.isEmpty) {
         throw Exception('No phone factors available');
@@ -143,12 +152,10 @@ class _TwoFactorVerificationScreenState extends State<TwoFactorVerificationScree
 
       _selectedFactor = factors.first;
 
-      // Send verification code
       await FirebaseAuth.instance.verifyPhoneNumber(
         multiFactorSession: widget.resolver!.session,
         multiFactorInfo: _selectedFactor,
         verificationCompleted: (credential) async {
-          // Auto-verification (Android only)
           final assertion = PhoneMultiFactorGenerator.getAssertion(credential);
           final result = await widget.resolver!.resolveSignIn(assertion);
           if (mounted) {
@@ -156,7 +163,9 @@ class _TwoFactorVerificationScreenState extends State<TwoFactorVerificationScree
           }
         },
         verificationFailed: (error) {
-          debugPrint('SMS verification failed: ${error.code} - ${error.message}');
+          debugPrint(
+            'SMS verification failed: ${error.code} - ${error.message}',
+          );
           if (mounted) {
             setState(() => _isLoading = false);
             ScaffoldMessenger.of(context).showSnackBar(
@@ -170,23 +179,20 @@ class _TwoFactorVerificationScreenState extends State<TwoFactorVerificationScree
             _isLoading = false;
           });
         },
-        codeAutoRetrievalTimeout: (verificationId) {
-          // Timeout
-        },
+        codeAutoRetrievalTimeout: (verificationId) {},
       );
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
   }
 
   Future<void> _verifyCode() async {
     if (_determinedType == TwoFactorType.sms) {
-      // SMS verification
       if (_codeController.text.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Please enter the verification code')),
@@ -211,13 +217,12 @@ class _TwoFactorVerificationScreenState extends State<TwoFactorVerificationScree
       } catch (e) {
         setState(() => _isLoading = false);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Invalid code: $e')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Invalid code: $e')));
         }
       }
     } else {
-      // Password verification
       await _verifyPasswordFallback();
     }
   }
@@ -234,7 +239,7 @@ class _TwoFactorVerificationScreenState extends State<TwoFactorVerificationScree
 
     try {
       final isValid = await _twoFactorService.verifyTwoFactorPassword(
-          _passwordController.text
+        _passwordController.text,
       );
 
       if (isValid) {
@@ -255,20 +260,56 @@ class _TwoFactorVerificationScreenState extends State<TwoFactorVerificationScree
       debugPrint("Error is $e");
       debugPrintStack(stackTrace: s);
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
+  }
+
+  Future<void> _verifyBackupCode() async {
+    if (_backupCodeController.text.isEmpty) {
+      _showSnackBar('Please enter a backup code', Colors.red);
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final isValid = await _twoFactorService.verifyBackupCode(
+        _backupCodeController.text.toUpperCase(),
+      );
+
+      if (isValid) {
+        User? user = FirebaseAuth.instance.currentUser;
+        if (mounted) {
+          widget.onSuccess(null, user);
+        }
+      } else {
+        setState(() => _isLoading = false);
+        _showSnackBar('Invalid or already used backup code', Colors.red);
+        _backupCodeController.clear();
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showSnackBar('Error: $e', Colors.red);
+    }
+  }
+
+  void _showSnackBar(String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: color,
+        duration: const Duration(seconds: 3),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // Show loading indicator while determining the 2FA type
     if (_isDeterminingType) {
       return Scaffold(
-        appBar: AppBar(
-          title: const Text('Two-Factor Authentication'),
-        ),
+        appBar: AppBar(title: const Text('Two-Factor Authentication')),
         body: const Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -282,7 +323,6 @@ class _TwoFactorVerificationScreenState extends State<TwoFactorVerificationScree
       );
     }
 
-    // Show the appropriate screen based on the determined type
     if (_determinedType == TwoFactorType.sms) {
       return _buildSmsVerificationScreen();
     } else {
@@ -292,26 +332,20 @@ class _TwoFactorVerificationScreenState extends State<TwoFactorVerificationScree
 
   Widget _buildSmsVerificationScreen() {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Two-Factor Authentication'),
-      ),
+      appBar: AppBar(title: const Text('Two-Factor Authentication')),
       body: Padding(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Icon(
-              Icons.security,
-              size: 80,
-              color: Colors.blue,
-            ),
+            const Icon(Icons.security, size: 80, color: Colors.blue),
             const SizedBox(height: 24),
             Text(
               'Verification Required',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 12),
@@ -337,7 +371,9 @@ class _TwoFactorVerificationScreenState extends State<TwoFactorVerificationScree
             ),
             const SizedBox(height: 24),
             ElevatedButton(
-              onPressed: _isLoading || _verificationId == null ? null : _verifyCode,
+              onPressed: _isLoading || _verificationId == null
+                  ? null
+                  : _verifyCode,
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
@@ -360,73 +396,187 @@ class _TwoFactorVerificationScreenState extends State<TwoFactorVerificationScree
   }
 
   Widget _buildPasswordFallbackScreen() {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Backup Password Login'),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Icon(
-              Icons.lock,
-              size: 80,
-              color: Colors.green,
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Backup Password Required',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
+    if (_useBackupCode) {
+      return _buildBackupCodeScreen();
+    }
+
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Backup Password Login'),
+
+          automaticallyImplyLeading: false,
+        ),
+        body: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight:
+                    MediaQuery.of(context).size.height -
+                    180, // Subtract app bar and padding
               ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Please enter your 2FA backup password to continue.',
-              style: TextStyle(fontSize: 16),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 32),
-            TextField(
-              controller: _passwordController,
-              obscureText: !_isPasswordVisible,
-              decoration: InputDecoration(
-                labelText: 'Backup Password',
-                hintText: 'Enter your 2FA backup password',
-                prefixIcon: const Icon(Icons.lock),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _isPasswordVisible ? Icons.visibility_off : Icons.visibility,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Icon(Icons.lock, size: 80, color: Colors.green),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Backup Password Required',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                  onPressed: () {
-                    setState(() {
-                      _isPasswordVisible = !_isPasswordVisible;
-                    });
-                  },
-                ),
-                border: const OutlineInputBorder(),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Please enter your 2FA backup password to continue.',
+                    style: TextStyle(fontSize: 16),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 32),
+                  TextField(
+                    controller: _passwordController,
+                    obscureText: !_isPasswordVisible,
+                    decoration: InputDecoration(
+                      labelText: 'Backup Password',
+                      hintText: 'Enter your 2FA backup password',
+                      prefixIcon: const Icon(Icons.lock),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _isPasswordVisible
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _isPasswordVisible = !_isPasswordVisible;
+                          });
+                        },
+                      ),
+                      border: const OutlineInputBorder(),
+                    ),
+                    enabled: !_isLoading,
+                    onSubmitted: (_) => _verifyPasswordFallback(),
+                  ),
+                  const SizedBox(height: 16),
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _useBackupCode = true;
+                        _backupCodeController.clear();
+                      });
+                    },
+                    child: const Text(
+                      'Use Backup Code Instead',
+                      style: TextStyle(color: Colors.blue),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: _isLoading ? null : _verifyPasswordFallback,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      backgroundColor: Colors.green,
+                    ),
+                    child: _isLoading
+                        ? const CircularProgressIndicator()
+                        : const Text('Verify & Login'),
+                  ),
+                ],
               ),
-              enabled: !_isLoading,
-              onSubmitted: (_) => _verifyPasswordFallback(),
             ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _isLoading ? null : _verifyPasswordFallback,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                backgroundColor: Colors.green,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBackupCodeScreen() {
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Backup Code Login'),
+          automaticallyImplyLeading: false,
+        ),
+        body: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight:
+                    MediaQuery.of(context).size.height -
+                    180, // Subtract app bar and padding
               ),
-              child: _isLoading
-                  ? const CircularProgressIndicator()
-                  : const Text('Verify & Login'),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Icon(Icons.code, size: 80, color: Colors.purple),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Enter Backup Code',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Enter one of your saved backup codes (8 characters)',
+                    style: TextStyle(fontSize: 16),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 32),
+                  TextField(
+                    controller: _backupCodeController,
+                    decoration: const InputDecoration(
+                      labelText: 'Backup Code',
+                      hintText: 'Enter 8-character backup code',
+                      prefixIcon: Icon(Icons.code),
+                      border: OutlineInputBorder(),
+                      helperText: 'Example: A1B2C3D4',
+                    ),
+                    textCapitalization: TextCapitalization.characters,
+                    enabled: !_isLoading,
+                    onSubmitted: (_) => _verifyBackupCode(),
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: _isLoading ? null : _verifyBackupCode,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      backgroundColor: Colors.purple,
+                    ),
+                    child: _isLoading
+                        ? const CircularProgressIndicator()
+                        : const Text(
+                            'Verify & Login',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _useBackupCode = false;
+                        _backupCodeController.clear();
+                      });
+                    },
+                    child: const Text('Back to Password'),
+                  ),
+                ],
+              ),
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -436,6 +586,7 @@ class _TwoFactorVerificationScreenState extends State<TwoFactorVerificationScree
   void dispose() {
     _codeController.dispose();
     _passwordController.dispose();
+    _backupCodeController.dispose();
     super.dispose();
   }
 }
