@@ -408,7 +408,7 @@ class _StudentProfilePageState extends State<StudentProfilePage>
           receiverId: widget.student.uid,
           receiverName: widget.student.fullName,
           receiverAvatarUrl: widget.student.imageUrl,
-          receiverRole: 'student',
+          receiverRole: widget.student.role,
           receiverData: widget.student,
         ),
       );

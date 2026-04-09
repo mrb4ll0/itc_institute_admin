@@ -1465,6 +1465,7 @@ class _TraineeDetailPageState extends State<TraineeDetailPage> {
          return;
        }
     GeneralMethods.navigateTo(context, ChatDetailsPage(receiverId: student.uid, receiverName: student.fullName,
+        receiverRole: 'student',
         receiverAvatarUrl: student.imageUrl));
   }
 

@@ -44,6 +44,7 @@ class _AdminProfilePageState extends State<AdminProfilePage> with SingleTickerPr
             receiverId: widget.admin.uid,
             receiverAvatarUrl: widget.admin.photoUrl ?? "",
             receiverName: widget.admin.fullName,
+            receiverRole: widget.admin.role,
           )
       ),
     );

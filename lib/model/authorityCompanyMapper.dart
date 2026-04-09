@@ -108,7 +108,7 @@ class AuthorityCompanyMapper {
       address: authority.address ?? '',
 
       // Business information
-      role: customRole ?? 'company',
+      role: customRole ?? 'authority',
       registrationNumber: authority.registrationNumber ??
           _generateConversionRegistrationNumber(authority.name),
       description: authority.description ??

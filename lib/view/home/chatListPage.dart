@@ -390,6 +390,7 @@ Company? company;
                                           receiverName: s.fullName,
                                           receiverAvatarUrl: s.imageUrl,
                                           receiverId: s.uid,
+                                          receiverRole: s.role,
                                         ),
                                       ),
                                     );
@@ -463,7 +464,8 @@ Company? company;
                             !(msg.deletedFor?.contains(userId) ?? false))
                             .toList();
 
-                        if (messages.isEmpty) {
+                        if (messages.isEmpty)
+                        {
                           // Show all students in vertical list
                           return FutureBuilder<List<Student>>(
                             future: _adminCloud.getAllStudents(company: company),
@@ -488,6 +490,7 @@ Company? company;
                                 itemCount: students.length,
                                 itemBuilder: (context, index) {
                                   final s = students[index];
+                                  debugPrint("s type is ${s.toString()}");
                                   return Card(
                                     margin: const EdgeInsets.only(bottom: 12),
                                     elevation: 4,
@@ -530,6 +533,7 @@ Company? company;
                                               receiverName: s.fullName,
                                               receiverAvatarUrl: s.imageUrl,
                                               receiverId: s.uid,
+                                              receiverRole: s.role,
                                             ),
                                           ),
                                         );
@@ -647,6 +651,7 @@ Company? company;
                                     ),
                                     onTap: () {
                                       final isAdminChat = user.uid.startsWith('admin_');
+                                      debugPrint("role is ${user.role}");
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute(
@@ -654,6 +659,7 @@ Company? company;
                                             receiverName: user.displayName,
                                             receiverAvatarUrl: user.imageUrl,
                                             receiverId: user.uid,
+                                            receiverRole: user.role,
                                           ),
                                         ),
                                       );
@@ -935,6 +941,7 @@ class _StartNewChatDialogState extends State<_StartNewChatDialog> {
             receiverName: user.fullName,
             receiverAvatarUrl: user.imageUrl,
             receiverId: user.uid,
+            receiverRole: user.role,
           ),
         ),
       );

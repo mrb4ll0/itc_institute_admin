@@ -36,7 +36,7 @@ class ChatDetailsPage extends StatefulWidget {
     required this.receiverId,
     required this.receiverName,
     required this.receiverAvatarUrl,
-    this.receiverRole = 'student',
+    this.receiverRole = 'Not Specified',
     this.receiverData,
   });
 
@@ -1201,6 +1201,7 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
   }
 
   Widget _buildAppBar(BuildContext context, ThemeData theme) {
+    debugPrint("role is ${widget.receiverRole}");
     return SafeArea(
       bottom: false,
       child: Container(
@@ -1330,7 +1331,7 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
                         }
 
                         // Show role instead
-                        if (widget.receiverRole == 'student') {
+                        if (widget.receiverRole.toLowerCase() == 'student') {
                           if (_receiverData is Student) {
                             final student = _receiverData as Student;
                             return Text(
@@ -1346,16 +1347,23 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
                               color: theme.colorScheme.onSurfaceVariant,
                             ),
                           );
-                        } else if(widget.receiverRole == 'company') {
+                        } else if(widget.receiverRole.toLowerCase() == 'company') {
                           return Text(
                             'Company',
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant,
                             ),
                           );
-                        }else  if(widget.receiverRole == 'Authority' || widget.receiverRole == 'authority'){
+                        }else  if(widget.receiverRole == 'Authority' || widget.receiverRole.toLowerCase() == 'authority'){
                           return Text(
                             'Authority',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          );
+                        }else  if(widget.receiverRole == 'admin' || widget.receiverRole.toLowerCase() == 'admin'){
+                          return Text(
+                            'Admin',
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant,
                             ),
