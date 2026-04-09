@@ -105,6 +105,7 @@ Company? company;
 
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         backgroundColor: isDark ? Colors.grey[900] : Colors.white,
         elevation: 0,
         title: Text(

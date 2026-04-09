@@ -338,6 +338,7 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
                 floating: true,
                 snap: true,
                 expandedHeight: 60,
+                automaticallyImplyLeading: false,
                 flexibleSpace: _buildTopAppBar(context),
               ),
 
