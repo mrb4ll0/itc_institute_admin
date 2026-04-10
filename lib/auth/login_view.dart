@@ -1,21 +1,30 @@
 import 'dart:async';
 import 'dart:convert';
-
+import 'dart:io';
+import 'package:device_info_plus/device_info_plus.dart';
+import 'package:network_info_plus/network_info_plus.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'package:itc_institute_admin/auth/signup.dart';
 import 'package:itc_institute_admin/backgroundTask/backgroundTask.dart';
 import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
 import 'package:itc_institute_admin/itc_logic/localDB/sharedPreference.dart';
+import 'package:itc_institute_admin/itc_logic/notification/notificationPanel/notificationPanelService.dart';
 import 'package:itc_institute_admin/itc_logic/notification/notitification_service.dart';
 import 'package:itc_institute_admin/itc_logic/service/privacySettingsService.dart';
 import 'package:itc_institute_admin/migrationService/migrationManager.dart';
 import 'package:itc_institute_admin/migrationService/migrationService.dart';
 import 'package:itc_institute_admin/migrationService/ui/migrationSettingsPage.dart';
 import 'package:itc_institute_admin/model/authorityCompanyMapper.dart';
+import 'package:itc_institute_admin/model/localNotification.dart';
+import 'package:itc_institute_admin/model/notificationModel.dart';
 import 'package:itc_institute_admin/model/privacySettingModel.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -256,12 +265,12 @@ class _LoginScreenState extends State<LoginScreen> {
             context,
             MaterialPageRoute(
               builder: (context) => TwoFactorVerificationScreen(
-                forcedType: TwoFactorType.sms,
+                forcedType: TwoFactorType.password,
                 privacySettings: privacy,
                 resolver: null, // No resolver for password-based 2FA
                 email: _emailController.text.trim(),
                 onSuccess: (userCredential,user) async {
-                  await _handleSuccessfulLogin(userCredential);
+                  await _handleSuccessfulLogin(userCredential,privacy);
                 },
               ),
             ),
@@ -269,7 +278,7 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       } else {
         // No 2FA required
-        await _handleSuccessfulLogin(userCredential);
+        await _handleSuccessfulLogin(userCredential,privacy);
       }
     } on FirebaseAuthMultiFactorException catch (e) {
       // SMS 2FA is required (Firebase-enforced)
@@ -293,7 +302,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   Fluttertoast.showToast(msg: "Error: User Credential is null");
                   return;
                 }
-                await _handleSuccessfulLogin(userCredential);
+                await _handleSuccessfulLogin(userCredential,null);
               },
             ),
           ),
@@ -317,7 +326,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   // Extract successful login logic to a separate method
-  Future<void> _handleSuccessfulLogin(UserCredential? userCredential) async {
+  Future<void> _handleSuccessfulLogin(UserCredential? userCredential,PrivacySettings? privacySettings) async {
     final currentUser = FirebaseAuth.instance.currentUser;
     debugPrint("currentUser is $currentUser");
 
@@ -349,9 +358,15 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    debugPrint('company is $company and ${company.originalAuthority == null}');
+    //debugPrint('company is $company and ${company.originalAuthority == null}');
     await notificationService.saveTokenToFirestore();
+    if (privacySettings != null && privacySettings.loginAlerts) {
+      // Get device information
+      final deviceName = await _getDeviceName();
+      final ipAddress = await _getIpAddress();
 
+      notifyUser(deviceName, ipAddress,null);
+    }
     final settings = await MigrationSettingsStorage.loadSettings();
     MigrationTrigger trigger = settings["trigger"];
     debugPrint("trigger is ${trigger.displayName}");
@@ -373,6 +388,68 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     }
   }
+
+  Future<String> _getDeviceName() async {
+    final deviceInfo = DeviceInfoPlugin();
+
+    if (Platform.isAndroid) {
+      final androidInfo = await deviceInfo.androidInfo;
+      return "${androidInfo.model} (Android ${androidInfo.version.release})";
+    } else if (Platform.isIOS) {
+      final iosInfo = await deviceInfo.iosInfo;
+      return "${iosInfo.model} (iOS ${iosInfo.systemVersion})";
+    } else {
+      return "Unknown Device";
+    }
+  }
+
+  Future<String> _getIpAddress() async {
+    try {
+      // Get local IP
+      final info = NetworkInfo();
+      final localIp = await info.getWifiIP();
+
+      // Get public IP
+      final response = await http.get(Uri.parse('https://api.ipify.org'));
+      if (response.statusCode == 200) {
+        return response.body;
+      }
+
+      return localIp ?? "Unknown IP";
+    } catch (e) {
+      debugPrint('Error getting IP: $e');
+      return "Unknown IP";
+    }
+  }
+
+   notifyUser(String deviceName,String ipAddress,String? fcmToken)async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+
+    fcmToken ??= await FirebaseMessaging.instance.getToken();
+
+    final timestamp = DateTime.now();
+    final formattedTime = DateFormat('MMM dd, yyyy hh:mm a').format(timestamp);
+
+    NotificationModel notification = NotificationModel(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      title: "⚠️ New Login Detected",
+      body: "Your account was accessed from a new device.\n\n"
+          "📱 Device: $deviceName\n"
+          "🌐 IP Address: $ipAddress\n"
+          "🕐 Time: $formattedTime\n\n"
+          "If this wasn't you, please secure your account immediately.",
+      timestamp: timestamp,
+      read: false,
+      targetAudience: currentUser.email ?? '',
+      targetStudentId: currentUser.uid,
+      fcmToken:fcmToken ??"", // Will be handled by the service
+      type: NotificationType.systemAlert.name,
+    );
+
+    NotificationPanelService.sendNotificationToAllEnabledChannelsWithSummary(notification);
+  }
+
 
   String _getAuthErrorMessage(String code) {
     debugPrint("code is $code");

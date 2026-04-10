@@ -331,65 +331,83 @@ class _TwoFactorVerificationScreenState
   }
 
   Widget _buildSmsVerificationScreen() {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Two-Factor Authentication')),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Icon(Icons.security, size: 80, color: Colors.blue),
-            const SizedBox(height: 24),
-            Text(
-              'Verification Required',
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              _isLoading
-                  ? 'Sending code...'
-                  : 'We sent a verification code to ${_selectedFactor?.phoneNumber ?? 'your phone'}',
-              style: Theme.of(context).textTheme.bodyMedium,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 32),
-            TextField(
-              controller: _codeController,
-              decoration: const InputDecoration(
-                labelText: 'Verification Code',
-                hintText: 'Enter 6-digit code',
-                prefixIcon: Icon(Icons.sms),
-                border: OutlineInputBorder(),
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Two-Factor Authentication'),
+          automaticallyImplyLeading: false,
+        ),
+        body: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight:
+                    MediaQuery.of(context).size.height -
+                    180, // Subtract app bar and padding
               ),
-              keyboardType: TextInputType.number,
-              maxLength: 6,
-              enabled: !_isLoading,
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _isLoading || _verificationId == null
-                  ? null
-                  : _verifyCode,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Icon(Icons.security, size: 80, color: Colors.blue),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Verification Required',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    _isLoading
+                        ? 'Sending code...'
+                        : 'We sent a verification code to ${_selectedFactor?.phoneNumber ?? 'your phone'}',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 32),
+                  TextField(
+                    controller: _codeController,
+                    decoration: const InputDecoration(
+                      labelText: 'Verification Code',
+                      hintText: 'Enter 6-digit code',
+                      prefixIcon: Icon(Icons.sms),
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.number,
+                    maxLength: 6,
+                    enabled: !_isLoading,
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: _isLoading || _verificationId == null
+                        ? null
+                        : _verifyCode,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: _isLoading
+                        ? const CircularProgressIndicator()
+                        : const Text(
+                            'Verify & Login',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: _isLoading ? null : _sendCode,
+                    child: const Text('Resend Code'),
+                  ),
+                ],
               ),
-              child: _isLoading
-                  ? const CircularProgressIndicator()
-                  : const Text('Verify & Login'),
             ),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: _isLoading ? null : _sendCode,
-              child: const Text('Resend Code'),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -486,7 +504,10 @@ class _TwoFactorVerificationScreenState
                     ),
                     child: _isLoading
                         ? const CircularProgressIndicator()
-                        : const Text('Verify & Login'),
+                        : const Text(
+                            'Verify & Login',
+                            style: TextStyle(color: Colors.white),
+                          ),
                   ),
                 ],
               ),
