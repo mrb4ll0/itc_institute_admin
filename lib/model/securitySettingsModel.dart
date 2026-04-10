@@ -5,52 +5,52 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 class SecuritySettings {
   // Authentication Security
-  final bool twoFactorAuth;
-  final bool biometricLogin;
-  final bool rememberMe;
-  final int sessionTimeoutMinutes;
+   bool twoFactorAuth;
+   bool biometricLogin;
+   bool rememberMe;
+   int sessionTimeoutMinutes;
 
   // Password Security
-  final bool requireStrongPassword;
-  final bool passwordExpiry;
-  final int passwordExpiryDays;
-  final bool preventPasswordReuse;
-  final int passwordHistoryCount;
+   bool requireStrongPassword;
+   bool passwordExpiry;
+   int passwordExpiryDays;
+   bool preventPasswordReuse;
+   int passwordHistoryCount;
 
   // Login Security
-  final bool loginAlerts;
-  final bool newDeviceAlerts;
-  final bool failedLoginAlerts;
-  final int maxFailedAttempts;
-  final bool lockAfterFailedAttempts;
-  final int lockDurationMinutes;
+   bool loginAlerts;
+   bool newDeviceAlerts;
+   bool failedLoginAlerts;
+   int maxFailedAttempts;
+   bool lockAfterFailedAttempts;
+   int lockDurationMinutes;
 
   // Session Management
-  final bool singleSessionOnly;
-  final bool sessionTimeout;
-  final bool autoLogoutOnInactivity;
-  final int inactivityTimeoutMinutes;
+   bool singleSessionOnly;
+   bool sessionTimeout;
+   bool autoLogoutOnInactivity;
+   int inactivityTimeoutMinutes;
 
   // Device Management
-  final bool deviceManagement;
-  final bool allowMultipleDevices;
-  final int maxDevicesAllowed;
+   bool deviceManagement;
+   bool allowMultipleDevices;
+   int maxDevicesAllowed;
 
   // IP & Location Security
-  final bool ipWhitelist;
-  final List<String> allowedIps;
-  final bool locationRestriction;
-  final List<String> allowedCountries;
+   bool ipWhitelist;
+   List<String> allowedIps;
+   bool locationRestriction;
+   List<String> allowedCountries;
 
   // Data Security
-  final bool encryptData;
-  final bool backupData;
-  final bool autoBackup;
-  final int backupFrequencyDays;
+   bool encryptData;
+   bool backupData;
+   bool autoBackup;
+   int backupFrequencyDays;
 
   // Metadata
-  final DateTime? lastUpdated;
-  final String? updatedBy;
+   DateTime? lastUpdated;
+   String? updatedBy;
 
   SecuritySettings({
     // Authentication Security

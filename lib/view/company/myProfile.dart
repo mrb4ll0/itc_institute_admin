@@ -9,6 +9,7 @@ import 'package:itc_institute_admin/model/company.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/general_cloud.dart';
 import 'package:intl/intl.dart';
 import 'package:itc_institute_admin/model/student.dart';
+import 'package:itc_institute_admin/model/studentApplication.dart';
 import 'package:itc_institute_admin/model/traineeRecord.dart';
 import 'package:itc_institute_admin/notification/view/companyFormUploadPage.dart';
 import 'package:itc_institute_admin/traineeRecord/traineeRecordService.dart';
@@ -23,7 +24,7 @@ import '../../migrationService/ui/migrationSettingsPage.dart';
 import '../../notification/settings/notificationSettingsPage.dart';
 import '../../notification/view/companyFormsList.dart';
 import '../home/aboutITConnect.dart';
-import '../privacySettings/privacySettingsPage.dart';
+import '../privacySettings/privacyAndSecuritySettingsPage.dart';
 import 'TraineeListPage.dart'; // Add this import
 
 class CompanyMyProfilePage extends StatefulWidget {
@@ -940,7 +941,11 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage>
     final weekAgo = now.subtract(const Duration(days: 7));
 
     return trainees.where((trainee) {
-      final applicationDate = trainee.applicationDate; // Adjust based on your model
+      var applicationDate = DateTime.now();
+      if (trainee is StudentApplication) {
+      applicationDate = trainee.applicationDate;
+      }
+
       return applicationDate != null && applicationDate.isAfter(weekAgo);
     }).length;
   }
@@ -948,6 +953,8 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage>
   int _getActiveTraineesCount(List<dynamic> trainees) {
     // Count trainees with active status
     return trainees.where((trainee) {
+      if(trainee !is StudentApplication)return false;
+
       final status = trainee.status?.toLowerCase(); // Adjust based on your model
       return status == 'active' || status == 'interviewing';
     }).length;
@@ -1079,20 +1086,10 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage>
                 const Divider(height: 0),
                 ListTile(
                   leading: const Icon(Icons.privacy_tip),
-                  title: const Text('Privacy Settings'),
+                  title: const Text('Privacy & Security Settings'),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                   onTap: () {
-                    GeneralMethods.navigateTo(context, const PrivacySettingsPage());
-                  },
-                ),
-                const Divider(height: 0),
-                ListTile(
-                  leading: const Icon(Icons.security),
-                  title: const Text('Security'),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {
-                    // Navigate to security settings
-                    GeneralMethods.navigateTo(context, SecuritySettingsPage());
+                    GeneralMethods.navigateTo(context, const PrivacyAndSecuritySettingsPage());
                   },
                 ),
               ],

@@ -30,6 +30,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../backgroundTask/backgroundTaskRegistry.dart';
 import '../itc_logic/firebase/general_cloud.dart';
+import '../itc_logic/service/ConnectedDeviceService.dart';
 import '../migrationService/migrationSettingsStrorage.dart';
 import '../model/authority.dart';
 import '../model/company.dart';
@@ -367,6 +368,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       notifyUser(deviceName, ipAddress,null);
     }
+    await ConnectedDeviceService().saveCurrentDevice();
     final settings = await MigrationSettingsStorage.loadSettings();
     MigrationTrigger trigger = settings["trigger"];
     debugPrint("trigger is ${trigger.displayName}");

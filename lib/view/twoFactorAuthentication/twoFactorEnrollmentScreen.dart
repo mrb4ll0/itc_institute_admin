@@ -1,4 +1,3 @@
-// screens/TwoFactorEnrollmentScreen.dart
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -42,6 +41,7 @@ class _TwoFactorEnrollmentScreenState extends State<TwoFactorEnrollmentScreen> {
 
   Future<void> _checkExistingPassword() async {
     final hasPassword = await _twoFactorService.hasTwoFactorPassword();
+    debugPrint("has password $hasPassword}");
     setState(() {
       _hasExistingPassword = hasPassword;
     });
@@ -195,7 +195,7 @@ class _TwoFactorEnrollmentScreenState extends State<TwoFactorEnrollmentScreen> {
     if (_isVerifyingExistingPassword) {
       return _buildVerifyExistingPasswordScreen();
     }
-
+debugPrint("existing password ${_hasExistingPassword}");
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -212,7 +212,7 @@ class _TwoFactorEnrollmentScreenState extends State<TwoFactorEnrollmentScreen> {
               Expanded(
                 child: Text(
                   'Your password will be encrypted and stored securely. Use this as a backup if SMS verification fails.',
-                  style: TextStyle(fontSize: 12),
+                  style: TextStyle(fontSize: 12,color: Colors.black),
                 ),
               ),
             ],
@@ -238,7 +238,8 @@ class _TwoFactorEnrollmentScreenState extends State<TwoFactorEnrollmentScreen> {
                     Expanded(
                       child: Text(
                         'You already have a backup password set!',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                        style: TextStyle(fontWeight: FontWeight.bold,
+                        color:Colors.black),
                       ),
                     ),
                   ],
@@ -317,7 +318,8 @@ class _TwoFactorEnrollmentScreenState extends State<TwoFactorEnrollmentScreen> {
                 Expanded(
                   child: Text(
                     'Setting a new password will replace your existing backup password.',
-                    style: TextStyle(fontSize: 12),
+                    style: TextStyle(fontSize: 12,
+                    color: Colors.black),
                   ),
                 ),
               ],
@@ -358,7 +360,8 @@ class _TwoFactorEnrollmentScreenState extends State<TwoFactorEnrollmentScreen> {
               Expanded(
                 child: Text(
                   'Please enter your existing backup password to confirm you still remember it.',
-                  style: TextStyle(fontSize: 14),
+                  style: TextStyle(fontSize: 14,
+                  color: Colors.black),
                 ),
               ),
             ],
@@ -404,7 +407,7 @@ class _TwoFactorEnrollmentScreenState extends State<TwoFactorEnrollmentScreen> {
                 ),
                 child: _isLoading
                     ? const CircularProgressIndicator()
-                    : const Text('Verify & Enable'),
+                    : const Text('Verify & Enable',style: TextStyle(color: Colors.black),),
               ),
             ),
           ],
@@ -581,28 +584,42 @@ class _TwoFactorEnrollmentScreenState extends State<TwoFactorEnrollmentScreen> {
   }
 
   Future<void> _showBackupCodesDialog(List<String> codes) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text('Save Your Backup Codes'),
+        backgroundColor: isDark ? Colors.grey[900] : Colors.white,
+        title: Text(
+          'Save Your Backup Codes',
+          style: TextStyle(
+            color: isDark ? Colors.white : Colors.black,
+          ),
+        ),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'These backup codes can be used to access your account if you forget your 2FA password. '
                     'Each code can only be used once.',
-                style: TextStyle(fontSize: 14),
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isDark ? Colors.grey[300] : Colors.black87,
+                ),
               ),
               const SizedBox(height: 16),
+
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
+                  color: isDark ? Colors.grey[800] : Colors.grey.shade100,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey.shade300),
+                  border: Border.all(
+                    color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+                  ),
                 ),
                 child: Column(
                   children: codes.asMap().entries.map((entry) {
@@ -610,29 +627,37 @@ class _TwoFactorEnrollmentScreenState extends State<TwoFactorEnrollmentScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 4),
                       child: Row(
                         children: [
-                          Container(
+                          SizedBox(
                             width: 30,
                             child: Text(
                               '${entry.key + 1}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontWeight: FontWeight.bold,
+                                color: isDark ? Colors.white : Colors.black,
                               ),
                             ),
                           ),
                           Expanded(
                             child: Text(
                               entry.value,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontFamily: 'monospace',
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
+                                color: isDark ? Colors.greenAccent : Colors.black,
                               ),
                             ),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.copy, size: 18),
+                            icon: Icon(
+                              Icons.copy,
+                              size: 18,
+                              color: isDark ? Colors.grey[300] : Colors.black,
+                            ),
                             onPressed: () {
-                              Clipboard.setData(ClipboardData(text: entry.value));
+                              Clipboard.setData(
+                                ClipboardData(text: entry.value),
+                              );
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(content: Text('Code copied!')),
                               );
@@ -644,8 +669,10 @@ class _TwoFactorEnrollmentScreenState extends State<TwoFactorEnrollmentScreen> {
                   }).toList(),
                 ),
               ),
+
               const SizedBox(height: 16),
-              const Text(
+
+              Text(
                 '⚠️ Make sure to save these codes in a secure place. '
                     'You will not be able to see them again!',
                 style: TextStyle(
@@ -661,7 +688,12 @@ class _TwoFactorEnrollmentScreenState extends State<TwoFactorEnrollmentScreen> {
             onPressed: () {
               Navigator.pop(context);
             },
-            child: const Text('I Have Saved Them'),
+            child: Text(
+              'I Have Saved Them',
+              style: TextStyle(
+                color: isDark ? Colors.blue[300] : Colors.blue,
+              ),
+            ),
           ),
         ],
       ),

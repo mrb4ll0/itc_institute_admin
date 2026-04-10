@@ -1,9 +1,13 @@
 // pages/security_settings_page.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
 
+import '../../itc_logic/service/2FactorAuthService.dart';
 import '../../itc_logic/service/securitySettingsService.dart';
 import '../../model/securitySettingsModel.dart';
+import '../ConnectedDeviceManagement/ConnectedDevicePage.dart';
+import '../twoFactorAuthentication/twoFactorEnrollmentScreen.dart';
 
 
 class SecuritySettingsPage extends StatefulWidget {
@@ -19,6 +23,8 @@ class _SecuritySettingsPageState extends State<SecuritySettingsPage> {
   String? _userId;
   Stream<SecuritySettings>? _settingsStream;
   List<Map<String, dynamic>> _activeSessions = [];
+  // Add this at the top of your state class
+  final TwoFactorAuthService _twoFactorService = TwoFactorAuthService();
 
   @override
   void initState() {
@@ -44,6 +50,7 @@ class _SecuritySettingsPageState extends State<SecuritySettingsPage> {
 
         // Initial load
         final settings = await SecuritySettingsService.getUserSecuritySettings(user.uid);
+        debugPrint("two factor settings is ${settings.twoFactorAuth}");
         setState(() {
           _settings = settings;
           _isLoading = false;
@@ -152,6 +159,10 @@ class _SecuritySettingsPageState extends State<SecuritySettingsPage> {
                   },
                   icon: Icons.security,
                   iconColor: Colors.green,
+                  onTap: ()
+                    {
+                      GeneralMethods.navigateTo(context, TwoFactorEnrollmentScreen());
+                    }
                 ),
 
                 _buildSwitchTile(
@@ -873,11 +884,14 @@ class _SecuritySettingsPageState extends State<SecuritySettingsPage> {
       ThemeData theme, {
         required String title,
         required String subtitle,
-        required bool value,
-        required ValueChanged<bool> onChanged,
+        bool value = false,
+        ValueChanged<bool>? onChanged,
         required IconData icon,
         Color? iconColor,
         bool isLast = false,
+        VoidCallback? onTap,           // New: for navigation
+        Widget? trailing,               // New: custom trailing widget
+        bool showSwitch = true,        // New: whether to show switch or not
       }) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -897,34 +911,69 @@ class _SecuritySettingsPageState extends State<SecuritySettingsPage> {
           ),
         ),
       ),
-      child: SwitchListTile(
-        contentPadding: const EdgeInsets.all(12),
-        title: Text(
-          title,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        subtitle: Text(
-          subtitle,
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-        value: value,
-        onChanged: onChanged,
-        activeColor: theme.colorScheme.primary,
-        secondary: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: (iconColor ?? theme.colorScheme.primary).withOpacity(0.1),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            icon,
-            size: 20,
-            color: iconColor ?? theme.colorScheme.primary,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap ?? (showSwitch && onChanged != null ? null : null),
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                // Icon
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: (iconColor ?? theme.colorScheme.primary).withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 20,
+                    color: iconColor ?? theme.colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(width: 12),
+
+                // Title and Subtitle
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Trailing Widget
+                if (trailing != null)
+                  trailing
+                else if (showSwitch && onChanged != null)
+                  Switch(
+                    value: value,
+                    onChanged: onChanged,
+                    activeColor: theme.colorScheme.primary,
+                  )
+                else if (onTap != null)
+                    Icon(
+                      Icons.chevron_right,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1140,24 +1189,242 @@ class _SecuritySettingsPageState extends State<SecuritySettingsPage> {
   Future<void> _updateSetting(String field, dynamic value) async {
     if (_userId == null) return;
 
+    // Special handling for Two-Factor Authentication
+    if (field == 'twoFactorAuth') {
+      if (value == true) {
+        // Enabling 2FA - navigate to enrollment screen
+        final result = await Navigator.push<bool>(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const TwoFactorEnrollmentScreen(),
+          ),
+        );
+
+        if (result != true) {
+          // User cancelled or failed to enroll, revert the toggle
+          setState(() {
+            _settings?.twoFactorAuth = false;
+          });
+          return;
+        }
+
+        // 2FA successfully enabled, update local state
+        setState(() {
+          _settings?.twoFactorAuth = true;
+        });
+
+        _showSnackBar('Two-Factor Authentication enabled successfully!', Colors.green);
+      } else {
+        // Disabling 2FA - show confirmation dialog first
+        final shouldDisable = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Disable Two-Factor Authentication'),
+            content: const Text(
+                'Disabling 2FA will make your account less secure. '
+                    'Are you sure you want to continue?'
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Disable'),
+              ),
+            ],
+          ),
+        );
+
+        if (shouldDisable != true) {
+          // User cancelled, revert the toggle
+          setState(() {
+            _settings?.twoFactorAuth = true;
+          });
+          return;
+        }
+
+        // Show loading
+        setState(() => _isLoading = true);
+
+        try {
+          // Get enrolled factors and unenroll them (for SMS 2FA)
+          final user = FirebaseAuth.instance.currentUser;
+          if (user != null) {
+            await user.reload();
+            final factors = await user.multiFactor.getEnrolledFactors();
+
+            for (final factor in factors) {
+              await user.multiFactor.unenroll(factorUid: factor.uid);
+            }
+          }
+
+          // Also remove password-based 2FA if exists
+          // try {
+          //   await _twoFactorService.removeTwoFactorPassword();
+          // } catch (e) {
+          //   // Ignore if no password 2FA exists
+          //   debugPrint('No password 2FA to remove: $e');
+          // }
+
+          // Update Firestore
+          await SecuritySettingsService.updateSecuritySetting(_userId!, field, value);
+
+          setState(() {
+            _settings?.twoFactorAuth = false;
+            _isLoading = false;
+          });
+
+          _showSnackBar('Two-Factor Authentication disabled', Colors.orange);
+        } catch (e) {
+          setState(() {
+            _settings?.twoFactorAuth = true; // Revert
+            _isLoading = false;
+          });
+
+          _showSnackBar('Error disabling 2FA: $e', Colors.red);
+        }
+      }
+      return;
+    }
+
+    // Special handling for Login Alerts (no special action needed, just update)
+    if (field == 'loginAlerts') {
+      try {
+        await SecuritySettingsService.updateSecuritySetting(_userId!, field, value);
+        _showSnackBar('Login alerts ${value ? "enabled" : "disabled"}', Colors.green);
+      } catch (e) {
+        _showSnackBar('Error updating setting: $e', Colors.red);
+        // Revert the toggle
+        setState(() {
+          if (field == 'loginAlerts') _settings?.loginAlerts = !value;
+        });
+      }
+      return;
+    }
+
+    // Special handling for Device Management (navigate to connected devices)
+    if (field == 'deviceManagement') {
+      if (value == true) {
+        // Navigate to Connected Devices page when enabled
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const ConnectedDevicesPage(),
+          ),
+        );
+        // No need to update the setting, just navigate
+        setState(() {
+          _settings?.deviceManagement = false; // Revert since it's just a navigation trigger
+        });
+      }
+      return;
+    }
+
+    // Special handling for Session Timeout
+    if (field == 'sessionTimeout') {
+      if (value == true) {
+        // Show dialog to select timeout duration
+        final selectedMinutes = await _showTimeoutDialog();
+        if (selectedMinutes != null) {
+          await SecuritySettingsService.updateSecuritySetting(_userId!, 'sessionTimeoutMinutes', selectedMinutes);
+          await SecuritySettingsService.updateSecuritySetting(_userId!, field, value);
+          _showSnackBar('Session timeout set to $selectedMinutes minutes', Colors.green);
+        } else {
+          // User cancelled, revert the toggle
+          setState(() {
+            _settings?.sessionTimeout = false;
+          });
+          return;
+        }
+      } else {
+        // Disabling session timeout
+        await SecuritySettingsService.updateSecuritySetting(_userId!, field, value);
+        _showSnackBar('Session timeout disabled', Colors.green);
+      }
+
+      setState(() {
+        _settings?.sessionTimeout = value;
+      });
+      return;
+    }
+
+    // Normal update for other fields
     try {
       await SecuritySettingsService.updateSecuritySetting(_userId!, field, value);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Setting updated'),
-          duration: const Duration(seconds: 1),
-          backgroundColor: Colors.green,
-        ),
-      );
+      // Update local state
+
+      _showSnackBar('Setting updated', Colors.green);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error updating setting: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showSnackBar('Error updating setting: $e', Colors.red);
     }
+  }
+
+// Helper method for timeout dialog
+  Future<int?> _showTimeoutDialog() async {
+    int selectedMinutes = 30;
+
+    return showDialog<int>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Session Timeout'),
+        content: StatefulBuilder(
+          builder: (context, setState) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Select how long before automatic logout:'),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<int>(
+                  value: selectedMinutes,
+                  items: [5, 15, 30, 60, 120].map((minutes) {
+                    return DropdownMenuItem(
+                      value: minutes,
+                      child: Text('$minutes minutes'),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      selectedMinutes = value!;
+                    });
+                  },
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, selectedMinutes),
+            child: const Text('Apply'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSnackBar(String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: color,
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   Future<void> _resetSettings() async {
