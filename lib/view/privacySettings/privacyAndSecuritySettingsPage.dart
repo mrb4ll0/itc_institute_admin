@@ -159,7 +159,7 @@ class _PrivacyAndSecuritySettingsPageState extends State<PrivacyAndSecuritySetti
                       title: 'Biometric Login',
                       subtitle: 'Use fingerprint or face recognition',
                       value: securitySettings.biometricLogin,
-                      onChanged: (value) {
+                      onChanged: null == null?null:(value) {
                         _updateSecuritySetting('biometricLogin', value);
                       },
                       icon: Icons.fingerprint,
@@ -203,16 +203,16 @@ class _PrivacyAndSecuritySettingsPageState extends State<PrivacyAndSecuritySetti
                       },
                       icon: Icons.notifications_active,
                     ),
-                    _buildSwitchTile(
-                      theme,
-                      title: 'New Device Alerts',
-                      subtitle: 'Alert when logging in from new device',
-                      value: securitySettings.newDeviceAlerts,
-                      onChanged: (value) {
-                        _updateSecuritySetting('newDeviceAlerts', value);
-                      },
-                      icon: Icons.devices,
-                    ),
+                    // _buildSwitchTile(
+                    //   theme,
+                    //   title: 'New Device Alerts',
+                    //   subtitle: 'Alert when logging in from new device',
+                    //   value: securitySettings.newDeviceAlerts,
+                    //   onChanged: (value) {
+                    //     _updateSecuritySetting('newDeviceAlerts', value);
+                    //   },
+                    //   icon: Icons.devices,
+                    // ),
                     _buildSwitchTile(
                       theme,
                       title: 'Failed Login Alerts',

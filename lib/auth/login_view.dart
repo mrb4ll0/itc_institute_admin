@@ -2,6 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:itc_institute_admin/itc_logic/service/securitySettingsService.dart';
+import 'package:itc_institute_admin/view/security/securitySettingsPage.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
@@ -34,6 +37,7 @@ import '../itc_logic/service/ConnectedDeviceService.dart';
 import '../migrationService/migrationSettingsStrorage.dart';
 import '../model/authority.dart';
 import '../model/company.dart';
+import '../model/securitySettingsModel.dart';
 import '../view/home/companyDashboardController.dart';
 import '../view/twoFactorAuthentication/TwoFactorVerificationScreen.dart';
 import 'authService/emailChoosingPage.dart';
@@ -226,6 +230,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
+    SecuritySettings securitySettings =  await SecuritySettingsService.getUserSecuritySettings(FirebaseAuth.instance.currentUser?.uid??"");
 
     setState(() {
       _isLoading = true;
@@ -311,6 +316,18 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } on FirebaseAuthException catch (e) {
       _showError(_getAuthErrorMessage(e.code));
+       if(e.code == 'invalid-credential')
+         {
+
+           if(securitySettings != null && securitySettings.failedLoginAlerts)
+             {
+               final deviceName = await _getDeviceName();
+               final ipAddress = await _getIpAddress();
+               final location = await _getLocation();
+               final fcmToken = await FirebaseMessaging.instance.getToken();
+               notifyFailedAttempt(_emailController.text,ipAddress, deviceName, fcmToken,location);
+             }
+         }
       setState(() {
         _isLoading = false;
         _currentStep = 1;
@@ -325,11 +342,48 @@ class _LoginScreenState extends State<LoginScreen> {
       });
     }
   }
+  // Get location
+  Future<String> _getLocation() async {
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.always ||
+          permission == LocationPermission.whileInUse) {
+        Position position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.low,
+        );
+
+        final placemarks = await placemarkFromCoordinates(
+          position.latitude,
+          position.longitude,
+        );
+
+        if (placemarks.isNotEmpty) {
+          final place = placemarks.first;
+          String location = '';
+          if (place.locality != null) location += place.locality!;
+          if (place.country != null) {
+            if (location.isNotEmpty) location += ', ';
+            location += place.country!;
+          }
+          return location.isEmpty ? 'Unknown Location' : location;
+        }
+      }
+    } catch (e) {
+      print('Error getting location: $e');
+    }
+    return 'Unknown Location';
+  }
+
 
   // Extract successful login logic to a separate method
   Future<void> _handleSuccessfulLogin(UserCredential? userCredential,PrivacySettings? privacySettings) async {
     final currentUser = FirebaseAuth.instance.currentUser;
     debugPrint("currentUser is $currentUser");
+    SecuritySettings securitySettings =  await SecuritySettingsService.getUserSecuritySettings(currentUser?.uid??"");
 
     // Check if user has a company
     Company? company;
@@ -361,10 +415,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
     //debugPrint('company is $company and ${company.originalAuthority == null}');
     await notificationService.saveTokenToFirestore();
-    if (privacySettings != null && privacySettings.loginAlerts) {
+    if (securitySettings != null && securitySettings.loginAlerts) {
       // Get device information
       final deviceName = await _getDeviceName();
       final ipAddress = await _getIpAddress();
+      final location = await _getLocation();
 
       notifyUser(deviceName, ipAddress,null);
     }
@@ -452,9 +507,41 @@ class _LoginScreenState extends State<LoginScreen> {
     NotificationPanelService.sendNotificationToAllEnabledChannelsWithSummary(notification);
   }
 
+  Future<void> notifyFailedAttempt(String email, String ipAddress, String? deviceName,String? fcmToken,String location) async {
+    final timestamp = DateTime.now();
+    final formattedTime = DateFormat('MMM dd, yyyy hh:mm a').format(timestamp);
+
+
+    // Get location from IP (optional)
+    final deviceName = await _getDeviceName();
+    final ipAddress = await _getIpAddress();
+
+    NotificationModel notification = NotificationModel(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      title: "⚠️ Failed Login Attempt Detected",
+      body: "A failed login attempt was detected on your account.\n\n"
+          "📧 Email: $email\n"
+          "📱 Device: $deviceName\n"
+          "🌐 IP Address: $ipAddress\n"
+          "📍 Location: $location\n"
+          "🕐 Time: $formattedTime\n\n"
+          "If this wasn't you, please secure your account immediately by changing your password.",
+      timestamp: timestamp,
+      read: false,
+      targetAudience: email,
+      targetStudentId: '', // No user ID since login failed
+      fcmToken: fcmToken??"", // Will be handled by the service to find user's tokens
+      type: NotificationType.systemAlert.name,
+
+    );
+
+    // Send notification to the user's email and devices
+    NotificationPanelService.sendNotificationToAllEnabledChannelsWithSummary(notification);
+  }
 
   String _getAuthErrorMessage(String code) {
     debugPrint("code is $code");
+
     switch (code) {
       case 'user-not-found':
         return 'No user found with this email.';
