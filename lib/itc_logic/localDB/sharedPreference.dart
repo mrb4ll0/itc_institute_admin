@@ -10,6 +10,11 @@ class UserPreferences {
   static const String _refreshTokenPrefix = "refresh_token_";
   static const String _tokenExpiryPrefix = "token_expiry_";
   static const String _currentUserEmailKey = "current_user_email";
+  // Add these constants at the top of the UserPreferences class with the other static constants
+  static const String _lockedAccountPrefix = "locked_account_";
+  static const String _lockDurationPrefix = "lock_duration_";
+  static const String _lockExpiryPrefix = "lock_expiry_";
+  static const String _lockReasonPrefix = "lock_reason_";
 
   /// Save user data after signup or login
   static Future<void> saveUser(Map<String, dynamic> userMap) async {
@@ -360,6 +365,348 @@ class UserPreferences {
     } catch (e, stackTrace) {
       debugPrintStack(stackTrace: stackTrace);
       return true;
+    }
+  }
+
+  // ==================== Account Lock Management Methods ====================
+
+  /// Lock a user account with optional duration
+  /// [email] - User's email address
+  /// [duration] - Duration to lock the account (null for permanent lock)
+  /// [reason] - Reason for locking the account
+  /// [lockedBy] - Admin or system that locked the account
+  static Future<bool> lockAccount({
+    required String email,
+    Duration? duration, // null means permanent lock
+    String? reason,
+    String? lockedBy,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lockKey = _lockedAccountPrefix + email;
+
+      // Mark account as locked
+      await prefs.setBool(lockKey, true);
+
+      // Save lock reason if provided
+      if (reason != null) {
+        final reasonKey = _lockReasonPrefix + email;
+        await prefs.setString(reasonKey, reason);
+      }
+
+      // Save lock duration and expiry if provided
+      if (duration != null) {
+        final durationKey = _lockDurationPrefix + email;
+        await prefs.setInt(durationKey, duration.inSeconds);
+
+        final expiryTime = DateTime.now().add(duration);
+        final expiryKey = _lockExpiryPrefix + email;
+        await prefs.setString(expiryKey, expiryTime.toIso8601String());
+
+        debugPrint('🔒 Account locked for $email until: $expiryTime');
+      } else {
+        debugPrint('🔒 Account permanently locked for $email');
+      }
+
+      // Optional: Save who locked the account
+      if (lockedBy != null) {
+        final lockedByKey = "${_lockedAccountPrefix}by_$email";
+        await prefs.setString(lockedByKey, lockedBy);
+      }
+
+      return true;
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error locking account: $e');
+      debugPrintStack(stackTrace: stackTrace);
+      return false;
+    }
+  }
+
+  /// Check if an account is locked
+  /// Returns true if locked and still within lock period, false otherwise
+  static Future<bool> isAccountLocked(String email) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lockKey = _lockedAccountPrefix + email;
+      final isLocked = prefs.getBool(lockKey) ?? false;
+
+      if (!isLocked) return false;
+
+      // Check if lock has expired
+      final isExpired = await isLockExpired(email);
+      if (isExpired) {
+        // Auto-unlock if expired
+        await unlockAccount(email, autoUnlock: true);
+        return false;
+      }
+
+      return true;
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error checking account lock: $e');
+      debugPrintStack(stackTrace: stackTrace);
+      return false;
+    }
+  }
+
+  /// Check if the lock period has expired
+  static Future<bool> isLockExpired(String email) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final expiryKey = _lockExpiryPrefix + email;
+      final expiryString = prefs.getString(expiryKey);
+
+      if (expiryString == null) return false; // Permanent lock or no expiry
+
+      final expiryTime = DateTime.parse(expiryString);
+      final isExpired = DateTime.now().isAfter(expiryTime);
+
+      if (isExpired) {
+        debugPrint('🔓 Lock expired for $email at: $expiryTime');
+      }
+
+      return isExpired;
+    } catch (e) {
+      debugPrint('❌ Error checking lock expiry: $e');
+      return false;
+    }
+  }
+
+  /// Get lock expiry time
+  static Future<DateTime?> getLockExpiryTime(String email) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final expiryKey = _lockExpiryPrefix + email;
+      final expiryString = prefs.getString(expiryKey);
+
+      if (expiryString == null) return null;
+      return DateTime.parse(expiryString);
+    } catch (e) {
+      debugPrint('❌ Error getting lock expiry: $e');
+      return null;
+    }
+  }
+
+  /// Get time remaining until account is unlocked (in seconds)
+  /// Returns null for permanent locks or if account is not locked
+  static Future<int?> getRemainingLockTime(String email) async {
+    final isLocked = await isAccountLocked(email);
+    if (!isLocked) return null;
+
+    final expiryTime = await getLockExpiryTime(email);
+    if (expiryTime == null) return null; // Permanent lock
+
+    final remainingSeconds = expiryTime.difference(DateTime.now()).inSeconds;
+    return remainingSeconds > 0 ? remainingSeconds : 0;
+  }
+
+  /// Get formatted remaining lock time as string
+  static Future<String?> getFormattedRemainingLockTime(String email) async {
+    final remainingSeconds = await getRemainingLockTime(email);
+    if (remainingSeconds == null) return null;
+    if (remainingSeconds <= 0) return "0 seconds";
+
+    final hours = remainingSeconds ~/ 3600;
+    final minutes = (remainingSeconds % 3600) ~/ 60;
+    final seconds = remainingSeconds % 60;
+
+    if (hours > 0) {
+      return "${hours}h ${minutes}m";
+    } else if (minutes > 0) {
+      return "${minutes}m ${seconds}s";
+    } else {
+      return "${seconds}s";
+    }
+  }
+
+  /// Get lock reason
+  static Future<String?> getLockReason(String email) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final reasonKey = _lockReasonPrefix + email;
+      return prefs.getString(reasonKey);
+    } catch (e) {
+      debugPrint('❌ Error getting lock reason: $e');
+      return null;
+    }
+  }
+
+  /// Unlock an account
+  /// [autoUnlock] - Set to true if this is an automatic unlock from expiry
+  static Future<bool> unlockAccount(String email, {bool autoUnlock = false}) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      // Remove all lock-related data
+      await prefs.remove(_lockedAccountPrefix + email);
+      await prefs.remove(_lockDurationPrefix + email);
+      await prefs.remove(_lockExpiryPrefix + email);
+      await prefs.remove(_lockReasonPrefix + email);
+      await prefs.remove("${_lockedAccountPrefix}by_$email");
+
+      if (autoUnlock) {
+        debugPrint('🔓 Account automatically unlocked for $email (lock period expired)');
+      } else {
+        debugPrint('🔓 Account manually unlocked for $email');
+      }
+
+      return true;
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error unlocking account: $e');
+      debugPrintStack(stackTrace: stackTrace);
+      return false;
+    }
+  }
+
+  /// Update lock duration for an already locked account
+  static Future<bool> updateLockDuration({
+    required String email,
+    required Duration newDuration,
+    String? newReason,
+  }) async {
+    try {
+      // Check if account is locked
+      final isLocked = await isAccountLocked(email);
+      if (!isLocked) {
+        debugPrint('⚠️ Cannot update lock duration: Account $email is not locked');
+        return false;
+      }
+
+      // Update with new duration
+      final prefs = await SharedPreferences.getInstance();
+      final durationKey = _lockDurationPrefix + email;
+      await prefs.setInt(durationKey, newDuration.inSeconds);
+
+      final newExpiryTime = DateTime.now().add(newDuration);
+      final expiryKey = _lockExpiryPrefix + email;
+      await prefs.setString(expiryKey, newExpiryTime.toIso8601String());
+
+      // Update reason if provided
+      if (newReason != null) {
+        final reasonKey = _lockReasonPrefix + email;
+        await prefs.setString(reasonKey, newReason);
+      }
+
+      debugPrint('🕐 Lock duration updated for $email. New expiry: $newExpiryTime');
+      return true;
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error updating lock duration: $e');
+      debugPrintStack(stackTrace: stackTrace);
+      return false;
+    }
+  }
+
+  /// Get lock status details for an account
+  static Future<Map<String, dynamic>> getLockStatus(String email) async {
+    try {
+      final isLocked = await isAccountLocked(email);
+
+      if (!isLocked) {
+        return {
+          'isLocked': false,
+          'message': 'Account is not locked',
+        };
+      }
+
+      final expiryTime = await getLockExpiryTime(email);
+      final remainingSeconds = await getRemainingLockTime(email);
+      final reason = await getLockReason(email);
+      final isPermanent = expiryTime == null;
+
+      return {
+        'isLocked': true,
+        'isPermanent': isPermanent,
+        'expiryTime': expiryTime,
+        'remainingSeconds': remainingSeconds,
+        'formattedRemainingTime': await getFormattedRemainingLockTime(email),
+        'reason': reason ?? 'No reason provided',
+        'message': isPermanent
+            ? 'Account is permanently locked'
+            : 'Account is locked for ${await getFormattedRemainingLockTime(email)}',
+      };
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error getting lock status: $e');
+      debugPrintStack(stackTrace: stackTrace);
+      return {'isLocked': false, 'error': e.toString()};
+    }
+  }
+
+  /// Get all locked accounts (useful for admin dashboard)
+  static Future<List<Map<String, dynamic>>> getAllLockedAccounts() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys();
+      final lockedAccounts = <Map<String, dynamic>>[];
+
+      for (var key in keys) {
+        if (key.startsWith(_lockedAccountPrefix) && !key.contains('by_')) {
+          final email = key.substring(_lockedAccountPrefix.length);
+          final isLocked = await isAccountLocked(email);
+
+          if (isLocked) {
+            final lockStatus = await getLockStatus(email);
+            lockedAccounts.add({
+              'email': email,
+              ...lockStatus,
+            });
+          }
+        }
+      }
+
+      return lockedAccounts;
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error getting locked accounts: $e');
+      debugPrintStack(stackTrace: stackTrace);
+      return [];
+    }
+  }
+
+  /// Auto-check and unlock expired locks (call this periodically, e.g., on app start)
+  static Future<void> autoUnlockExpiredLocks() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys();
+      int unlockedCount = 0;
+
+      for (var key in keys) {
+        if (key.startsWith(_lockedAccountPrefix) && !key.contains('by_')) {
+          final email = key.substring(_lockedAccountPrefix.length);
+          final isExpired = await isLockExpired(email);
+
+          if (isExpired) {
+            await unlockAccount(email, autoUnlock: true);
+            unlockedCount++;
+          }
+        }
+      }
+
+      if (unlockedCount > 0) {
+        debugPrint('🔓 Auto-unlocked $unlockedCount expired account(s)');
+      }
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error auto-unlocking expired locks: $e');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
+  /// Clear all lock data (admin use only)
+  static Future<void> clearAllLocks() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys();
+
+      for (var key in keys) {
+        if (key.startsWith(_lockedAccountPrefix) ||
+            key.startsWith(_lockDurationPrefix) ||
+            key.startsWith(_lockExpiryPrefix) ||
+            key.startsWith(_lockReasonPrefix)) {
+          await prefs.remove(key);
+        }
+      }
+
+      debugPrint('🗑️ All account locks cleared');
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error clearing all locks: $e');
+      debugPrintStack(stackTrace: stackTrace);
     }
   }
 }

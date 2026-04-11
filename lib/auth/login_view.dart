@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:itc_institute_admin/extensions/extensions.dart';
 import 'package:itc_institute_admin/itc_logic/service/securitySettingsService.dart';
 import 'package:itc_institute_admin/view/security/securitySettingsPage.dart';
 import 'package:network_info_plus/network_info_plus.dart';
@@ -32,6 +33,7 @@ import 'package:itc_institute_admin/model/privacySettingModel.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../backgroundTask/backgroundTaskRegistry.dart';
+import '../itc_logic/admin_task.dart';
 import '../itc_logic/firebase/general_cloud.dart';
 import '../itc_logic/service/ConnectedDeviceService.dart';
 import '../migrationService/migrationSettingsStrorage.dart';
@@ -58,6 +60,8 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isCheckingAuth = true; // Added for initial auth check
   int _currentStep = 0; // 0: Email, 1: Password, 2: Login
   final NotificationService notificationService = NotificationService();
+  int failedCount = 0;
+  final adminCloud = AdminCloud(FirebaseAuth.instance.currentUser?.uid ?? "");
 
   @override
   void initState() {
@@ -117,7 +121,7 @@ class _LoginScreenState extends State<LoginScreen> {
           TwoFactorVerificationScreen(
             privacySettings: privacySettings,
             email: currentUser.email ?? "",
-            onSuccess: (credential,user) async {
+            onSuccess: (credential, user) async {
               Company? company;
               company = await ITCFirebaseLogic(
                 FirebaseAuth.instance.currentUser!.uid,
@@ -230,7 +234,34 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
-    SecuritySettings securitySettings =  await SecuritySettingsService.getUserSecuritySettings(FirebaseAuth.instance.currentUser?.uid??"");
+    await adminCloud.syncUserAccountLock(_emailController.text);
+    adminCloud.syncAllAccountLocks();
+    final isLocked = await UserPreferences.isAccountLocked(
+      _emailController.text,
+    );
+    final lockDetails = await UserPreferences.getLockExpiryTime(
+      _emailController.text,
+    );
+    if (isLocked) {
+
+
+      GeneralMethods.showTemporaryLockDialog
+        (context: context,
+          reason: "Failed Attempt max reached",
+          remainingSeconds: GeneralMethods.getRemainingSecondsFromDateTime(lockDetails));
+
+      // GeneralMethods.showInfoDialog(
+      //   context,
+      //   "Account is locked. Kindly wait for $lockDetails}",
+      //   autoDismiss: false
+      // );
+      return;
+    }
+
+    SecuritySettings securitySettings =
+        await SecuritySettingsService.getUserSecuritySettings(
+          FirebaseAuth.instance.currentUser?.uid ?? "",
+        );
 
     setState(() {
       _isLoading = true;
@@ -275,8 +306,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 privacySettings: privacy,
                 resolver: null, // No resolver for password-based 2FA
                 email: _emailController.text.trim(),
-                onSuccess: (userCredential,user) async {
-                  await _handleSuccessfulLogin(userCredential,privacy);
+                onSuccess: (userCredential, user) async {
+                  await _handleSuccessfulLogin(userCredential, privacy);
                 },
               ),
             ),
@@ -284,7 +315,7 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       } else {
         // No 2FA required
-        await _handleSuccessfulLogin(userCredential,privacy);
+        await _handleSuccessfulLogin(userCredential, privacy);
       }
     } on FirebaseAuthMultiFactorException catch (e) {
       // SMS 2FA is required (Firebase-enforced)
@@ -302,13 +333,12 @@ class _LoginScreenState extends State<LoginScreen> {
               forcedType: TwoFactorType.sms,
               resolver: e.resolver,
               email: _emailController.text.trim(),
-              onSuccess: (userCredential,user) async {
-                if(userCredential == null)
-                {
+              onSuccess: (userCredential, user) async {
+                if (userCredential == null) {
                   Fluttertoast.showToast(msg: "Error: User Credential is null");
                   return;
                 }
-                await _handleSuccessfulLogin(userCredential,null);
+                await _handleSuccessfulLogin(userCredential, null);
               },
             ),
           ),
@@ -316,18 +346,45 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } on FirebaseAuthException catch (e) {
       _showError(_getAuthErrorMessage(e.code));
-       if(e.code == 'invalid-credential')
-         {
-
-           if(securitySettings != null && securitySettings.failedLoginAlerts)
-             {
-               final deviceName = await _getDeviceName();
-               final ipAddress = await _getIpAddress();
-               final location = await _getLocation();
-               final fcmToken = await FirebaseMessaging.instance.getToken();
-               notifyFailedAttempt(_emailController.text,ipAddress, deviceName, fcmToken,location);
-             }
-         }
+      if (e.code == 'invalid-credential') {
+        failedCount++;
+        debugPrint("failed count is $failedCount and limit is ${securitySettings.maxFailedAttempts}");
+        if (securitySettings != null &&
+            securitySettings.failedLoginAlerts &&
+            failedCount >= securitySettings.maxFailedAttempts) {
+          final deviceName = await _getDeviceName();
+          final ipAddress = await _getIpAddress();
+          final location = await _getLocation();
+          final fcmToken = await FirebaseMessaging.instance.getToken();
+          notifyFailedAttempt(
+            _emailController.text,
+            ipAddress,
+            deviceName,
+            fcmToken,
+            location,
+          );
+          if (securitySettings.lockAfterFailedAttempts) {
+            final user = await adminCloud.getCompanyOrAuthorityByEmail(
+              _emailController.text,
+            );
+            if (user is Company) {
+              adminCloud.lockAccountWithDuration(
+                userId: user.id,
+                email: _emailController.text,
+                duration: securitySettings.lockDurationMinutes.minutes,
+                userType: user.role,
+              );
+            } else if (user is Authority) {
+              adminCloud.lockAccountWithDuration(
+                userId: user.id,
+                email: _emailController.text,
+                duration: securitySettings.lockDurationMinutes.minutes,
+                userType: 'authorirty',
+              );
+            }
+          }
+        }
+      }
       setState(() {
         _isLoading = false;
         _currentStep = 1;
@@ -342,6 +399,7 @@ class _LoginScreenState extends State<LoginScreen> {
       });
     }
   }
+
   // Get location
   Future<String> _getLocation() async {
     try {
@@ -378,12 +436,17 @@ class _LoginScreenState extends State<LoginScreen> {
     return 'Unknown Location';
   }
 
-
   // Extract successful login logic to a separate method
-  Future<void> _handleSuccessfulLogin(UserCredential? userCredential,PrivacySettings? privacySettings) async {
+  Future<void> _handleSuccessfulLogin(
+    UserCredential? userCredential,
+    PrivacySettings? privacySettings,
+  ) async {
     final currentUser = FirebaseAuth.instance.currentUser;
     debugPrint("currentUser is $currentUser");
-    SecuritySettings securitySettings =  await SecuritySettingsService.getUserSecuritySettings(currentUser?.uid??"");
+    SecuritySettings securitySettings =
+        await SecuritySettingsService.getUserSecuritySettings(
+          currentUser?.uid ?? "",
+        );
 
     // Check if user has a company
     Company? company;
@@ -421,7 +484,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final ipAddress = await _getIpAddress();
       final location = await _getLocation();
 
-      notifyUser(deviceName, ipAddress,null);
+      notifyUser(deviceName, ipAddress, null);
     }
     await ConnectedDeviceService().saveCurrentDevice();
     final settings = await MigrationSettingsStorage.loadSettings();
@@ -479,7 +542,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-   notifyUser(String deviceName,String ipAddress,String? fcmToken)async {
+  notifyUser(String deviceName, String ipAddress, String? fcmToken) async {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return;
 
@@ -491,7 +554,8 @@ class _LoginScreenState extends State<LoginScreen> {
     NotificationModel notification = NotificationModel(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       title: "⚠️ New Login Detected",
-      body: "Your account was accessed from a new device.\n\n"
+      body:
+          "Your account was accessed from a new device.\n\n"
           "📱 Device: $deviceName\n"
           "🌐 IP Address: $ipAddress\n"
           "🕐 Time: $formattedTime\n\n"
@@ -500,17 +564,24 @@ class _LoginScreenState extends State<LoginScreen> {
       read: false,
       targetAudience: currentUser.email ?? '',
       targetStudentId: currentUser.uid,
-      fcmToken:fcmToken ??"", // Will be handled by the service
+      fcmToken: fcmToken ?? "", // Will be handled by the service
       type: NotificationType.systemAlert.name,
     );
 
-    NotificationPanelService.sendNotificationToAllEnabledChannelsWithSummary(notification);
+    NotificationPanelService.sendNotificationToAllEnabledChannelsWithSummary(
+      notification,
+    );
   }
 
-  Future<void> notifyFailedAttempt(String email, String ipAddress, String? deviceName,String? fcmToken,String location) async {
+  Future<void> notifyFailedAttempt(
+    String email,
+    String ipAddress,
+    String? deviceName,
+    String? fcmToken,
+    String location,
+  ) async {
     final timestamp = DateTime.now();
     final formattedTime = DateFormat('MMM dd, yyyy hh:mm a').format(timestamp);
-
 
     // Get location from IP (optional)
     final deviceName = await _getDeviceName();
@@ -519,7 +590,8 @@ class _LoginScreenState extends State<LoginScreen> {
     NotificationModel notification = NotificationModel(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       title: "⚠️ Failed Login Attempt Detected",
-      body: "A failed login attempt was detected on your account.\n\n"
+      body:
+          "A failed login attempt was detected on your account.\n\n"
           "📧 Email: $email\n"
           "📱 Device: $deviceName\n"
           "🌐 IP Address: $ipAddress\n"
@@ -530,13 +602,16 @@ class _LoginScreenState extends State<LoginScreen> {
       read: false,
       targetAudience: email,
       targetStudentId: '', // No user ID since login failed
-      fcmToken: fcmToken??"", // Will be handled by the service to find user's tokens
+      fcmToken:
+          fcmToken ??
+          "", // Will be handled by the service to find user's tokens
       type: NotificationType.systemAlert.name,
-
     );
 
     // Send notification to the user's email and devices
-    NotificationPanelService.sendNotificationToAllEnabledChannelsWithSummary(notification);
+    NotificationPanelService.sendNotificationToAllEnabledChannelsWithSummary(
+      notification,
+    );
   }
 
   String _getAuthErrorMessage(String code) {

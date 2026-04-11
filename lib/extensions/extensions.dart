@@ -35,3 +35,11 @@ extension StringExtensions on String {
     return replaceAll(RegExp(r'\s+'), '');
   }
 }
+
+
+extension DurationExtension on int {
+  Duration get minutes => Duration(minutes: this);
+  Duration get seconds => Duration(seconds: this);
+  Duration get hours => Duration(hours: this);
+  Duration get days => Duration(days: this);
+}

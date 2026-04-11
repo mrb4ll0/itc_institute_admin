@@ -1417,4 +1417,131 @@ class GeneralMethods {
     }
   }
 
+  // Simple permanent lock dialog using your existing error dialog
+  static void showPermanentLockDialog({
+    required BuildContext context,
+    required String reason,
+  }) {
+    showErrorDialog(
+      context,
+      'Your account has been permanently locked.\n\nReason: $reason\n\nPlease contact support for assistance.',
+      title: 'Account Locked',
+    );
+  }
+
+// Simple temporary lock dialog using your existing warning dialog
+  static void showTemporaryLockDialog({
+    required BuildContext context,
+    required String reason,
+    required int remainingSeconds,
+  }) {
+    final hours = remainingSeconds ~/ 3600;
+    final minutes = (remainingSeconds % 3600) ~/ 60;
+    final seconds = remainingSeconds % 60;
+
+    String timeText;
+    if (hours > 0) {
+      timeText = '$hours hour${hours > 1 ? 's' : ''}';
+    } else if (minutes > 0) {
+      timeText = '$minutes minute${minutes > 1 ? 's' : ''}';
+    } else {
+      timeText = '$seconds second${seconds > 1 ? 's' : ''}';
+    }
+
+    showWarningDialog(
+      context,
+      'Your account has been temporarily locked.\n\nReason: $reason\n\nTime remaining: $timeText\n\nPlease try again later.',
+      title: 'Account Locked',
+    );
+  }
+
+  /// Format duration into human-readable time remaining
+  /// Examples:
+  /// - 1 day, 5 hours
+  /// - 3 hours, 30 minutes
+  /// - 45 minutes, 20 seconds
+  /// - 30 seconds
+  static String formatTimeRemaining(Duration duration) {
+    if (duration.isNegative) return "0 seconds";
+
+    final days = duration.inDays;
+    final hours = duration.inHours % 24;
+    final minutes = duration.inMinutes % 60;
+    final seconds = duration.inSeconds % 60;
+
+    if (days > 0) {
+      if (hours > 0) {
+        return "$days day${days > 1 ? 's' : ''}, $hours hour${hours > 1 ? 's' : ''}";
+      }
+      return "$days day${days > 1 ? 's' : ''}";
+    }
+
+    if (hours > 0) {
+      if (minutes > 0) {
+        return "$hours hour${hours > 1 ? 's' : ''}, $minutes minute${minutes > 1 ? 's' : ''}";
+      }
+      return "$hours hour${hours > 1 ? 's' : ''}";
+    }
+
+    if (minutes > 0) {
+      if (seconds > 0) {
+        return "$minutes minute${minutes > 1 ? 's' : ''}, $seconds second${seconds > 1 ? 's' : ''}";
+      }
+      return "$minutes minute${minutes > 1 ? 's' : ''}";
+    }
+
+    return "$seconds second${seconds != 1 ? 's' : ''}";
+  }
+
+  /// Format seconds directly
+  static String formatSecondsRemaining(int seconds) {
+    if (seconds <= 0) return "0 seconds";
+    return formatTimeRemaining(Duration(seconds: seconds));
+  }
+
+  /// Get remaining seconds safely (ensures non-negative)
+  static int getRemainingSeconds(int seconds) {
+    return seconds > 0 ? seconds : 0;
+  }
+
+  /// Get remaining seconds from DateTime
+  static int getRemainingSecondsFromDateTime(DateTime? expiryTime) {
+    if (expiryTime == null) return 0;
+    final seconds = expiryTime.difference(DateTime.now()).inSeconds;
+    return seconds > 0 ? seconds : 0;
+  }
+
+  /// Get remaining seconds from dynamic type (DateTime, String, Timestamp, or int)
+  static int getRemainingSecondsSafe(dynamic value) {
+    if (value == null) return 0;
+
+    // If already an int
+    if (value is int) {
+      return value > 0 ? value : 0;
+    }
+
+    // If DateTime
+    if (value is DateTime) {
+      final seconds = value.difference(DateTime.now()).inSeconds;
+      return seconds > 0 ? seconds : 0;
+    }
+
+    // If String
+    if (value is String) {
+      final parsed = DateTime.tryParse(value);
+      if (parsed != null) {
+        final seconds = parsed.difference(DateTime.now()).inSeconds;
+        return seconds > 0 ? seconds : 0;
+      }
+    }
+
+    // If Firebase Timestamp
+    if (value is Timestamp) {
+      final seconds = value.toDate().difference(DateTime.now()).inSeconds;
+      return seconds > 0 ? seconds : 0;
+    }
+
+    return 0;
+  }
 }
+

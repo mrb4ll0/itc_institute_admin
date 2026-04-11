@@ -521,47 +521,30 @@ class _PrivacyAndSecuritySettingsPageState extends State<PrivacyAndSecuritySetti
                     const SizedBox(height: 32),
 
                     // Security Actions
+
                     Container(
                       margin: const EdgeInsets.symmetric(horizontal: 16),
                       child: Column(
                         children: [
-                          OutlinedButton.icon(
+                          _buildActionButton(
                             onPressed: _changePassword,
-                            icon: Icon(Icons.lock_reset, color: theme.colorScheme.primary, size: 18),
-                            label: Text('Change Password', style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.primary, fontWeight: FontWeight.w600,
-                            )),
-                            style: OutlinedButton.styleFrom(
-                              side: BorderSide(color: theme.colorScheme.primary.withOpacity(0.5)),
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            ),
+                            icon: Icons.lock_reset,
+                            label: 'Change Password',
+                            color: theme.colorScheme.primary,
                           ),
                           const SizedBox(height: 12),
-                          OutlinedButton.icon(
+                          _buildActionButton(
                             onPressed: _exportData,
-                            icon: Icon(Icons.download, color: theme.colorScheme.primary, size: 18),
-                            label: Text('Export My Data', style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.primary, fontWeight: FontWeight.w600,
-                            )),
-                            style: OutlinedButton.styleFrom(
-                              side: BorderSide(color: theme.colorScheme.primary.withOpacity(0.5)),
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            ),
+                            icon: Icons.download,
+                            label: 'Export My Data',
+                            color: theme.colorScheme.primary,
                           ),
                           const SizedBox(height: 12),
-                          OutlinedButton.icon(
+                          _buildActionButton(
                             onPressed: _deleteAccount,
-                            icon: Icon(Icons.delete_forever, color: theme.colorScheme.error, size: 18),
-                            label: Text('Delete Account', style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.error, fontWeight: FontWeight.w600,
-                            )),
-                            style: OutlinedButton.styleFrom(
-                              side: BorderSide(color: theme.colorScheme.error.withOpacity(0.5)),
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            ),
+                            icon: Icons.delete_forever,
+                            label: 'Delete Account',
+                            color: theme.colorScheme.error,
                           ),
                         ],
                       ),
@@ -569,23 +552,16 @@ class _PrivacyAndSecuritySettingsPageState extends State<PrivacyAndSecuritySetti
 
                     const SizedBox(height: 32),
 
-                    // Reset Button
+// Reset Button
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: OutlinedButton.icon(
+                      child: _buildActionButton(
                         onPressed: _resetSettings,
-                        icon: Icon(Icons.restore, color: theme.colorScheme.error, size: 18),
-                        label: Text('Reset to Default', style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.error, fontWeight: FontWeight.w600,
-                        )),
-                        style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: theme.colorScheme.error.withOpacity(0.5)),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
+                        icon: Icons.restore,
+                        label: 'Reset to Default',
+                        color: theme.colorScheme.error,
                       ),
                     ),
-
                     const SizedBox(height: 32),
                   ],
                 ),
@@ -596,6 +572,37 @@ class _PrivacyAndSecuritySettingsPageState extends State<PrivacyAndSecuritySetti
       ),
     );
   }
+
+  // Create a reusable button widget
+  Widget _buildActionButton({
+    required VoidCallback onPressed,
+    required IconData icon,
+    required String label,
+    required Color color,
+  }) {
+    final theme  =  Theme.of(context);
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon, color: color, size: 18),
+        label: Text(
+          label,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: color,
+            fontWeight: FontWeight.w600,
+          ),
+          overflow: TextOverflow.ellipsis, // Handle long text
+        ),
+        style: OutlinedButton.styleFrom(
+          side: BorderSide(color: color.withOpacity(0.5)),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      ),
+    );
+  }
+
 
   Widget _buildSecurityScoreCard(ThemeData theme, SecuritySettings settings) {
     int score = 0;
