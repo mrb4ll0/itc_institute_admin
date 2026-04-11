@@ -216,11 +216,11 @@ class NotificationService {
   }) async {
     try {
       // Get current user for authentication
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        debugPrint('No authenticated user found to send email');
-        return false;
-      }
+      // final user = FirebaseAuth.instance.currentUser;
+      // if (user == null) {
+      //   debugPrint('No authenticated user found to send email');
+      //   return false;
+      // }
   debugPrint("to is $to and subject is $subject and body is $body and fromEmail is $fromEmail and fromName is $fromName");
 
       final accessToken = "vmwq lbjy huaa tula";
@@ -236,13 +236,13 @@ class NotificationService {
       }
 
       // Configure SMTP server with OAuth2
-      debugPrint("email is ${user.email} ");
+      // debugPrint("email is ${user.email} ");
       final smtpServer = gmail(email, accessToken);
 
       // Build email message
       final message = mailer.Message()
         ..from = mailer.Address(
-          fromEmail ?? user.email ?? 'itconnect010@gmail.com',
+        'itconnect010@gmail.com',
           fromName ?? 'IT Connect',
         )
         ..recipients.add(to)
@@ -256,6 +256,7 @@ class NotificationService {
       }
 
       // Send email with timeout
+  debugPrint("send Email with timeout");
       await mailer.send(message, smtpServer).timeout(timeout);
 
       debugPrint('Email sent successfully to $to');

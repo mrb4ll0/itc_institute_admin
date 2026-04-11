@@ -37,12 +37,10 @@ class NotificationPanelService {
         List<NotificationType>? specificChannels, // Optional: specify which channels to send to
       }) async {
     debugPrint("sendNotificationToAllEnabledChannels");
-    User? user = FirebaseAuth.instance.currentUser;
-    if (user == null || user.email == null) return {};
 
-    debugPrint("sendNotificationToAllEnabledChannels");
 
-    final settings = await UserPreferences.getNotificationSettings(user.email!);
+    debugPrint("targetAudience is ${notification.targetAudience}");
+    final settings = await UserPreferences.getNotificationSettings(notification.targetAudience??"");
 
     // Define the channel types (these are the NotificationType values that represent channels)
     const channelTypes = [
