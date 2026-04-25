@@ -19,13 +19,13 @@ import 'expandable_text.dart';
 
 class TweetDetailPage extends StatefulWidget {
   final String tweetId;
-  final UserConverter company;
-  final UserConverter user;
+  final UserConverter author;
+  final UserConverter currentUser;
 
   const TweetDetailPage({
     required this.tweetId,
-    required this.company,
-    required this.user,
+    required this.author,
+    required this.currentUser,
   });
 
   @override
@@ -69,7 +69,7 @@ class _TweetDetailPageState extends State<TweetDetailPage> {
       await context.read<TweetProvider>().postCommentToTweet(
         widget.tweetId,
         textToSubmit,
-        widget.user,
+        widget.currentUser,
       );
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -108,8 +108,8 @@ class _TweetDetailPageState extends State<TweetDetailPage> {
           tweetId: widget.tweetId,
           comment: comment,
           commentIndex: commentIndex,
-          currentUser: widget.user,
-          tweetAuthor: widget.company,
+          currentUser: widget.currentUser,
+          tweetAuthor: widget.author,
         ),
       ),
     );
@@ -123,8 +123,8 @@ class _TweetDetailPageState extends State<TweetDetailPage> {
           tweetId: widget.tweetId,
           comment: comment,
           commentIndex: commentIndex,
-          currentUser: widget.user,
-          tweetAuthor: widget.company,
+          currentUser: widget.currentUser,
+          tweetAuthor: widget.author,
           selectedReply: reply,
           selectedReplyIndex: replyIndex,
         ),
@@ -158,9 +158,9 @@ class _TweetDetailPageState extends State<TweetDetailPage> {
         children: [
           Expanded(
             child: _TweetDetailBody(
-              student: widget.company,
+              student: widget.author,
               tweetId: widget.tweetId,
-              currentUser: widget.user,
+              currentUser: widget.currentUser,
               onCommentTap: _navigateToCommentDetail,
               onReplyTap: _navigateToReplyDetail,
               onCommentIconTap: _focusCommentField,
@@ -180,7 +180,7 @@ class _TweetDetailPageState extends State<TweetDetailPage> {
               children: [
                 CircleAvatar(
                   radius: 18,
-                  backgroundImage: NetworkImage(widget.user.imageUrl),
+                  backgroundImage: NetworkImage(widget.currentUser.imageUrl),
                   backgroundColor: Colors.grey[300],
                 ),
                 const SizedBox(width: 8),

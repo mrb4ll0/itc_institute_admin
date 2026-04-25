@@ -225,8 +225,8 @@ class _SavedPostsPageState extends State<SavedPostsPage> {
       MaterialPageRoute(
         builder: (context) => TweetDetailPage(
           tweetId: tweet.id,
-          user: widget.company,
-          company: user,
+          currentUser: widget.company,
+          author: user,
         ),
       ),
     );

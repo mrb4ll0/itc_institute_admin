@@ -42,6 +42,7 @@ class UserConverter implements UserProfile {
   bool get isStudent => _user is Student;
   bool get isCompany => _user is Company;
   bool get isAdmin => _user is Admin;
+  bool get isAuthority => _user is Authority;
 
   // Common properties with safe access
   @override
@@ -52,6 +53,8 @@ class UserConverter implements UserProfile {
       return (_user as Company).name;
     } else if (_user is Admin) {
       return (_user as Admin).fullName;
+    }else if (_user is Authority) {
+      return (_user as Authority).name;
     }
     return '';
   }@override
@@ -62,6 +65,8 @@ class UserConverter implements UserProfile {
       return (_user as Company).fcmToken;
     } else if (_user is Admin) {
       return (_user as Admin).fcmToken;
+    }else if (_user is Authority) {
+      return (_user as Authority).fcmToken;
     }
     return '';
   }
@@ -74,6 +79,8 @@ class UserConverter implements UserProfile {
       return (_user as Company).email;
     } else if (_user is Admin) {
       return (_user as Admin).email;
+    } else if (_user is Authority) {
+      return (_user as Authority).email;
     }
     return '';
   }
@@ -86,6 +93,8 @@ class UserConverter implements UserProfile {
       return (_user as Company).logoURL;
     } else if (_user is Admin) {
       return (_user as Admin).photoUrl ?? '';
+    } else if (_user is Authority) {
+      return (_user as Authority).logoURL ?? '';
     }
     return '';
   }
@@ -98,7 +107,10 @@ class UserConverter implements UserProfile {
       return (_user as Company).id;
     } else if (_user is Admin) {
       return (_user as Admin).uid;
+    } else if (_user is Authority) {
+      return (_user as Authority).id;
     }
+
     return '';
   }
 
@@ -110,6 +122,8 @@ class UserConverter implements UserProfile {
       return (_user as Company).phoneNumber;
     } else if (_user is Admin) {
       return 'N/A'; // Admin doesn't have phone number
+    } else if (_user is Authority) {
+      return _user.phoneNumber??""; // Admin doesn't have phone number
     }
     return '';
   }
@@ -123,6 +137,10 @@ class UserConverter implements UserProfile {
     } else if (_user is Admin) {
       return (_user as Admin).role;
     }
+    else if(_user is Authority)
+      {
+        return 'authority';
+      }
     return '';
   }
 
@@ -134,6 +152,8 @@ class UserConverter implements UserProfile {
       return (_user as Company).toMap();
     } else if (_user is Admin) {
       return (_user as Admin).toMap();
+    }else if (_user is Authority) {
+      return _user.toMap();
     }
     return {};
   }
@@ -151,6 +171,10 @@ class UserConverter implements UserProfile {
     } else if (_user is Admin) {
       final admin = _user as Admin;
       final map = admin.toMap();
+      return map[key];
+    }else if (_user is Authority) {
+      final authority = _user as Authority;
+      final map = authority.toMap();
       return map[key];
     }
     return null;
@@ -202,6 +226,10 @@ class UserConverterFactory {
         case 'admin':
           return UserConverter(
             Admin.fromMap(data, data['uid']?.toString() ?? ''),
+          );
+          case 'authority':
+          return UserConverter(
+            Authority.fromMap(data,),
           );
         default:
           // Try to infer from structure

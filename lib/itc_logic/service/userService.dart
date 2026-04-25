@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 
 import '../../model/admin.dart';
+import '../../model/authority.dart';
 import '../../model/company.dart';
 import '../../model/student.dart';
 import '../../model/userProfile.dart';
@@ -368,6 +369,19 @@ class UserService {
       if (studentDoc.exists) {
         final studentData = studentDoc.data()!;
         final student = Student.fromFirestore(studentData, studentDoc.id);
+        return UserConverter(student);
+      }
+
+final authorityDoc = await _firestore
+          .collection('users')
+          .doc('authorities')
+          .collection('authorities')
+          .doc(userId)
+          .get();
+
+      if (authorityDoc.exists) {
+        final authorityData = authorityDoc.data()!;
+        final student = Authority.fromMap(authorityData);
         return UserConverter(student);
       }
 

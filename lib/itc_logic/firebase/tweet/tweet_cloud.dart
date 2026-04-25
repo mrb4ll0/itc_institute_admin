@@ -8,6 +8,7 @@ import '../../../model/comments_model.dart';
 import '../../../model/reply_model.dart';
 import '../../../model/tweetModel.dart';
 import '../../../model/userProfile.dart';
+import '../../service/userService.dart';
 
 class TweetService {
   final _tweetCollection = FirebaseFirestore.instance.collection('tweets');
@@ -99,6 +100,36 @@ class TweetService {
       rethrow;
     }
   }
+
+  Future<UserConverter?> getTweetCreator(String tweetId) async {
+    try {
+      final doc = await _tweetCollection.doc(tweetId).get();
+
+      if (!doc.exists) {
+        debugPrint('Tweet $tweetId does not exist');
+        return null;
+      }
+
+      final data = doc.data();
+      if (data == null) {
+        debugPrint('Tweet $tweetId has no data');
+        return null;
+      }
+
+      // Get the userId field from the tweet document
+      final userId = data['userId'] as String?;
+      if (userId == null || userId.isEmpty) {
+        debugPrint('Tweet $tweetId has no userId field');
+        return null;
+      }
+      final UserService userService = UserService();
+      return await userService.getUser(userId);
+    } catch (e) {
+      debugPrint('Error fetching tweet creator for tweet $tweetId: $e');
+      return null;
+    }
+  }
+
 
   Future<Reply> postReplyObject({
     required Reply reply,

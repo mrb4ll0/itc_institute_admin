@@ -16,6 +16,7 @@ import 'package:itc_institute_admin/view/home/industrailTraining/fileDetails.dar
 import 'package:itc_institute_admin/view/home/student/studentDetails.dart';
 
 import '../../../itc_logic/firebase/message/message_service.dart';
+import '../../../itc_logic/firebase/tweet/tweet_cloud.dart';
 import '../../../itc_logic/service/userService.dart';
 import '../../../model/admin.dart';
 import '../../../model/authority.dart';
@@ -24,6 +25,7 @@ import '../../../model/message.dart';
 import '../../../model/student.dart';
 import '../../adminProfilePage.dart';
 import '../../company/companyDetailPage.dart';
+import '../tweet/tweet_details_page.dart';
 import 'cache/imageCatchService.dart';
 
 class ChatDetailsPage extends StatefulWidget {
@@ -108,7 +110,7 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
     // Check if we're within 50 pixels of the bottom
     return (maxScroll - currentScroll) <= 50;
   }
-  
+
   Widget _buildScrollToBottomButton(ThemeData theme) {
     if (!_showScrollToBottomButton) return const SizedBox.shrink();
 
@@ -452,7 +454,7 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
       ) {
     final isMe = message.senderId == _currentUserId;
     final time = DateFormat('h:mm a').format(message.timestamp.toDate());
-
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     // Get images
     final List<String> images = [];
     if (message.imageUrls != null && message.imageUrls!.isNotEmpty) {
@@ -478,6 +480,18 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
             previousMessage.senderId != message.senderId ||
             !_isSameDay(previousMessage.timestamp, message.timestamp)
     );
+
+    final isTweetLink = message.content.contains('[View Post](');
+    final tweetIdMatch = RegExp(r'\[View Post\]\(([a-zA-Z0-9_-]+)\)')
+        .firstMatch(message.content);
+    final tweetId = tweetIdMatch?.group(1);
+    final messageText = isTweetLink
+        ? message.content.replaceAll(RegExp(r'\[View Post\]\(.*?\)'), '')
+        : message.content;
+
+    debugPrint('Message content: ${message.content}');
+    debugPrint('Contains [View Post]: $isTweetLink');
+    debugPrint('Tweet ID match: $tweetId');
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
@@ -522,6 +536,98 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
                         ),
                       ),
                     ),
+
+                  if (isTweetLink)
+                    GestureDetector(
+                      onTap: () async {
+                        if (tweetId != null) {
+                          debugPrint("tweet id is ${tweetId}");
+                          UserConverter? user = await TweetService().getTweetCreator(tweetId);
+                           Company? currentUser = await itcFirebaseLogic.getCompany(FirebaseAuth.instance.currentUser?.uid??"");
+                          debugPrint("user display name is ${user?.displayName}");
+                          if (user == null || currentUser == null) return;
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => TweetDetailPage(
+                                tweetId: tweetId,
+                                author: user,
+                                currentUser: UserConverter(currentUser),
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                      child: Container(
+                        constraints: BoxConstraints(
+                          maxWidth: MediaQuery.of(context).size.width * 0.7,
+                        ),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          // FIXED: Use proper colors with opacity
+                          color: isMe
+                              ? theme.colorScheme.primary
+                              : (isDark
+                              ? theme.colorScheme.surfaceVariant
+                              : theme.colorScheme.surfaceContainerHighest),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isMe
+                                ? theme.colorScheme.onPrimary.withOpacity(0.3)
+                                : theme.colorScheme.outline.withOpacity(0.3),
+                            width: 1,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.chat_bubble_outline,
+                                  size: 18,
+                                  color: isMe
+                                      ? theme.colorScheme.onPrimary
+                                      : theme.colorScheme.primary,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Shared Post',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: isMe
+                                        ? theme.colorScheme.onPrimary
+                                        : theme.colorScheme.onSurface,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              messageText,
+                              style: TextStyle(
+                                color: isMe
+                                    ? theme.colorScheme.onPrimary.withOpacity(0.9)
+                                    : theme.colorScheme.onSurfaceVariant,
+                              ),
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Tap to view full post',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isMe
+                                    ? theme.colorScheme.onPrimary.withOpacity(0.7)
+                                    : theme.colorScheme.primary,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ) else
 
                   Container(
                     constraints: BoxConstraints(

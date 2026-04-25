@@ -929,8 +929,8 @@ class _TweetViewState extends State<TweetView> {
                         MaterialPageRoute(
                           builder: (context) => TweetDetailPage(
                             tweetId: tweet.id,
-                            company: tweetPoster,
-                            user: UserConverter(widget.company),
+                            author: tweetPoster,
+                            currentUser: UserConverter(widget.company),
                           ),
                         ),
                       );
