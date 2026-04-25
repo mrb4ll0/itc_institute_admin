@@ -381,6 +381,7 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          SizedBox(height:20),
           Row(
             children: [
               SizedBox(width: 50,),
@@ -1473,8 +1474,8 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
           // Export or additional actions
           _showExportOptions();
         },
-        icon: Icon(Icons.download),
-        label: Text('Export'),
+        icon: Icon(Icons.download,color: Colors.white,),
+        label: Text('Export',style: TextStyle(color:Colors.white),),
         backgroundColor: colorScheme.primary,
       )
           : null,
@@ -1550,7 +1551,37 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
       // Prepare CSV data
       List<List<dynamic>> rows = [];
 
-      // Add headers
+      // Add Student Information Header
+      rows.add(['Student Information Report']);
+      rows.add(['Generated:', DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now())]);
+      rows.add([]); // Empty row for spacing
+
+      // Add Student Details
+      rows.add(['STUDENT DETAILS']);
+      rows.add(['Student Name:', widget.studentName]);
+      rows.add(['Student ID:', widget.studentUid]);
+      rows.add(['Total Applications:', _filteredApplications.length.toString()]);
+      rows.add(['Report Filter:', _hasActiveFilters() ? 'Filtered View' : 'All Applications']);
+
+      // Add filter information if any filters are active
+      if (_hasActiveFilters()) {
+        rows.add(['Active Filters:']);
+        if (_selectedStatus != null) {
+          rows.add(['  - Status:', _selectedStatus.toString().split('.').last]);
+        }
+        if (_selectedDateRange != null) {
+          rows.add(['  - Date Range:', _selectedDateRange]);
+        }
+        if (_selectedSortBy != null) {
+          rows.add(['  - Sort By:', _selectedSortBy]);
+        }
+      }
+
+      rows.add([]); // Empty row for spacing
+      rows.add(['APPLICATIONS DETAILS']);
+      rows.add([]); // Empty row for spacing
+
+      // Add headers for applications table
       rows.add([
         'Application ID',
         'Internship Title',
@@ -1577,6 +1608,28 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
           app.internship.description ?? 'N/A',
         ]);
       }
+
+      // Add summary at the bottom
+      rows.add([]); // Empty row for spacing
+      rows.add(['SUMMARY']);
+      rows.add(['Total Applications:', _filteredApplications.length.toString()]);
+
+      final pendingCount = _filteredApplications
+          .where((app) => app.applicationStatus.toLowerCase() == 'pending')
+          .length;
+      final acceptedCount = _filteredApplications
+          .where((app) => app.applicationStatus.toLowerCase() == 'accepted')
+          .length;
+      final rejectedCount = _filteredApplications
+          .where((app) => app.applicationStatus.toLowerCase() == 'rejected')
+          .length;
+
+      rows.add(['Pending:', pendingCount.toString()]);
+      rows.add(['Accepted:', acceptedCount.toString()]);
+      rows.add(['Rejected:', rejectedCount.toString()]);
+
+      rows.add([]); // Empty row for spacing
+      rows.add(['End of Report']);
 
       // Convert to CSV
       String csv = _convertToCSV(rows);
@@ -1641,6 +1694,17 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
 
       final pdf = pw.Document();
 
+      // Calculate statistics
+      final pendingCount = _filteredApplications
+          .where((app) => app.applicationStatus.toLowerCase() == 'pending')
+          .length;
+      final acceptedCount = _filteredApplications
+          .where((app) => app.applicationStatus.toLowerCase() == 'accepted')
+          .length;
+      final rejectedCount = _filteredApplications
+          .where((app) => app.applicationStatus.toLowerCase() == 'rejected')
+          .length;
+
       // Add a page to the PDF
       pdf.addPage(
         pw.MultiPage(
@@ -1656,15 +1720,69 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
                   fontWeight: pw.FontWeight.bold,
                 ),
               ),
-              pw.SizedBox(height: 8),
-              pw.Text(
-                'Student: ${widget.studentName}',
-                style: const pw.TextStyle(fontSize: 16),
+              pw.SizedBox(height: 16),
+
+              // Student Information Box
+              pw.Container(
+                padding: const pw.EdgeInsets.all(12),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: PdfColors.grey400),
+                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
+                ),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      'STUDENT INFORMATION',
+                      style: pw.TextStyle(
+                        fontSize: 12,
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColors.blue700,
+                      ),
+                    ),
+                    pw.SizedBox(height: 8),
+                    pw.Row(
+                      children: [
+                        pw.Expanded(
+                          child: pw.Text('Name: ${widget.studentName}'),
+                        ),
+                        pw.Expanded(
+                          child: pw.Text('Student ID: ${widget.studentUid}'),
+                        ),
+                      ],
+                    ),
+                    pw.SizedBox(height: 4),
+                    pw.Row(
+                      children: [
+                        pw.Expanded(
+                          child: pw.Text('Total Applications: ${_filteredApplications.length}'),
+                        ),
+                        pw.Expanded(
+                          child: pw.Text('Generated: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}'),
+                        ),
+                      ],
+                    ),
+                    if (_hasActiveFilters()) ...[
+                      pw.SizedBox(height: 8),
+                      pw.Text(
+                        'Active Filters:',
+                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10),
+                      ),
+                      pw.SizedBox(height: 4),
+                      if (_selectedStatus != null)
+                        pw.Text('• Status: ${_selectedStatus.toString().split('.').last}',
+                            style: const pw.TextStyle(fontSize: 9)),
+                      if (_selectedDateRange != null)
+                        pw.Text('• Date Range: $_selectedDateRange',
+                            style: const pw.TextStyle(fontSize: 9)),
+                      if (_selectedSortBy != null)
+                        pw.Text('• Sort By: $_selectedSortBy',
+                            style: const pw.TextStyle(fontSize: 9)),
+                    ],
+                  ],
+                ),
               ),
-              pw.Text(
-                'Generated: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}',
-                style: pw.TextStyle(fontSize: 12, color: PdfColors.grey700), // Fixed: PdfColors not pw.PdfColors
-              ),
+              pw.SizedBox(height: 16),
               pw.Divider(),
             ],
           ),
@@ -1674,25 +1792,29 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
               margin: const pw.EdgeInsets.only(bottom: 20),
               padding: const pw.EdgeInsets.all(16),
               decoration: pw.BoxDecoration(
-                color: PdfColors.blue50, // Fixed: PdfColors not pw.PdfColors
+                color: PdfColors.grey100,
                 borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
               ),
               child: pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
                 children: [
-                  _buildPDFStatItem('Total', _filteredApplications.length.toString(), PdfColors.blue), // Fixed
-                  _buildPDFStatItem('Pending',
-                      _filteredApplications.where((app) => app.applicationStatus.toLowerCase() == 'pending').length.toString(),
-                      PdfColors.orange), // Fixed
-                  _buildPDFStatItem('Accepted',
-                      _filteredApplications.where((app) => app.applicationStatus.toLowerCase() == 'accepted').length.toString(),
-                      PdfColors.green), // Fixed
-                  _buildPDFStatItem('Rejected',
-                      _filteredApplications.where((app) => app.applicationStatus.toLowerCase() == 'rejected').length.toString(),
-                      PdfColors.red), // Fixed
+                  _buildPDFStatItem('Total', _filteredApplications.length.toString(), PdfColors.blue),
+                  _buildPDFStatItem('Pending', pendingCount.toString(), PdfColors.orange),
+                  _buildPDFStatItem('Accepted', acceptedCount.toString(), PdfColors.green),
+                  _buildPDFStatItem('Rejected', rejectedCount.toString(), PdfColors.red),
                 ],
               ),
             ),
+
+            // Applications Table Title
+            pw.Text(
+              'APPLICATIONS DETAILS',
+              style: pw.TextStyle(
+                fontSize: 14,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+            pw.SizedBox(height: 12),
 
             // Applications Table
             pw.Table.fromTextArray(
@@ -1704,7 +1826,7 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
               ),
               cellStyle: const pw.TextStyle(fontSize: 9),
               headerDecoration: const pw.BoxDecoration(
-                color: PdfColors.grey300, // Fixed
+                color: PdfColors.grey300,
               ),
               data: [
                 // Headers
@@ -1725,13 +1847,25 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
                 }).toList(),
               ],
             ),
+
+            // Footer note
+            pw.SizedBox(height: 20),
+            pw.Text(
+              'End of Report',
+              style: pw.TextStyle(
+                fontSize: 10,
+                color: PdfColors.grey600,
+                fontStyle: pw.FontStyle.italic,
+              ),
+              textAlign: pw.TextAlign.center,
+            ),
           ],
           footer: (context) => pw.Container(
             alignment: pw.Alignment.centerRight,
             margin: const pw.EdgeInsets.only(top: 20),
             child: pw.Text(
               'Page ${context.pageNumber} of ${context.pagesCount}',
-              style: pw.TextStyle(fontSize: 10, color: PdfColors.grey700), // Fixed
+              style: pw.TextStyle(fontSize: 10, color: PdfColors.grey700),
             ),
           ),
         ),
@@ -1798,7 +1932,6 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
       );
     }
   }
-
   pw.Widget _buildPDFStatItem(String label, String value, PdfColor color) {
     // Use predefined light colors instead of trying to modify the color
     PdfColor backgroundColor;

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_keyboard_visibility/flutter_keyboard_visibility.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
@@ -23,6 +24,7 @@ import '../../../model/message.dart';
 import '../../../model/student.dart';
 import '../../adminProfilePage.dart';
 import '../../company/companyDetailPage.dart';
+import 'cache/imageCatchService.dart';
 
 class ChatDetailsPage extends StatefulWidget {
   final String receiverId;
@@ -1091,6 +1093,7 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
     final theme = Theme.of(context);
 
     return Scaffold(
+      extendBodyBehindAppBar: false,
       backgroundColor: theme.colorScheme.background,
       body: Column(
         children: [
@@ -1413,19 +1416,6 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (_currentUserRole == 'company' &&
-                widget.receiverRole == 'student')
-              ListTile(
-                leading: const Icon(Icons.person),
-                title: const Text('View student profile'),
-                onTap: () {
-                  Navigator.pop(context);
-                  GeneralMethods.navigateTo(
-                    context,
-                    StudentProfilePage(student: widget.receiverData as Student),
-                  );
-                },
-              ),
             ListTile(
               leading: const Icon(Icons.notifications),
               title: const Text('Mute notifications'),
@@ -1710,19 +1700,115 @@ class _ImagePreviewCard extends StatefulWidget {
   State<_ImagePreviewCard> createState() => _ImagePreviewCardState();
 }
 
-class _ImagePreviewCardState extends State<_ImagePreviewCard> {
-  final Map<String, bool> _loadedImages = {};
+class _ImagePreviewCardState extends State<_ImagePreviewCard> with AutomaticKeepAliveClientMixin {
+  final Map<String, bool> _isDownloaded = {};
+  final Map<String, bool> _isLoading = {};
+  final Map<String, String?> _localPaths = {};
+  final ImageCacheService _cacheService = ImageCacheService();
   bool _showAllImages = false;
+  bool _isInitializing = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeImages();
+  }
+
+  Future<void> _initializeImages() async {
+    for (final imageUrl in widget.images) {
+      await _checkIfDownloaded(imageUrl);
+    }
+    if (mounted) {
+      setState(() {
+        _isInitializing = false;
+      });
+    }
+  }
+
+  Future<void> _checkIfDownloaded(String imageUrl) async {
+    final cachedPath = await _cacheService.getCachedImagePath(imageUrl);
+    if (mounted) {
+      setState(() {
+        _isDownloaded[imageUrl] = cachedPath != null;
+        _localPaths[imageUrl] = cachedPath;
+      });
+    }
+  }
+
+  Future<void> _downloadImage(String imageUrl) async {
+    if (_isLoading[imageUrl] == true) return;
+
+    setState(() {
+      _isLoading[imageUrl] = true;
+    });
+
+    try {
+      final localPath = await _cacheService.downloadAndCacheImage(imageUrl);
+
+      if (mounted) {
+        setState(() {
+          _isDownloaded[imageUrl] = true;
+          _localPaths[imageUrl] = localPath;
+          _isLoading[imageUrl] = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Image downloaded and cached'),
+            duration: Duration(seconds: 1),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading[imageUrl] = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to download image: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _downloadAllImages() async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Downloading ${widget.images.length} images...'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+
+    for (final imageUrl in widget.images) {
+      if (!(_isDownloaded[imageUrl] ?? false)) {
+        await _downloadImage(imageUrl);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
+
+    if (_isInitializing) {
+      return Container(
+        height: 100,
+        alignment: Alignment.center,
+        child: const CircularProgressIndicator(strokeWidth: 2),
+      );
+    }
+
     final bool isSingleImage = widget.images.length == 1;
     final bool showViewAll = widget.images.length > 4 && !_showAllImages;
     final displayCount = showViewAll ? 5 : widget.images.length;
 
     return Column(
       children: [
-        // Header showing image count
+        // Header showing image count and download status
         Row(
           children: [
             Icon(
@@ -1739,6 +1825,14 @@ class _ImagePreviewCardState extends State<_ImagePreviewCard> {
                 color: widget.isMe
                     ? widget.theme.colorScheme.onPrimary.withOpacity(0.8)
                     : widget.theme.colorScheme.onSurfaceVariant.withOpacity(0.8),
+              ),
+            ),
+            const Spacer(),
+            // Show download count status
+            Text(
+              _getDownloadCountText(),
+              style: widget.theme.textTheme.labelSmall?.copyWith(
+                color: widget.theme.colorScheme.primary,
               ),
             ),
           ],
@@ -1804,14 +1898,18 @@ class _ImagePreviewCardState extends State<_ImagePreviewCard> {
             }
 
             final imageUrl = widget.images[index];
-            final isLoaded = _loadedImages[imageUrl] ?? false;
+            final isDownloaded = _isDownloaded[imageUrl] ?? false;
+            final isLoading = _isLoading[imageUrl] ?? false;
+            final localPath = _localPaths[imageUrl];
 
             return GestureDetector(
               onTap: () {
-                if (isSingleImage) {
-                  widget.onViewImage(imageUrl);
-                } else {
-                  widget.onViewGallery();
+                if (isDownloaded) {
+                  if (isSingleImage) {
+                    widget.onViewImage(imageUrl);
+                  } else {
+                    widget.onViewGallery();
+                  }
                 }
               },
               child: Container(
@@ -1830,93 +1928,101 @@ class _ImagePreviewCardState extends State<_ImagePreviewCard> {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    // Show image if loaded
-                    if (isLoaded)
+                    // Show image if downloaded
+                    if (isDownloaded && localPath != null)
                       ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          imageUrl,
+                        child: Image.file(
+                          File(localPath),
                           fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Center(
+                              child: Icon(
+                                Icons.broken_image,
+                                size: 32,
+                                color: widget.theme.colorScheme.error,
+                              ),
+                            );
+                          },
                         ),
                       ),
 
-                    // Preview overlay with icon
-                    Container(
-                      decoration: BoxDecoration(
-                        color: isLoaded
-                            ? Colors.black.withOpacity(0.2)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(8),
+                    // Loading indicator
+                    if (isLoading)
+                      const Center(
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
                       ),
-                      child: Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            // Show different icons based on state
-                            if (!isLoaded)
+
+                    // Not downloaded state - show download prompt
+                    if (!isDownloaded && !isLoading)
+                      Container(
+                        color: Colors.black.withOpacity(0.3),
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
                               Icon(
-                                Icons.download,
-                                size: 24,
+                                Icons.cloud_download_outlined,
+                                size: 32,
                                 color: widget.isMe
                                     ? widget.theme.colorScheme.onPrimary
                                     : widget.theme.colorScheme.primary,
                               ),
-                            if (isLoaded)
-                              Icon(
-                                Icons.remove_red_eye,
-                                size: 24,
-                                color: widget.isMe
-                                    ? widget.theme.colorScheme.onPrimary
-                                    : Colors.white,
-                              ),
-
-                            const SizedBox(height: 4),
-
-                            if (!isLoaded)
+                              const SizedBox(height: 4),
                               Text(
-                                'Tap to load',
+                                'Tap to download',
                                 style: widget.theme.textTheme.labelSmall?.copyWith(
                                   color: widget.isMe
                                       ? widget.theme.colorScheme.onPrimary
                                       : widget.theme.colorScheme.primary,
                                 ),
                               ),
-                            if (isLoaded)
-                              Text(
-                                'Tap to view',
-                                style: widget.theme.textTheme.labelSmall?.copyWith(
-                                  color: widget.isMe
-                                      ? widget.theme.colorScheme.onPrimary
-                                      : Colors.white,
-                                ),
-                              ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
-                    ),
 
-                    // Load button in corner
-                    if (!isLoaded)
+                    // Download button overlay (for not downloaded)
+                    if (!isDownloaded && !isLoading)
                       Positioned(
-                        top: 4,
+                        bottom: 4,
                         right: 4,
                         child: GestureDetector(
-                          onTap: () => _loadImage(imageUrl),
+                          onTap: () => _downloadImage(imageUrl),
                           child: Container(
-                            padding: const EdgeInsets.all(4),
+                            padding: const EdgeInsets.all(6),
                             decoration: BoxDecoration(
-                              color: widget.isMe
-                                  ? widget.theme.colorScheme.primary
-                                  : widget.theme.colorScheme.surface,
+                              color: widget.theme.colorScheme.primary,
                               shape: BoxShape.circle,
                             ),
                             child: Icon(
                               Icons.download,
-                              size: 14,
-                              color: widget.isMe
-                                  ? widget.theme.colorScheme.onPrimary
-                                  : widget.theme.colorScheme.primary,
+                              size: 16,
+                              color: Colors.white,
                             ),
+                          ),
+                        ),
+                      ),
+
+                    // Eye icon for downloaded images
+                    if (isDownloaded && !isLoading)
+                      Positioned(
+                        bottom: 4,
+                        right: 4,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.5),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Icon(
+                            Icons.visibility,
+                            size: 14,
+                            color: Colors.white,
                           ),
                         ),
                       ),
@@ -1934,10 +2040,7 @@ class _ImagePreviewCardState extends State<_ImagePreviewCard> {
             children: [
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () {
-                    // Download all images
-                    _downloadAllImages(widget.images);
-                  },
+                  onPressed: _downloadAllImages,
                   icon: Icon(
                     Icons.download,
                     size: 16,
@@ -1962,35 +2065,36 @@ class _ImagePreviewCardState extends State<_ImagePreviewCard> {
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
-              if(widget.images.length >1)
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: widget.onViewGallery,
-                  icon: Icon(
-                    Icons.remove_red_eye,
-                    size: 16,
-                    color: widget.isMe
-                        ? widget.theme.colorScheme.onPrimary
-                        : widget.theme.colorScheme.primary,
-                  ),
-                  label: Text(
-                    'View Gallery',
-                    style: widget.theme.textTheme.labelSmall?.copyWith(
+              if (widget.images.length > 1)
+                const SizedBox(width: 8),
+              if (widget.images.length > 1)
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: widget.onViewGallery,
+                    icon: Icon(
+                      Icons.grid_view,
+                      size: 16,
                       color: widget.isMe
                           ? widget.theme.colorScheme.onPrimary
                           : widget.theme.colorScheme.primary,
                     ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: widget.isMe
-                        ? widget.theme.colorScheme.primary.withOpacity(0.3)
-                        : widget.theme.colorScheme.surfaceVariant,
-                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-                    minimumSize: const Size(0, 30),
+                    label: Text(
+                      'View Gallery',
+                      style: widget.theme.textTheme.labelSmall?.copyWith(
+                        color: widget.isMe
+                            ? widget.theme.colorScheme.onPrimary
+                            : widget.theme.colorScheme.primary,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: widget.isMe
+                          ? widget.theme.colorScheme.primary.withOpacity(0.3)
+                          : widget.theme.colorScheme.surfaceVariant,
+                      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+                      minimumSize: const Size(0, 30),
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         ),
@@ -1998,39 +2102,12 @@ class _ImagePreviewCardState extends State<_ImagePreviewCard> {
     );
   }
 
-  void _loadImage(String imageUrl) async {
-    // Pre-cache the image
-    try {
-      final image = NetworkImage(imageUrl);
-      await precacheImage(image, context);
-
-      setState(() {
-        _loadedImages[imageUrl] = true;
-      });
-    } catch (e) {
-      // Show error snackbar or handle error
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to load image: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
+  String _getDownloadCountText() {
+    final downloadedCount = _isDownloaded.values.where((v) => v == true).length;
+    if (downloadedCount == 0) return '';
+    return '$downloadedCount/${widget.images.length} downloaded';
   }
 
-  void _downloadAllImages(List<String> images) async {
-    // Implement download logic here
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Downloading ${images.length} images...'),
-      ),
-    );
-
-    // Load all images
-    for (final imageUrl in images) {
-      if (!_loadedImages.containsKey(imageUrl) || !_loadedImages[imageUrl]!) {
-        _loadImage(imageUrl);
-      }
-    }
-  }
+  @override
+  bool get wantKeepAlive => true;
 }

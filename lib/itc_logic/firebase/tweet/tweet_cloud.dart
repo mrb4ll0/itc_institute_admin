@@ -100,6 +100,33 @@ class TweetService {
     }
   }
 
+  Future<Reply> postReplyObject({
+    required Reply reply,
+    required UserConverter student,
+  }) async {
+    try {
+      final replyRef = _tweetCollection
+          .doc(reply.tweetId)
+          .collection('comments')
+          .doc(reply.commentId)
+          .collection('replies')
+          .doc();
+
+      final replyData = reply.toMap();
+      replyData['id'] = replyRef.id;
+      replyData['studentName'] = student.displayName;
+      replyData['studentImage'] = student.imageUrl;
+
+      await replyRef.set(replyData);
+
+      return reply.copyWith(id: replyRef.id);
+    } catch (e) {
+      debugPrint('Error posting reply: $e');
+      rethrow;
+    }
+  }
+
+
   Future<void> addToShareList(String tweetId, String userId) async {
     try {
       final docRef = _tweetCollection.doc(tweetId);

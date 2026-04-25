@@ -1063,6 +1063,7 @@ class _StudentListPageState extends State<StudentListPage> {
               SpecificStudentApplicationsPage(
                 companyId: trainee.companyId,
                 studentUid: trainee.studentId,
+                studentName: trainee.studentName,
                 isAuthority: widget.isAuthority,
                 companyIds: widget.company.originalAuthority?.linkedCompanies ?? [],
               ),

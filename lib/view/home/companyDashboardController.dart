@@ -61,10 +61,9 @@ class _CompanyDashboardControllerState
     super.initState();
 
     _pages = [
-       Companydashboard( isAuthority: widget.tweetCompany.originalAuthority != null,),
+      TweetView(company: widget.tweetCompany),
        StudentApplicationsPage(isAuthority: widget.tweetCompany.originalAuthority != null, companyIds: widget.tweetCompany.originalAuthority?.linkedCompanies??[],),
        IndustrialTrainingPostsPage(isAuthority: widget.tweetCompany.originalAuthority != null, companyIds: widget.tweetCompany.originalAuthority?.linkedCompanies??[],),
-      TweetView(company: widget.tweetCompany),
        MessagesView(),
     ];
 
@@ -79,7 +78,9 @@ class _CompanyDashboardControllerState
               await loadAuthorityRules();
               await _loadCompany();
 
-              if (_company != null && widget.tweetCompany.originalAuthority == null ) {
+              if (_company != null &&
+                  (_company!.isUnderAuthority == false) &&
+                  widget.tweetCompany.originalAuthority == null) {
                 checkAndShowAuthoritySpecificationDialog(
                   context: context,
                   company: _company!,
@@ -589,9 +590,9 @@ class _CompanyDashboardControllerState
         unselectedItemColor: theme.bottomNavigationBarTheme.unselectedItemColor,
         items: const [
           BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard_outlined),
-            activeIcon: Icon(Icons.dashboard),
-            label: 'Dashboard',
+            icon: Icon(Icons.people),
+            activeIcon: Icon(Icons.people),
+            label: 'Community',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.description_outlined),
@@ -603,11 +604,7 @@ class _CompanyDashboardControllerState
             activeIcon: Icon(Icons.list_alt),
             label: 'IT List',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.feed),
-            activeIcon: Icon(Icons.feed),
-            label: 'Feeds',
-          ),
+
           BottomNavigationBarItem(
             icon: Icon(Icons.message_outlined),
             activeIcon: Icon(Icons.message),

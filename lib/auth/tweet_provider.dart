@@ -139,6 +139,28 @@ class TweetProvider extends ChangeNotifier {
     _subscribeToTweets();
   }
 
+
+  // Method for direct replies (to comments)
+  Future<void> postReplyDirect(
+      String tweetId,
+      String commentId,
+      int commentIndex,
+      String content,
+      UserConverter company,
+      String userReplyingTo,
+      ) async {
+    await _postReplyInternal(
+      tweetId: tweetId,
+      commentId: commentId,
+      commentIndex: commentIndex,
+      content: content,
+      company: company,
+      userReplyingTo: userReplyingTo,
+      mentionedUserId: null,
+      parentReplyId: null,
+    );
+  }
+
   // Subscribe to individual tweet details
   void subscribeToTweetDetail(String tweetId) {
     if (_tweetDetailSubscriptions.containsKey(tweetId)) return;
@@ -545,30 +567,42 @@ class TweetProvider extends ChangeNotifier {
   }
 
   Future<void> toggleLikeForReply(
-    String tweetId,
-    String commentId,
-    String replyId,
-    int commentIndex,
-    int replyIndex,
-    bool isCurrentlyLiked,
-  ) async {
+      String tweetId,
+      String commentId,
+      String replyId,
+      int commentIndex,
+      int replyIndex,
+      bool isCurrentlyLiked,
+      ) async {
     final userId = FirebaseAuth.instance.currentUser?.uid ?? "";
     if (userId.isEmpty) return;
+
+    debugPrint("like toggle for this reply $replyId");
+
+    // Helper function to convert list to unique set and back to list
+    List<String> _ensureUnique(List<String> list) {
+      return list.toSet().toList();
+    }
 
     // Update tweet detail
     final detailTweet = _tweetDetails[tweetId];
     if (detailTweet != null &&
         commentIndex < detailTweet.comments.length &&
         replyIndex < detailTweet.comments[commentIndex].replies.length) {
+
+      final currentLikes = _ensureUnique(
+          detailTweet.comments[commentIndex].replies[replyIndex].likes
+      );
+
       if (isCurrentlyLiked) {
-        detailTweet.comments[commentIndex].replies[replyIndex].likes.remove(
-          userId,
-        );
+        currentLikes.remove(userId);
       } else {
-        detailTweet.comments[commentIndex].replies[replyIndex].likes.add(
-          userId,
-        );
+        if (!currentLikes.contains(userId)) {
+          currentLikes.add(userId);
+        }
       }
+
+      detailTweet.comments[commentIndex].replies[replyIndex].likes = currentLikes;
     }
 
     // Update main tweets list
@@ -577,16 +611,24 @@ class TweetProvider extends ChangeNotifier {
         commentIndex < _tweets[tweetIndex].comments.length &&
         replyIndex <
             _tweets[tweetIndex].comments[commentIndex].replies.length) {
+
+      final currentLikes = _ensureUnique(
+          _tweets[tweetIndex].comments[commentIndex].replies[replyIndex].likes
+      );
+
       if (isCurrentlyLiked) {
-        _tweets[tweetIndex].comments[commentIndex].replies[replyIndex].likes
-            .remove(userId);
+        currentLikes.remove(userId);
       } else {
-        _tweets[tweetIndex].comments[commentIndex].replies[replyIndex].likes
-            .add(userId);
+        if (!currentLikes.contains(userId)) {
+          currentLikes.add(userId);
+        }
       }
+
+      _tweets[tweetIndex].comments[commentIndex].replies[replyIndex].likes = currentLikes;
     }
 
     notifyListeners();
+
     await _tweetService.toggleLikeForReply(
       tweetId: tweetId,
       commentId: commentId,
@@ -594,7 +636,6 @@ class TweetProvider extends ChangeNotifier {
       userId: userId,
     );
   }
-
   Future<void> shareTweet() async {
     notifyListeners();
   }
@@ -813,6 +854,142 @@ class TweetProvider extends ChangeNotifier {
       debugPrint("Tweet not found for id $tweetId");
     }
   }
+
+  // Method for nested replies (replies to replies)
+  Future<void> postReplyToReply(
+      String tweetId,
+      String commentId,
+      int commentIndex,
+      int replyIndex,
+      String content,
+      UserConverter company,
+      String userReplyingTo,
+      String? mentionedUserId,
+      String parentReplyId,
+      ) async {
+    await _postReplyInternal(
+      tweetId: tweetId,
+      commentId: commentId,
+      commentIndex: commentIndex,
+      content: content,
+      company: company,
+      userReplyingTo: userReplyingTo,
+      mentionedUserId: mentionedUserId,
+      parentReplyId: parentReplyId,
+    );
+  }
+
+
+
+
+  // Internal method with all parameters
+  Future<void> _postReplyInternal({
+    required String tweetId,
+    required String commentId,
+    required int commentIndex,
+    required String content,
+    required UserConverter company,
+    required String userReplyingTo,
+    String? mentionedUserId,
+    String? parentReplyId,
+  }) async {
+    if (content.isEmpty) return;
+
+    // Format content with mention
+    String finalContent = content;
+    if (userReplyingTo.isNotEmpty && !content.contains('@$userReplyingTo')) {
+      finalContent = '@$userReplyingTo $content';
+    }
+
+    // Create the reply object
+    final reply = parentReplyId != null
+        ? Reply.createNestedReply(
+      studentId: company.uid,
+      commentId: commentId,
+      tweetId: tweetId,
+      content: finalContent,
+      parentReplyId: parentReplyId,
+      userReplyingTo: userReplyingTo.isNotEmpty ? userReplyingTo : null,
+      mentionedUserId: mentionedUserId,
+    )
+        : Reply.createDirectReply(
+      studentId: company.uid,
+      commentId: commentId,
+      tweetId: tweetId,
+      content: finalContent,
+      userReplyingTo: userReplyingTo.isNotEmpty ? userReplyingTo : null,
+      mentionedUserId: mentionedUserId,
+    );
+
+    // Save to Firestore - fix this call
+    final savedReply = await _tweetService.postReplyObject(
+      reply: reply,
+      student: company,
+    );
+
+    // Send notification
+    await notificationService.sendNotificationToUser(
+      fcmToken: company.fcmToken,
+      title: "New Reply from ${company.displayName}",
+      body: finalContent.trim(),
+    );
+
+    // Update UI
+    if (parentReplyId != null) {
+      _addNestedReplyToAllInstances(tweetId, commentId, commentIndex, savedReply, parentReplyId);
+    } else {
+      // Update main tweets list
+      final tweetIndex = _tweets.indexWhere((t) => t.id == tweetId);
+      if (tweetIndex != -1 && commentIndex < _tweets[tweetIndex].comments.length) {
+        _tweets[tweetIndex].comments[commentIndex].replies.insert(0, savedReply);
+      }
+
+      // Update tweet detail
+      final detailTweet = _tweetDetails[tweetId];
+      if (detailTweet != null && commentIndex < detailTweet.comments.length) {
+        detailTweet.comments[commentIndex].replies.insert(0, savedReply);
+      }
+    }
+
+    notifyListeners();
+  }
+
+  // Helper method to add nested reply to all instances
+  void _addNestedReplyToAllInstances(
+      String tweetId,
+      String commentId,
+      int commentIndex,
+      Reply newReply,
+      String parentReplyId,
+      ) {
+    // Helper function to find and add reply recursively
+    void addReplyRecursively(List<Reply> replies) {
+      for (int i = 0; i < replies.length; i++) {
+        if (replies[i].id == parentReplyId) {
+          replies[i] = replies[i].addSubReply(newReply);
+          return;
+        }
+        if (replies[i].replies.isNotEmpty) {
+          addReplyRecursively(replies[i].replies);
+        }
+      }
+    }
+
+    // Update main tweets list
+    final tweetIndex = _tweets.indexWhere((t) => t.id == tweetId);
+    if (tweetIndex != -1 && commentIndex < _tweets[tweetIndex].comments.length) {
+      addReplyRecursively(_tweets[tweetIndex].comments[commentIndex].replies);
+    }
+
+    // Update tweet detail
+    final detailTweet = _tweetDetails[tweetId];
+    if (detailTweet != null && commentIndex < detailTweet.comments.length) {
+      addReplyRecursively(detailTweet.comments[commentIndex].replies);
+    }
+  }
+
+
+
 
   @override
   void dispose() {

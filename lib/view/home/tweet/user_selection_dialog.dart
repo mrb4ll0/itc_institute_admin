@@ -120,7 +120,7 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
                             radius: 20,
                           ),
                           title: Text(name),
-                          onTap: () => _shareTweet(user.uid),
+                          onTap: () => _shareTweet(user is Company? user.id :user.uid??""),
                         );
                       },
                     ),

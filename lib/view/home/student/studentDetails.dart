@@ -36,6 +36,7 @@ class _StudentProfilePageState extends State<StudentProfilePage>
   String? _currentUserId;
   bool _isLoading = false;
   bool _hasAccess = false;
+  bool _isInitialized = false; // Track initialization state
 
   @override
   void initState() {
@@ -43,73 +44,147 @@ class _StudentProfilePageState extends State<StudentProfilePage>
     _checkAccessAndInitialize();
   }
 
-
   Future<void> _checkAccessAndInitialize() async {
-    // check if user can view profile
+    // First get current user
+    await _getCurrentUser();
+
+    // Then check if user can view profile
     final hasAccess = await canViewProfile();
 
     if (!mounted) return;
 
     if (hasAccess) {
+      // Calculate tab count based on current user
+      final tabCount = (_currentUserId == widget.student.uid) ? 4 : 3;
+
+      // Initialize tab controller with correct length
+      _tabController = TabController(
+        length: tabCount,
+        vsync: this,
+      );
+
       setState(() {
         _hasAccess = true;
         _isLoading = false;
+        _isInitialized = true;
       });
-
-      // Only initialize tab controller if access is granted
-      _tabController = TabController(
-        length: _currentUserId == widget.student.uid ? 4 : 3,
-        vsync: this,
-      );
-      _getCurrentUser();
     } else {
-      // No access, dialog will be shown by canViewProfile
       setState(() {
         _isLoading = false;
         _hasAccess = false;
+        _isInitialized = true;
       });
     }
   }
 
-
-  canViewProfile() async {
+  Future<bool> canViewProfile() async {
     User? userId = FirebaseAuth.instance.currentUser;
     if (userId == null) {
-      if (!mounted) return;
-      GeneralMethods.showErrorDialog(context, "Error: kindly login again");
-      Navigator.pop(context);
-      return;
+      if (mounted) {
+        GeneralMethods.showErrorDialog(context, "Error: kindly login again");
+        Navigator.pop(context);
+      }
+      return false;
     }
 
     final privacy = await PrivacySettingsService.canViewProfile(userId.uid, widget.student.uid);
 
     if (!privacy) {
-      if (!mounted) return;
-      GeneralMethods.showErrorDialog(context, "You are not allowed to view this profile");
-      Navigator.pop(context);
-      return;
+      if (mounted) {
+        GeneralMethods.showErrorDialog(context, "You are not allowed to view this profile");
+        Navigator.pop(context);
+      }
+      return false;
     }
+    return true;
   }
-
 
   @override
   void dispose() {
-    _tabController.dispose();
+    if (_isInitialized && _tabController != null) {
+      _tabController.dispose();
+    }
     super.dispose();
   }
 
   Future<void> _getCurrentUser() async {
     final user = FirebaseAuth.instance.currentUser;
-    setState(() {
-      _currentUserId = user?.uid ?? widget.currentUserId;
-    });
+    _currentUserId = user?.uid ?? widget.currentUserId;
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
+
+    // Show loading while checking access or initializing
+    if (!_isInitialized || _isLoading) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(
+                'Loading profile...',
+                style: theme.textTheme.bodyMedium,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Show error if no access
+    if (!_hasAccess) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.lock_outline,
+                size: 64,
+                color: colorScheme.error,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Access Denied',
+                style: theme.textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'You do not have permission to view this profile.',
+                style: theme.textTheme.bodyMedium,
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Determine tab count
+    final tabCount = (_currentUserId == widget.student.uid) ? 4 : 3;
+
+    // Build tabs based on current user
+    final List<Widget> tabs = [
+      const Tab(icon: Icon(Icons.info), text: 'Overview'),
+      const Tab(icon: Icon(Icons.school), text: 'Education'),
+      const Tab(icon: Icon(Icons.work), text: 'Portfolio'),
+      if (_currentUserId == widget.student.uid)
+        const Tab(icon: Icon(Icons.contact_page), text: 'Documents'),
+    ];
+
+    // Build tab views
+    final List<Widget> tabViews = [
+      _buildOverviewTab(context),
+      _buildEducationTab(context),
+      _buildPortfolioTab(context),
+      if (_currentUserId == widget.student.uid)
+        _buildDocumentsTab(context),
+    ];
 
     return Scaffold(
       backgroundColor: colorScheme.surfaceContainerLowest,
@@ -122,16 +197,16 @@ class _StudentProfilePageState extends State<StudentProfilePage>
               pinned: true,
               flexibleSpace: FlexibleSpaceBar(
                 background: _buildProfileHeader(context),
-                titlePadding: EdgeInsets.only(bottom: 16, left: 16),
+                titlePadding: const EdgeInsets.only(bottom: 16, left: 16),
                 title: innerBoxIsScrolled
                     ? Text(
-                        widget.student.fullName,
-                        style: TextStyle(
-                          color: colorScheme.onSurface,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      )
+                  widget.student.fullName,
+                  style: TextStyle(
+                    color: colorScheme.onSurface,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                )
                     : null,
               ),
               actions: [
@@ -143,12 +218,7 @@ class _StudentProfilePageState extends State<StudentProfilePage>
               delegate: _SliverTabBarDelegate(
                 TabBar(
                   controller: _tabController,
-                  tabs:  [
-                    Tab(icon: Icon(Icons.info), text: 'Overview'),
-                    Tab(icon: Icon(Icons.school), text: 'Education'),
-                    Tab(icon: Icon(Icons.work), text: 'Portfolio'),
-                    _currentUserId == widget.student.uid ?Tab(icon: Icon(Icons.contact_page), text: 'Documents'):Container(),
-                  ],
+                  tabs: tabs,
                   indicatorColor: colorScheme.primary,
                   labelColor: colorScheme.primary,
                   unselectedLabelColor: colorScheme.onSurfaceVariant,
@@ -160,18 +230,13 @@ class _StudentProfilePageState extends State<StudentProfilePage>
         },
         body: TabBarView(
           controller: _tabController,
-          children: [
-            _buildOverviewTab(context),
-            _buildEducationTab(context),
-            _buildPortfolioTab(context),
-            _currentUserId == widget.student.uid ?_buildDocumentsTab(context):Container(),
-          ],
+          children: tabViews,
         ),
       ),
       bottomNavigationBar:
-          widget.showChatActions == true &&
-              _currentUserId != null &&
-              _currentUserId != widget.student.uid
+      widget.showChatActions == true &&
+          _currentUserId != null &&
+          _currentUserId != widget.student.uid
           ? _buildChatButton(context)
           : null,
     );

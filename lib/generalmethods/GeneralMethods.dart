@@ -77,7 +77,7 @@ class GeneralMethods {
     double radius = 30,
   }) {
 
-    //debugPrint("imageUrl is $imageUrl");
+    debugPrint("imageUrl is $imageUrl");
     // If image URL is provided, try to load it
     if (imageUrl != null && imageUrl.isNotEmpty) {
       return CircleAvatar(
@@ -1543,5 +1543,19 @@ class GeneralMethods {
 
     return 0;
   }
+
+  static String formatTweetShare(String tweetContent, String tweetId) {
+    // Remove any existing [View Post] links to prevent duplicates
+    String cleanContent = tweetContent
+        .replaceAll(
+      RegExp(r'\s*\[View Post\]\([a-zA-Z0-9_-]+\)\s*'),
+      ' ',
+    )
+        .trim();
+
+    // Format with the tweet ID
+    return "$cleanContent [View Post]($tweetId)";
+  }
+
 }
 

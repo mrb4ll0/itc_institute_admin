@@ -35,7 +35,7 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
+  ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser?.uid??"");
 
   String? _selectedState;
   String? _selectedLocalGovernment;
@@ -44,7 +44,7 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
   bool _isConfirmPasswordVisible = false;
   bool _isLoading = false;
   int _currentStep =
-      0; // 0: Company Details, 1: Location, 2: Contact, 3: Account
+  0; // 0: Company Details, 1: Location, 2: Contact, 3: Account
   FirebaseUploader cloudStorage = FirebaseUploader();
 
 
@@ -449,6 +449,7 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
       'Kudan',
       'Lere',
       'Makarfi',
+      'Nagwamatse',
       'Sabon Gari',
       'Sanga',
       'Soba',
@@ -906,7 +907,7 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
 
     // Initialize with placeholder
     _registrationNumberController.text =
-        "Enter company/Organization name and industry first";
+    "Enter company/Organization name and industry first";
   }
 
   @override
@@ -953,9 +954,9 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
       // 1. Create user in Firebase Auth
       final UserCredential userCredential = await FirebaseAuth.instance
           .createUserWithEmailAndPassword(
-            email: _emailController.text.trim(),
-            password: _passwordController.text.trim(),
-          );
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
 
       // 2. Upload company logo if selected
       String? logoUrl;
@@ -983,9 +984,9 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
 
       }
       else if(mounted && !result)
-        {
-          Fluttertoast.showToast(msg: "Registration failed, kindly retry");
-        }
+      {
+        Fluttertoast.showToast(msg: "Registration failed, kindly retry");
+      }
       else {
         debugPrint("Widget disposed, cannot show dialog");
         Navigator.of(context).pushReplacement(
@@ -1233,59 +1234,69 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
     final isDarkMode = theme.brightness == Brightness.dark;
     final size = MediaQuery.of(context).size;
 
-    return Scaffold(
-      body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          child: Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(context).viewInsets.bottom,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Header section
-                Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: size.width > 600 ? 40 : 16,
-                    vertical: 30,
+    return PopScope(
+      canPop: _currentStep == 0, // Only allow pop when on first step
+      onPopInvokedWithResult: (bool didPop, Object? result) async {
+        if (!didPop && _currentStep > 0) {
+          setState(() {
+            _currentStep--;
+          });
+        }
+      },
+      child: Scaffold(
+        body: SafeArea(
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Header section
+                  Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: size.width > 600 ? 40 : 16,
+                      vertical: 30,
+                    ),
+                    child: Column(
+                      children: [
+                        _buildHeader(isDarkMode),
+                        const SizedBox(height: 25),
+                        _buildProgressStepper(),
+                      ],
+                    ),
                   ),
-                  child: Column(
-                    children: [
-                      _buildHeader(isDarkMode),
-                      const SizedBox(height: 25),
-                      _buildProgressStepper(),
-                    ],
+
+                  const SizedBox(height: 25),
+
+                  // Form section
+                  Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: size.width > 600 ? 40 : 16,
+                    ),
+                    child: Form(
+                      key: _formKey,
+                      child: _buildCurrentStep(isDarkMode),
+                    ),
                   ),
-                ),
 
-                const SizedBox(height: 25),
+                  const SizedBox(height: 40),
 
-                // Form section
-                Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: size.width > 600 ? 40 : 16,
+                  // Navigation section
+                  Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: size.width > 600 ? 40 : 16,
+                      vertical: 25,
+                    ),
+                    child: _buildNavigationButtons(theme),
                   ),
-                  child: Form(
-                    key: _formKey,
-                    child: _buildCurrentStep(isDarkMode),
-                  ),
-                ),
 
-                const SizedBox(height: 40),
-
-                // Navigation section
-                Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: size.width > 600 ? 40 : 16,
-                    vertical: 25,
-                  ),
-                  child: _buildNavigationButtons(theme),
-                ),
-
-                // Extra bottom padding for better scrolling on small devices
-                SizedBox(height: MediaQuery.of(context).size.height * 0.05),
-              ],
+                  // Extra bottom padding for better scrolling on small devices
+                  SizedBox(height: MediaQuery.of(context).size.height * 0.05),
+                ],
+              ),
             ),
           ),
         ),
@@ -1382,15 +1393,15 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
             child: isActive
                 ? const Icon(Icons.check, color: Colors.white, size: 16)
                 : Text(
-                    (stepIndex + 1).toString(),
-                    style: TextStyle(
-                      color: stepIndex <= _currentStep
-                          ? Colors.white
-                          : Colors.grey[600],
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
-                  ),
+              (stepIndex + 1).toString(),
+              style: TextStyle(
+                color: stepIndex <= _currentStep
+                    ? Colors.white
+                    : Colors.grey[600],
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
+            ),
           ),
         ),
         const SizedBox(height: 4),
@@ -1516,7 +1527,6 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
                   decoration: InputDecoration(
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
                     ),
                     filled: true,
                     fillColor: Colors.transparent,
@@ -1620,7 +1630,6 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
                       decoration: InputDecoration(
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
                         ),
                         filled: true,
                         fillColor: Colors.transparent,
@@ -1703,16 +1712,16 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
     // Get first 2 letters of company and industry
     final companyCode = companyName.trim().isNotEmpty
         ? companyName
-              .trim()
-              .substring(0, min(2, companyName.trim().length))
-              .toUpperCase()
+        .trim()
+        .substring(0, min(2, companyName.trim().length))
+        .toUpperCase()
         : 'CO';
 
     final industryCode = industry.trim().isNotEmpty
         ? industry
-              .trim()
-              .substring(0, min(2, industry.trim().length))
-              .toUpperCase()
+        .trim()
+        .substring(0, min(2, industry.trim().length))
+        .toUpperCase()
         : 'IN';
 
     return '${companyCode}${industryCode}-$timestamp';
@@ -1730,7 +1739,7 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
       _registrationNumberController.text = registrationNumber;
     } else {
       _registrationNumberController.text =
-          "Enter company/Organization name and industry first";
+      "Enter company/Organization name and industry first";
     }
   }
 
@@ -1796,7 +1805,7 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
                   decoration: InputDecoration(
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
+
                     ),
                     filled: true,
                     fillColor: Colors.transparent,
@@ -1860,7 +1869,6 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
                   decoration: InputDecoration(
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
                     ),
                     filled: true,
                     fillColor: Colors.transparent,
@@ -1881,18 +1889,18 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
                   items: _selectedState == null
                       ? null
                       : _statesAndLgas[_selectedState]!.map((String lga) {
-                          return DropdownMenuItem<String>(
-                            value: lga,
-                            child: Text(lga),
-                          );
-                        }).toList(),
+                    return DropdownMenuItem<String>(
+                      value: lga,
+                      child: Text(lga),
+                    );
+                  }).toList(),
                   onChanged: _selectedState == null
                       ? null
                       : (String? newValue) {
-                          setState(() {
-                            _selectedLocalGovernment = newValue;
-                          });
-                        },
+                    setState(() {
+                      _selectedLocalGovernment = newValue;
+                    });
+                  },
                   validator: (value) {
                     if (_selectedState != null && value == null) {
                       return 'Please select local government';
@@ -2012,7 +2020,6 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
                   hintText: "Enter password",
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
                   ),
                   filled: true,
                   fillColor: isDarkMode
@@ -2034,7 +2041,7 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
                       color: Colors.grey[500],
                     ),
                     onPressed: () => setState(
-                      () => _isPasswordVisible = !_isPasswordVisible,
+                          () => _isPasswordVisible = !_isPasswordVisible,
                     ),
                   ),
                 ),
@@ -2073,7 +2080,7 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
                   hintText: "Re-enter your password",
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
+
                   ),
                   filled: true,
                   fillColor: isDarkMode
@@ -2095,8 +2102,8 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
                       color: Colors.grey[500],
                     ),
                     onPressed: () => setState(
-                      () => _isConfirmPasswordVisible =
-                          !_isConfirmPasswordVisible,
+                          () => _isConfirmPasswordVisible =
+                      !_isConfirmPasswordVisible,
                     ),
                   ),
                 ),
@@ -2163,6 +2170,18 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
     );
   }
 
+
+  Future<bool> _onWillPop() async {
+    if (_currentStep > 0) {
+      // If not on first step, go to previous step
+      setState(() {
+        _currentStep--;
+      });
+      return false; // Don't pop the page
+    }
+    // If on first step, allow back navigation to pop the page
+    return true;
+  }
   Widget _buildFormField({
     required String label,
     required IconData icon,
@@ -2173,6 +2192,8 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
     TextInputType keyboardType = TextInputType.text,
     bool? enable = true,
   }) {
+    final theme = Theme.of(context);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2180,32 +2201,41 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
           label,
           style: TextStyle(
             fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: isDarkMode ? Colors.white : Colors.blueGrey[700],
+            fontWeight: FontWeight.w600,
+            color: isDarkMode ? Colors.grey[300] : Colors.grey[700],
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 8),
         TextFormField(
           enabled: enable,
           controller: controller,
           keyboardType: keyboardType,
+          style: TextStyle(
+            color: isDarkMode ? Colors.white : Colors.grey[900],
+            fontSize: 16,
+          ),
           decoration: InputDecoration(
             hintText: hintText,
+            hintStyle: TextStyle(
+              color: isDarkMode ? Colors.grey[500] : Colors.grey[400],
+              fontSize: 14,
+            ),
+            // Visible border always present
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
             ),
             filled: true,
             fillColor: isDarkMode
-                ? Colors.grey[800]!.withOpacity(0.5)
-                : Colors.grey[50],
+                ? Colors.grey[850]
+                : Colors.white,
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
               vertical: 16,
             ),
             prefixIcon: Icon(
               icon,
-              color: Theme.of(context).colorScheme.primary,
+              color: theme.colorScheme.primary,
+              size: 22,
             ),
           ),
           validator: validator,

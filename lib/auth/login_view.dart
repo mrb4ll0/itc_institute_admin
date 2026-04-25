@@ -14,7 +14,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:itc_institute_admin/auth/signup.dart';
 import 'package:itc_institute_admin/backgroundTask/backgroundTask.dart';
@@ -57,8 +56,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isPasswordVisible = false;
   bool _isLoading = false;
-  bool _isCheckingAuth = true; // Added for initial auth check
-  int _currentStep = 0; // 0: Email, 1: Password, 2: Login
+  bool _isCheckingAuth = true;
   final NotificationService notificationService = NotificationService();
   int failedCount = 0;
   final adminCloud = AdminCloud(FirebaseAuth.instance.currentUser?.uid ?? "");
@@ -76,44 +74,17 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  // Check if user is already logged in and has a company
   Future<void> _checkExistingAuth() async {
     try {
       final currentUser = FirebaseAuth.instance.currentUser;
-      // If no user is logged in, show login screen
       if (currentUser == null) {
-        setState(() {
-          _isCheckingAuth = false;
-        });
+        setState(() => _isCheckingAuth = false);
         return;
       }
-      // final firebaseToken = await currentUser?.getIdToken();
-      // final response = await http.post(
-      //   Uri.parse('https://taswreiddfnunhczxmqn.supabase.co/functions/v1/firebase-to-supabase'),
-      //   headers: {'Content-Type': 'application/json'},
-      //   body: jsonEncode({'firebaseToken': firebaseToken}),
-      // );
-      //
-      // debugPrint('Status code: ${response.statusCode}');
-      // debugPrint('Body: ${response.body}');
-      // final supabaseJwt = jsonDecode(response.body)['supabaseJwt'];
-      // final supabase = Supabase.instance.client;
-      // await supabase.auth.setSession(
-      //   supabaseJwt,
-      // );
-      //
-      // final session = supabase.auth.currentSession;
-      // if (session == null) {
-      //   Fluttertoast.showToast(msg: "Internal Error you can't upload an image");
-      // } else {
-      //   Fluttertoast.showToast(msg: "Image upload activated");
-      // }
-      // User is logged in, check if they have a company
-      setState(() {
-        _isLoading = true;
-      });
+
+      setState(() => _isLoading = true);
       PrivacySettings privacySettings =
-          await PrivacySettingsService.getUserPrivacySettings(currentUser.uid);
+      await PrivacySettingsService.getUserPrivacySettings(currentUser.uid);
 
       if (privacySettings.twoFactorAuth) {
         GeneralMethods.navigateTo(
@@ -122,107 +93,15 @@ class _LoginScreenState extends State<LoginScreen> {
             privacySettings: privacySettings,
             email: currentUser.email ?? "",
             onSuccess: (credential, user) async {
-              Company? company;
-              company = await ITCFirebaseLogic(
-                FirebaseAuth.instance.currentUser!.uid,
-              ).getCompany(currentUser.uid);
-              if (company == null) {
-                Authority? authority = await ITCFirebaseLogic(
-                  FirebaseAuth.instance.currentUser!.uid,
-                ).getAuthority(currentUser.uid);
-                if (authority != null) {
-                  company = AuthorityCompanyMapper.createCompanyFromAuthority(
-                    authority: authority,
-                  );
-                }
-              }
-
-              if (company != null) {
-                final settings = await MigrationSettingsStorage.loadSettings();
-
-                MigrationTrigger trigger = settings["trigger"];
-
-                debugPrint("trigger is ${trigger.displayName}");
-
-                MigrationManager().doMigration(trigger);
-
-                debugPrint("after the backgroundTaskManger line");
-                // User has a company, navigate to dashboard
-                // String? accessToken = await UserPreferences.getAccessToken(
-                //   currentUser.email ?? "",
-                // );
-                // if (accessToken == null) {
-                //   await showEmailAccountSetup(context);
-                // }
-
-                if (mounted) {
-                  GeneralMethods.replaceNavigationTo(
-                    context,
-                    CompanyDashboardController(tweetCompany: company),
-                  );
-                }
-              } else {
-                // User logged in but no company found - show login screen
-                setState(() {
-                  _isCheckingAuth = false;
-                  _isLoading = false;
-                });
-              }
+              await _handleSuccessfulLogin(null, privacySettings);
             },
           ),
         );
       } else {
-        Company? company;
-        company = await ITCFirebaseLogic(
-          FirebaseAuth.instance.currentUser!.uid,
-        ).getCompany(currentUser.uid);
-        if (company == null) {
-          Authority? authority = await ITCFirebaseLogic(
-            FirebaseAuth.instance.currentUser!.uid,
-          ).getAuthority(currentUser.uid);
-          if (authority != null) {
-            company = AuthorityCompanyMapper.createCompanyFromAuthority(
-              authority: authority,
-            );
-          }
-        }
-
-        if (company != null) {
-          final settings = await MigrationSettingsStorage.loadSettings();
-
-          MigrationTrigger trigger = settings["trigger"];
-
-          debugPrint("trigger is ${trigger.displayName}");
-
-          MigrationManager().doMigration(trigger);
-
-          debugPrint("after the backgroundTaskManger line");
-          // User has a company, navigate to dashboard
-          // String? accessToken = await UserPreferences.getAccessToken(
-          //   currentUser.email ?? "",
-          // );
-          // if (accessToken == null) {
-          //   await showEmailAccountSetup(context);
-          // }
-
-          if (mounted) {
-            GeneralMethods.replaceNavigationTo(
-              context,
-              CompanyDashboardController(tweetCompany: company),
-            );
-          }
-        } else {
-          // User logged in but no company found - show login screen
-          setState(() {
-            _isCheckingAuth = false;
-            _isLoading = false;
-          });
-        }
+        await _handleSuccessfulLogin(null, privacySettings);
       }
     } catch (e, s) {
-      // Error checking auth, show login screen
       debugPrintStack(stackTrace: s);
-      debugPrint("Error checking auth: $e");
       setState(() {
         _isCheckingAuth = false;
         _isLoading = false;
@@ -231,72 +110,50 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _login() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+    if (!_formKey.currentState!.validate()) return;
+
     await adminCloud.syncUserAccountLock(_emailController.text);
     adminCloud.syncAllAccountLocks();
-    final isLocked = await UserPreferences.isAccountLocked(
-      _emailController.text,
-    );
-    final lockDetails = await UserPreferences.getLockExpiryTime(
-      _emailController.text,
-    );
+
+    final isLocked = await UserPreferences.isAccountLocked(_emailController.text);
+    final lockDetails = await UserPreferences.getLockExpiryTime(_emailController.text);
+
     if (isLocked) {
-
-
-      GeneralMethods.showTemporaryLockDialog
-        (context: context,
-          reason: "Failed Attempt max reached",
-          remainingSeconds: GeneralMethods.getRemainingSecondsFromDateTime(lockDetails));
-
-      // GeneralMethods.showInfoDialog(
-      //   context,
-      //   "Account is locked. Kindly wait for $lockDetails}",
-      //   autoDismiss: false
-      // );
+      GeneralMethods.showTemporaryLockDialog(
+        context: context,
+        reason: "Failed Attempt max reached",
+        remainingSeconds: GeneralMethods.getRemainingSecondsFromDateTime(lockDetails),
+      );
       return;
     }
 
     SecuritySettings securitySettings =
-        await SecuritySettingsService.getUserSecuritySettings(
-          FirebaseAuth.instance.currentUser?.uid ?? "",
-        );
+    await SecuritySettingsService.getUserSecuritySettings(
+      FirebaseAuth.instance.currentUser?.uid ?? "",
+    );
 
-    setState(() {
-      _isLoading = true;
-      _currentStep = 2; // Move to loading step
-    });
+    setState(() => _isLoading = true);
 
     try {
       UserCredential userCredential = await FirebaseAuth.instance
           .signInWithEmailAndPassword(
-            email: _emailController.text.trim(),
-            password: _passwordController.text.trim(),
-          );
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
 
       if (userCredential.user == null) {
         _showError("User is null");
-        setState(() {
-          _isLoading = false;
-          _currentStep = 1;
-        });
+        setState(() => _isLoading = false);
         return;
       }
 
-      // Check if user has 2FA enabled in their privacy settings
       PrivacySettings privacy =
-          await PrivacySettingsService.getUserPrivacySettings(
-            userCredential.user!.uid,
-          );
+      await PrivacySettingsService.getUserPrivacySettings(
+        userCredential.user!.uid,
+      );
 
       if (privacy.twoFactorAuth) {
-        // User has 2FA enabled - always go to 2FA verification screen
-        setState(() {
-          _isLoading = false;
-          _currentStep = 1;
-        });
-
+        setState(() => _isLoading = false);
         if (mounted) {
           await Navigator.push(
             context,
@@ -304,7 +161,7 @@ class _LoginScreenState extends State<LoginScreen> {
               builder: (context) => TwoFactorVerificationScreen(
                 forcedType: TwoFactorType.password,
                 privacySettings: privacy,
-                resolver: null, // No resolver for password-based 2FA
+                resolver: null,
                 email: _emailController.text.trim(),
                 onSuccess: (userCredential, user) async {
                   await _handleSuccessfulLogin(userCredential, privacy);
@@ -314,17 +171,10 @@ class _LoginScreenState extends State<LoginScreen> {
           );
         }
       } else {
-        // No 2FA required
         await _handleSuccessfulLogin(userCredential, privacy);
       }
     } on FirebaseAuthMultiFactorException catch (e) {
-      // SMS 2FA is required (Firebase-enforced)
-      debugPrint('SMS 2FA required for user');
-      setState(() {
-        _isLoading = false;
-        _currentStep = 1;
-      });
-
+      setState(() => _isLoading = false);
       if (mounted) {
         await Navigator.push(
           context,
@@ -334,10 +184,6 @@ class _LoginScreenState extends State<LoginScreen> {
               resolver: e.resolver,
               email: _emailController.text.trim(),
               onSuccess: (userCredential, user) async {
-                if (userCredential == null) {
-                  Fluttertoast.showToast(msg: "Error: User Credential is null");
-                  return;
-                }
                 await _handleSuccessfulLogin(userCredential, null);
               },
             ),
@@ -348,7 +194,6 @@ class _LoginScreenState extends State<LoginScreen> {
       _showError(_getAuthErrorMessage(e.code));
       if (e.code == 'invalid-credential') {
         failedCount++;
-        debugPrint("failed count is $failedCount and limit is ${securitySettings.maxFailedAttempts}");
         if (securitySettings != null &&
             securitySettings.failedLoginAlerts &&
             failedCount >= securitySettings.maxFailedAttempts) {
@@ -379,28 +224,20 @@ class _LoginScreenState extends State<LoginScreen> {
                 userId: user.id,
                 email: _emailController.text,
                 duration: securitySettings.lockDurationMinutes.minutes,
-                userType: 'authorirty',
+                userType: 'authority',
               );
             }
           }
         }
       }
-      setState(() {
-        _isLoading = false;
-        _currentStep = 1;
-      });
+      setState(() => _isLoading = false);
     } catch (e, s) {
       debugPrintStack(stackTrace: s);
-      debugPrint("error is $e");
       _showError("An unexpected error occurred. Please try again.");
-      setState(() {
-        _isLoading = false;
-        _currentStep = 1;
-      });
+      setState(() => _isLoading = false);
     }
   }
 
-  // Get location
   Future<String> _getLocation() async {
     try {
       LocationPermission permission = await Geolocator.checkPermission();
@@ -436,19 +273,16 @@ class _LoginScreenState extends State<LoginScreen> {
     return 'Unknown Location';
   }
 
-  // Extract successful login logic to a separate method
   Future<void> _handleSuccessfulLogin(
-    UserCredential? userCredential,
-    PrivacySettings? privacySettings,
-  ) async {
+      UserCredential? userCredential,
+      PrivacySettings? privacySettings,
+      ) async {
     final currentUser = FirebaseAuth.instance.currentUser;
-    debugPrint("currentUser is $currentUser");
     SecuritySettings securitySettings =
-        await SecuritySettingsService.getUserSecuritySettings(
-          currentUser?.uid ?? "",
-        );
+    await SecuritySettingsService.getUserSecuritySettings(
+      currentUser?.uid ?? "",
+    );
 
-    // Check if user has a company
     Company? company;
     company = await ITCFirebaseLogic(
       FirebaseAuth.instance.currentUser!.uid,
@@ -466,40 +300,22 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     if (company == null) {
-      _showError(
-        "Company or Authority profile not found. Please contact support.",
-      );
-      setState(() {
-        _isLoading = false;
-        _currentStep = 1;
-      });
+      _showError("Company or Authority profile not found. Please contact support.");
+      setState(() => _isLoading = false);
       return;
     }
 
-    //debugPrint('company is $company and ${company.originalAuthority == null}');
     await notificationService.saveTokenToFirestore();
     if (securitySettings != null && securitySettings.loginAlerts) {
-      // Get device information
       final deviceName = await _getDeviceName();
       final ipAddress = await _getIpAddress();
       final location = await _getLocation();
-
       notifyUser(deviceName, ipAddress, null);
     }
     await ConnectedDeviceService().saveCurrentDevice();
     final settings = await MigrationSettingsStorage.loadSettings();
     MigrationTrigger trigger = settings["trigger"];
-    debugPrint("trigger is ${trigger.displayName}");
     MigrationManager().doMigration(trigger);
-
-    // String? accessToken = await UserPreferences.getAccessToken(
-    //   currentUser?.email ?? "",
-    // );
-    // if (accessToken == null) {
-    //   await showEmailAccountSetup(context);
-    // }
-
-    debugPrint("after the backgroundTaskManger line");
 
     if (mounted) {
       GeneralMethods.replaceNavigationTo(
@@ -525,19 +341,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<String> _getIpAddress() async {
     try {
-      // Get local IP
       final info = NetworkInfo();
       final localIp = await info.getWifiIP();
-
-      // Get public IP
       final response = await http.get(Uri.parse('https://api.ipify.org'));
       if (response.statusCode == 200) {
         return response.body;
       }
-
       return localIp ?? "Unknown IP";
     } catch (e) {
-      debugPrint('Error getting IP: $e');
       return "Unknown IP";
     }
   }
@@ -547,7 +358,6 @@ class _LoginScreenState extends State<LoginScreen> {
     if (currentUser == null) return;
 
     fcmToken ??= await FirebaseMessaging.instance.getToken();
-
     final timestamp = DateTime.now();
     final formattedTime = DateFormat('MMM dd, yyyy hh:mm a').format(timestamp);
 
@@ -555,7 +365,7 @@ class _LoginScreenState extends State<LoginScreen> {
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       title: "⚠️ New Login Detected",
       body:
-          "Your account was accessed from a new device.\n\n"
+      "Your account was accessed from a new device.\n\n"
           "📱 Device: $deviceName\n"
           "🌐 IP Address: $ipAddress\n"
           "🕐 Time: $formattedTime\n\n"
@@ -564,7 +374,7 @@ class _LoginScreenState extends State<LoginScreen> {
       read: false,
       targetAudience: currentUser.email ?? '',
       targetStudentId: currentUser.uid,
-      fcmToken: fcmToken ?? "", // Will be handled by the service
+      fcmToken: fcmToken ?? "",
       type: NotificationType.systemAlert.name,
     );
 
@@ -574,49 +384,40 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> notifyFailedAttempt(
-    String email,
-    String ipAddress,
-    String? deviceName,
-    String? fcmToken,
-    String location,
-  ) async {
+      String email,
+      String ipAddress,
+      String? deviceName,
+      String? fcmToken,
+      String location,
+      ) async {
     final timestamp = DateTime.now();
     final formattedTime = DateFormat('MMM dd, yyyy hh:mm a').format(timestamp);
-
-    // Get location from IP (optional)
-    final deviceName = await _getDeviceName();
-    final ipAddress = await _getIpAddress();
 
     NotificationModel notification = NotificationModel(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       title: "⚠️ Failed Login Attempt Detected",
       body:
-          "A failed login attempt was detected on your account.\n\n"
+      "A failed login attempt was detected on your account.\n\n"
           "📧 Email: $email\n"
           "📱 Device: $deviceName\n"
           "🌐 IP Address: $ipAddress\n"
           "📍 Location: $location\n"
           "🕐 Time: $formattedTime\n\n"
-          "If this wasn't you, please secure your account immediately by changing your password.",
+          "If this wasn't you, please secure your account immediately.",
       timestamp: timestamp,
       read: false,
       targetAudience: email,
-      targetStudentId: '', // No user ID since login failed
-      fcmToken:
-          fcmToken ??
-          "", // Will be handled by the service to find user's tokens
+      targetStudentId: '',
+      fcmToken: fcmToken ?? "",
       type: NotificationType.systemAlert.name,
     );
 
-    // Send notification to the user's email and devices
     NotificationPanelService.sendNotificationToAllEnabledChannelsWithSummary(
       notification,
     );
   }
 
   String _getAuthErrorMessage(String code) {
-    debugPrint("code is $code");
-
     switch (code) {
       case 'user-not-found':
         return 'No user found with this email.';
@@ -631,7 +432,7 @@ class _LoginScreenState extends State<LoginScreen> {
       case 'network-request-failed':
         return 'Network error. Please check your connection.';
       case 'invalid-credential':
-        return 'Invalid credentials. Please ensure you entered the right email and password.';
+        return 'Invalid email or password. Please try again.';
       default:
         return 'Login failed. Please try again.';
     }
@@ -639,7 +440,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _showError(String message) {
     if (!mounted) return;
-
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -650,23 +450,8 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  void _nextStep() {
-    if (_currentStep == 0 && _emailController.text.trim().isNotEmpty) {
-      setState(() => _currentStep = 1);
-    } else if (_currentStep == 1) {
-      _login();
-    }
-  }
-
-  void _previousStep() {
-    if (_currentStep > 0) {
-      setState(() => _currentStep--);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    // Show loading screen while checking auth
     if (_isCheckingAuth) {
       return _buildLoadingScreen();
     }
@@ -674,64 +459,233 @@ class _LoginScreenState extends State<LoginScreen> {
     final theme = Theme.of(context);
     final isDarkMode = theme.brightness == Brightness.dark;
     final size = MediaQuery.of(context).size;
-    final padding = MediaQuery.of(context).padding;
 
     return PopScope(
       canPop: false,
       child: Scaffold(
         body: SafeArea(
-          child: SingleChildScrollView(
-            child: Container(
+          child: Center(
+            child: SingleChildScrollView(
               padding: EdgeInsets.symmetric(
                 horizontal: size.width > 600 ? 80 : 24,
-                vertical: 20, // Reduced from 40
+                vertical: 32,
               ),
-              // Remove fixed height constraint
-              constraints: BoxConstraints(
-                minHeight: size.height - padding.top - padding.bottom,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min, // ← Changed to min
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Logo and Welcome
-                  _buildHeader(theme, isDarkMode),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: 500,
+                ),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Header Section
+                      _buildHeader(theme, isDarkMode),
 
-                  const SizedBox(height: 40),
+                      const SizedBox(height: 48),
 
-                  // Progress Stepper
-                  _buildProgressStepper(),
+                      // Email Field
+                      TextFormField(
+                        controller: _emailController,
+                        enabled: !_isLoading,
+                        decoration: InputDecoration(
+                          labelText: 'Email Address',
+                          hintText: 'admin@company.com',
+                          prefixIcon: Icon(
+                            Icons.email_outlined,
+                            color: theme.colorScheme.primary,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: theme.colorScheme.outline.withOpacity(0.3),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: theme.colorScheme.primary,
+                              width: 2,
+                            ),
+                          ),
+                          filled: true,
+                          fillColor: theme.colorScheme.surfaceContainerHighest
+                              .withOpacity(0.3),
+                        ),
+                        keyboardType: TextInputType.emailAddress,
+                        textInputAction: TextInputAction.next,
+                        validator: (value) {
+                          if (value?.isEmpty ?? true) {
+                            return 'Please enter your email';
+                          }
+                          if (!value!.contains('@') || !value.contains('.')) {
+                            return 'Please enter a valid email';
+                          }
+                          return null;
+                        },
+                      ),
 
-                  const SizedBox(height: 40),
+                      const SizedBox(height: 20),
 
-                  // Form Content - Removed Expanded
-                  Form(
-                    key: _formKey,
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 300),
-                      child: _currentStep == 0
-                          ? _buildEmailStep(isDarkMode)
-                          : _currentStep == 1
-                          ? _buildPasswordStep(isDarkMode)
-                          : _buildLoadingStep(),
-                    ),
+                      // Password Field
+                      TextFormField(
+                        controller: _passwordController,
+                        enabled: !_isLoading,
+                        obscureText: !_isPasswordVisible,
+                        decoration: InputDecoration(
+                          labelText: 'Password',
+                          hintText: 'Enter your password',
+                          prefixIcon: Icon(
+                            Icons.lock_outline,
+                            color: theme.colorScheme.primary,
+                          ),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _isPasswordVisible
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
+                            ),
+                            onPressed: _isLoading
+                                ? null
+                                : () => setState(
+                                  () => _isPasswordVisible = !_isPasswordVisible,
+                            ),
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: theme.colorScheme.outline.withOpacity(0.3),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: theme.colorScheme.primary,
+                              width: 2,
+                            ),
+                          ),
+                          filled: true,
+                          fillColor: theme.colorScheme.surfaceContainerHighest
+                              .withOpacity(0.3),
+                        ),
+                        validator: (value) =>
+                        (value?.length ?? 0) < 6
+                            ? 'Password must be at least 6 characters'
+                            : null,
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // Forgot Password
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: _showForgotPasswordDialog,
+                          child: Text(
+                            'Forgot Password?',
+                            style: TextStyle(
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // Login Button
+                      ElevatedButton(
+                        onPressed: _isLoading ? null : _login,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: theme.colorScheme.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 2,
+                        ),
+                        child: _isLoading
+                            ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                            : const Text(
+                          'Sign In',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // Divider
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Divider(
+                              color: theme.colorScheme.outline.withOpacity(0.3),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Text(
+                              'or',
+                              style: TextStyle(
+                                color: theme.colorScheme.onSurface
+                                    .withOpacity(0.6),
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Divider(
+                              color: theme.colorScheme.outline.withOpacity(0.3),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // Sign Up Button
+                      OutlinedButton(
+                        onPressed: () {
+                          GeneralMethods.navigateTo(context, CompanySignupScreen());
+                        },
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          side: BorderSide(
+                            color: theme.colorScheme.primary,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Text(
+                          'Create New Account',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-
-                  const SizedBox(height: 20),
-
-                  // Navigation Buttons
-                  _buildNavigationButtons(theme),
-
-                  const SizedBox(height: 20),
-
-                  // Forgot Password
-                  _buildForgotPasswordButton(theme),
-
-                  // Sign Up
-                  _buildSignUpRow(theme),
-
-                  const SizedBox(height: 20),
-                ],
+                ),
               ),
             ),
           ),
@@ -740,195 +694,69 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // Break down into smaller widgets for better organization
   Widget _buildHeader(ThemeData theme, bool isDarkMode) {
     return Column(
-      children: [
-        Container(
-          width: 80,
-          height: 80,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: isDarkMode ? Colors.grey[800] : Colors.grey[100],
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 12,
-                spreadRadius: 2,
-              ),
-            ],
-          ),
-          child: const Icon(
-            Icons.school_outlined,
-            size: 40,
-            color: Colors.blue,
-          ),
-        ),
-        const SizedBox(height: 24),
-        Text(
-          "Welcome Admin",
-          style: theme.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: isDarkMode ? Colors.white : Colors.blueGrey[900],
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          "Sign in to your dashboard",
-          style: theme.textTheme.bodyLarge?.copyWith(
-            color: theme.colorScheme.onSurface.withOpacity(0.7),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildProgressStepper() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          _buildStepCircle(0, "Email", _currentStep >= 0),
-          Expanded(
-            child: Container(
-              height: 2,
-              color: _currentStep >= 1 ? Colors.blue : Colors.grey[300],
-            ),
-          ),
-          _buildStepCircle(1, "Password", _currentStep >= 1),
-          Expanded(
-            child: Container(
-              height: 2,
-              color: _currentStep >= 2 ? Colors.blue : Colors.grey[300],
-            ),
-          ),
-          _buildStepCircle(2, "Login", _currentStep == 2),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNavigationButtons(ThemeData theme) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        if (_currentStep > 0)
-          TextButton(
-            onPressed: _previousStep,
-            child: Row(
-              children: [
-                const Icon(Icons.arrow_back, size: 18),
-                const SizedBox(width: 8),
-                Text(
-                  "Back",
-                  style: TextStyle(
-                    color: theme.colorScheme.primary,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          )
-        else
-          const SizedBox(width: 100),
-
-        ElevatedButton(
-          onPressed: _isLoading ? null : _nextStep,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: theme.colorScheme.primary,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-          child: _isLoading
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
-                )
-              : Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      _currentStep == 0
-                          ? "Continue"
-                          : _currentStep == 1
-                          ? "Sign In"
-                          : "Processing",
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    if (_currentStep < 2 && !_isLoading) ...[
-                      const SizedBox(width: 8),
-                      const Icon(Icons.arrow_forward, size: 18),
-                    ],
-                  ],
-                ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildForgotPasswordButton(ThemeData theme) {
-    return TextButton(
-      onPressed: _showForgotPasswordDialog,
-      child: Text(
-        "Forgot Password?",
-        style: TextStyle(
-          color: theme.colorScheme.primary,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSignUpRow(ThemeData theme) {
-    return Row(
       mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text(
-          "Don't have an account? ",
-          style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6)),
-        ),
-        TextButton(
-          onPressed: () {
-            GeneralMethods.navigateTo(context, CompanySignupScreen());
-          },
-          child: Text(
-            "Sign Up",
-            style: TextStyle(
-              color: theme.colorScheme.primary,
-              fontWeight: FontWeight.w600,
+        // Text Section - Left aligned
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // "Welcome back" - very small
+            Text(
+              'Welcome Back',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: isDarkMode ? Colors.grey[500] : Colors.grey[500],
+                letterSpacing: 0.5,
+              ),
             ),
-          ),
+            // IT Connect - Big text
+            Text(
+              'IT Connect',
+              style: TextStyle(
+                fontSize: 42,
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFF667EEA),
+                letterSpacing: 1,
+              ),
+            ),
+            // Subtitle - very small
+            Text(
+              'Your Industrial Training Gap Bridge',
+              style: TextStyle(
+                fontSize: 12,
+                color: isDarkMode ? Colors.grey[500] : Colors.grey[500],
+                height: 1.4,
+              ),
+            ),
+          ],
         ),
+        const SizedBox(height: 48),
       ],
     );
   }
 
   Widget _buildLoadingScreen() {
+    final theme = Theme.of(context);
     return Scaffold(
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const CircularProgressIndicator(),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
             Text(
               "Checking authentication...",
-              style: Theme.of(context).textTheme.titleMedium,
+              style: theme.textTheme.titleMedium,
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Text(
-              "Please wait while we check your login status",
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+              "Please wait",
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurface.withOpacity(0.6),
               ),
             ),
           ],
@@ -937,257 +765,8 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildStepCircle(int stepNumber, String label, bool isActive) {
-    return Column(
-      children: [
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: isActive ? Colors.blue : Colors.grey[300],
-            border: Border.all(
-              color: isActive ? Colors.blue : Colors.transparent,
-              width: 2,
-            ),
-          ),
-          child: Center(
-            child: isActive
-                ? Icon(Icons.check, color: Colors.white, size: 20)
-                : Text(
-                    (stepNumber + 1).toString(),
-                    style: TextStyle(
-                      color: stepNumber <= _currentStep
-                          ? Colors.white
-                          : Colors.grey[600],
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: isActive ? Colors.blue : Colors.grey[500],
-            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildEmailStep(bool isDarkMode) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          "Enter your email",
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: isDarkMode ? Colors.white : Colors.blueGrey[800],
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          "We'll use this to identify your account",
-          style: TextStyle(color: Colors.grey[600], fontSize: 14),
-        ),
-        const SizedBox(height: 32),
-        TextFormField(
-          controller: _emailController,
-          autofocus: true,
-          enabled: !_isLoading,
-          decoration: InputDecoration(
-            labelText: 'Company Email',
-            hintText: 'admin@company.com',
-            prefixIcon: const Icon(Icons.email_outlined),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.blue, width: 2),
-            ),
-            filled: true,
-            fillColor: isDarkMode ? Colors.grey[800] : Colors.grey[50],
-          ),
-          keyboardType: TextInputType.emailAddress,
-          validator: (value) {
-            if (value?.isEmpty ?? true) {
-              return 'Please enter your email';
-            }
-            if (!value!.contains('@') || !value.contains('.')) {
-              return 'Please enter a valid email';
-            }
-            return null;
-          },
-          onFieldSubmitted: (_) => _nextStep(),
-        ),
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.blue.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.blue.withOpacity(0.1)),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.info_outline, color: Colors.blue, size: 20),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  "Use your registered company email address",
-                  style: TextStyle(color: Colors.blue[700], fontSize: 13),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPasswordStep(bool isDarkMode) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          "Enter your password",
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: isDarkMode ? Colors.white : Colors.blueGrey[800],
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          "Enter the password for ${_emailController.text}",
-          style: TextStyle(color: Colors.grey[600], fontSize: 14),
-        ),
-        const SizedBox(height: 32),
-        TextFormField(
-          controller: _passwordController,
-          autofocus: true,
-          enabled: !_isLoading,
-          obscureText: !_isPasswordVisible,
-          decoration: InputDecoration(
-            labelText: 'Password',
-            hintText: 'Enter your password',
-            prefixIcon: const Icon(Icons.lock_outline),
-            suffixIcon: IconButton(
-              icon: Icon(
-                _isPasswordVisible ? Icons.visibility_off : Icons.visibility,
-                color: Colors.grey[500],
-              ),
-              onPressed: _isLoading
-                  ? null
-                  : () => setState(
-                      () => _isPasswordVisible = !_isPasswordVisible,
-                    ),
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.blue, width: 2),
-            ),
-            filled: true,
-            fillColor: isDarkMode ? Colors.grey[800] : Colors.grey[50],
-          ),
-          validator: (value) => (value?.length ?? 0) < 6
-              ? 'Password must be at least 6 characters'
-              : null,
-          onFieldSubmitted: (_) => _login(),
-        ),
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.amber.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.amber.withOpacity(0.1)),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.security_outlined, color: Colors.amber[700], size: 20),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  "For security, your password is encrypted and never stored in plain text",
-                  style: TextStyle(color: Colors.amber[700], fontSize: 13),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLoadingStep() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        SizedBox(
-          width: 80,
-          height: 80,
-          child: Stack(
-            children: [
-              Center(
-                child: Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    color: Colors.blue.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
-                    strokeWidth: 3,
-                  ),
-                ),
-              ),
-              Center(
-                child: Icon(Icons.lock_outlined, size: 30, color: Colors.blue),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 32),
-        Text(
-          "Signing you in...",
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: Theme.of(context).colorScheme.onSurface,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          "Verifying your credentials and\nsetting up your dashboard",
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.grey[600], fontSize: 14),
-        ),
-      ],
-    );
-  }
-
   void _showForgotPasswordDialog() {
+    final theme = Theme.of(context);
     showDialog(
       context: context,
       builder: (context) {
@@ -1203,23 +782,16 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
             TextButton(
               onPressed: () async {
-                // Implement password reset
                 if (_emailController.text.isEmpty) {
                   _showError("Please enter your email.");
                   return;
                 }
 
                 try {
-                  // Get the email first
                   final email = _emailController.text;
-                  debugPrint("email is $email");
-
-                  // Close the dialog first
                   Navigator.pop(context);
 
-                  // Show a loading indicator
-                  final scaffoldMessenger = ScaffoldMessenger.of(context);
-                  scaffoldMessenger.showSnackBar(
+                  ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text("Sending password reset email..."),
                       duration: Duration(seconds: 2),
@@ -1230,8 +802,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     email: email,
                   );
 
-                  // Show success message
-                  scaffoldMessenger.showSnackBar(
+                  ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text(
                         "Password reset email sent. Check your inbox.",
@@ -1239,11 +810,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       duration: Duration(seconds: 3),
                     ),
                   );
-                } catch (e, s) {
-                  debugPrint("Error sending password reset email: $e");
-                  debugPrintStack(stackTrace: s);
-
-                  // Show error message
+                } catch (e) {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
@@ -1257,7 +824,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   }
                 }
               },
-              child: const Text("Send Reset Link"),
+              child: Text(
+                "Send Reset Link",
+                style: TextStyle(color: theme.colorScheme.primary),
+              ),
             ),
           ],
         );

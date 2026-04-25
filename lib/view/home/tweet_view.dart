@@ -4,6 +4,7 @@ import 'package:itc_institute_admin/model/userProfile.dart';
 import 'package:itc_institute_admin/view/company/companyDetailPage.dart';
 import 'package:itc_institute_admin/view/home/savedPost.dart';
 import 'package:itc_institute_admin/view/home/student/studentDetails.dart';
+import 'package:itc_institute_admin/view/home/tweet/expandable_text.dart';
 import 'package:itc_institute_admin/view/home/tweet/tweet_details_page.dart';
 import 'package:itc_institute_admin/view/home/tweet/user_selection_dialog.dart';
 import 'package:provider/provider.dart';
@@ -920,7 +921,7 @@ class _TweetViewState extends State<TweetView> {
                   child: ProfessionalTweetCard(
                     tweet: tweet,
                     tweetPoster: tweetPoster,
-                    currentStudent: widget.company,
+                    currentStudent: UserConverter(widget.company),
                     isDark: isDark,
                     onTap: () {
                       Navigator.push(
@@ -1020,7 +1021,7 @@ class _TweetViewState extends State<TweetView> {
 class ProfessionalTweetCard extends StatefulWidget {
   final TweetModel tweet;
   final UserConverter tweetPoster;
-  final Company currentStudent;
+  final UserConverter currentStudent;
   final bool isDark;
   final VoidCallback onTap;
 
@@ -1075,15 +1076,110 @@ class _ProfessionalTweetCardState extends State<ProfessionalTweetCard> {
             // Facebook-style stats (top)
             _buildFacebookStats(),
 
+            // Comment Preview - ADD THIS LINE
+            _buildCommentPreview(),
             // Facebook-style action buttons (bottom)
             _buildFacebookActions(),
+
           ],
         ),
       ),
     );
   }
 
+  Widget _buildCommentPreview() {
+    if (widget.tweet.comments.isEmpty) return const SizedBox.shrink();
+
+    final lastComment = widget.tweet.comments.last;
+    final isDark = widget.isDark;
+    final commentCount = widget.tweet.comments.length;
+
+    return Column(
+      children: [
+        // Latest comment
+        GestureDetector(
+          onTap: () => _showCommentDialog(),
+          child: Container(
+            margin: const EdgeInsets.only(top: 4, left: 12, right: 12, bottom: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: isDark ? Colors.grey[800]!.withOpacity(0.5) : Colors.grey[100],
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  radius: 14,
+                  backgroundColor: isDark ? Colors.grey[700] : Colors.grey[300],
+                  child: Text(
+                    lastComment.user.isNotEmpty
+                        ? lastComment.user[0].toUpperCase()
+                        : '?',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDark ? Colors.grey[400] : Colors.grey[600],
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        lastComment.user,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        lastComment.content,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isDark ? Colors.grey[400] : Colors.grey[700],
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        // View all comments link (if more than 1 comment)
+        if (commentCount > 1)
+          GestureDetector(
+            onTap: () => widget.onTap(),
+            child: Padding(
+              padding: const EdgeInsets.only(left: 12, right: 12, bottom: 4),
+              child: Row(
+                children: [
+                  const SizedBox(width: 38), // Align with avatar
+                  Text(
+                    'View all $commentCount comments',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: const Color(0xFF1877F2),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget _buildHeader(String timeAgo) {
+    debugPrint("tweetPoster id ${widget.tweetPoster.uid}");
     return Padding(
       padding: const EdgeInsets.all(12),
       child: Row(
@@ -1123,9 +1219,8 @@ class _ProfessionalTweetCardState extends State<ProfessionalTweetCard> {
                     Text(
                       timeAgo,
                       style: TextStyle(
-                        color: widget.isDark
-                            ? Colors.grey[400]
-                            : Colors.grey[600],
+                        color:
+                        widget.isDark ? Colors.grey[400] : Colors.grey[600],
                         fontSize: 12,
                       ),
                     ),
@@ -1154,7 +1249,7 @@ class _ProfessionalTweetCardState extends State<ProfessionalTweetCard> {
       ),
       onSelected: (value) => _handleMenuSelection(value),
       itemBuilder: (BuildContext context) => [
-        if (widget.currentStudent.id == widget.tweet.userId)
+        if (widget.currentStudent.uid == widget.tweet.userId)
           PopupMenuItem<String>(
             value: 'delete',
             child: Row(
@@ -1216,13 +1311,9 @@ class _ProfessionalTweetCardState extends State<ProfessionalTweetCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            widget.tweet.content,
-            style: TextStyle(
-              fontSize: 15,
-              height: 1.4,
-              color: widget.isDark ? Colors.white : Colors.black,
-            ),
+          ExpandableText(
+              text: widget.tweet.content,
+              isDark:  widget.isDark
           ),
 
           // Show hashtags if available
@@ -1352,18 +1443,16 @@ class _ProfessionalTweetCardState extends State<ProfessionalTweetCard> {
         children: [
           // Like Button
           _buildFacebookActionButton(
-            icon:
-                widget.tweet.likes.contains(
-                  FirebaseAuth.instance.currentUser!.uid,
-                )
+            icon: widget.tweet.likes.contains(
+              FirebaseAuth.instance.currentUser!.uid,
+            )
                 ? Icons.thumb_up
                 : Icons.thumb_up_outlined,
             label: 'Like',
             isActive: _isLiked,
-            color:
-                widget.tweet.likes.contains(
-                  FirebaseAuth.instance.currentUser!.uid,
-                )
+            color: widget.tweet.likes.contains(
+              FirebaseAuth.instance.currentUser!.uid,
+            )
                 ? const Color(0xFF1877F2)
                 : null,
             onTap: () => _toggleLike(),
@@ -1411,8 +1500,7 @@ class _ProfessionalTweetCardState extends State<ProfessionalTweetCard> {
                 Icon(
                   icon,
                   size: 20,
-                  color:
-                      color ??
+                  color: color ??
                       (widget.isDark ? Colors.grey[400] : Colors.grey[600]),
                 ),
                 const SizedBox(width: 8),
@@ -1421,8 +1509,7 @@ class _ProfessionalTweetCardState extends State<ProfessionalTweetCard> {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
-                    color:
-                        color ??
+                    color: color ??
                         (widget.isDark ? Colors.grey[400] : Colors.grey[600]),
                   ),
                 ),
@@ -1443,7 +1530,8 @@ class _ProfessionalTweetCardState extends State<ProfessionalTweetCard> {
       GeneralMethods.navigateTo(
         context,
         CompanyDetailPage(
-            company: widget.tweetPoster.getAs<Company>()!, user: UserConverter(widget.currentStudent),),
+            user: widget.currentStudent,
+            company: widget.tweetPoster.getAs<Company>()!),
       );
     } else if (isStudent && !isCompany) {
       Navigator.push(
@@ -1460,12 +1548,13 @@ class _ProfessionalTweetCardState extends State<ProfessionalTweetCard> {
         MaterialPageRoute(
           builder: (context) => AdminProfilePage(
             admin: widget.tweetPoster.getAs<Admin>()!,
-            currentStudent: UserConverter(widget.currentStudent),
+            currentStudent: widget.currentStudent,
           ),
         ),
       );
     }
   }
+
   void _handleMenuSelection(String value) {
     switch (value) {
       case 'delete':
@@ -1489,10 +1578,10 @@ class _ProfessionalTweetCardState extends State<ProfessionalTweetCard> {
   void _toggleLike() async {
     try {
       final provider = Provider.of<TweetProvider>(context, listen: false);
-      bool isLike = widget.tweet.likes.contains(widget.currentStudent.id);
+      bool isLike = widget.tweet.likes.contains(widget.currentStudent.uid);
       await provider.toggleLike(
         widget.tweet.id,
-        widget.currentStudent.id,
+        widget.currentStudent.uid,
         isLike,
       );
 
@@ -1560,7 +1649,7 @@ class _ProfessionalTweetCardState extends State<ProfessionalTweetCard> {
                         CircleAvatar(
                           radius: 20,
                           backgroundImage: NetworkImage(
-                            widget.currentStudent.logoURL,
+                            widget.currentStudent.imageUrl,
                           ),
                           backgroundColor: Colors.grey[300],
                         ),
@@ -1569,12 +1658,11 @@ class _ProfessionalTweetCardState extends State<ProfessionalTweetCard> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              widget.currentStudent.name,
+                              widget.currentStudent.displayName,
                               style: TextStyle(
                                 fontWeight: FontWeight.w600,
-                                color: widget.isDark
-                                    ? Colors.white
-                                    : Colors.black,
+                                color:
+                                widget.isDark ? Colors.white : Colors.black,
                               ),
                             ),
                           ],
@@ -1615,9 +1703,9 @@ class _ProfessionalTweetCardState extends State<ProfessionalTweetCard> {
                           onPressed: _commentController.text.trim().isEmpty
                               ? null
                               : () {
-                                  _postComment();
-                                  Navigator.pop(context);
-                                },
+                            _postComment();
+                            Navigator.pop(context);
+                          },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(
                               0xFF1877F2,
@@ -1654,15 +1742,15 @@ class _ProfessionalTweetCardState extends State<ProfessionalTweetCard> {
     if (_commentController.text.trim().isEmpty) return;
     Comment comment = Comment(
       tweetId: widget.tweet.id,
-      userId: widget.currentStudent.id,
-      user: widget.currentStudent.name,
+      userId: widget.currentStudent.uid,
+      user: widget.currentStudent.displayName,
       content: _commentController.text.trim(),
       timestamp: DateTime.now(),
     );
     Provider.of<TweetProvider>(context, listen: false).postCommentToTweet(
       widget.tweet.id,
       _commentController.text.trim(),
-      UserConverter(widget.currentStudent),
+      widget.currentStudent,
     );
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -1674,15 +1762,19 @@ class _ProfessionalTweetCardState extends State<ProfessionalTweetCard> {
   }
 
   Future<void> _shareTweet(
-    String content,
-    BuildContext context,
-    String tweetId,
-  ) async {
+      String content,
+      BuildContext context,
+      String tweetId,
+      ) async {
     try {
+      TweetProvider provider =
+      Provider.of<TweetProvider>(context, listen: false);
       await showDialog(
         context: context,
-        builder: (context) =>
-            UserSelectionDialog(tweetContent: content, tweetId: tweetId),
+        builder: (context) => UserSelectionDialog(
+
+            tweetContent: GeneralMethods.formatTweetShare(content, tweetId),
+            tweetId: tweetId),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1697,6 +1789,8 @@ class _ProfessionalTweetCardState extends State<ProfessionalTweetCard> {
       );
     }
   }
+
+
 
   void _bookmarkTweet() async {
     //save implementations

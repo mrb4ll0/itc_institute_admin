@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:itc_institute_admin/itc_logic/service/ConverterUserService.dart';
 import 'package:itc_institute_admin/model/userProfile.dart';
@@ -13,6 +14,7 @@ import '../../../../../model/reply_model.dart';
 import '../../../auth/tweet_provider.dart';
 import '../../../generalmethods/GeneralMethods.dart';
 import '../../../model/tweetModel.dart';
+import 'commentDetailPage.dart';
 import 'expandable_text.dart';
 
 class TweetDetailPage extends StatefulWidget {
@@ -31,16 +33,9 @@ class TweetDetailPage extends StatefulWidget {
 }
 
 class _TweetDetailPageState extends State<TweetDetailPage> {
-  final TextEditingController _mainCommentController = TextEditingController();
-  bool _isSubmittingMainComment = false;
-  final _scrollController = ScrollController();
-  final ValueNotifier<String> _mainCommentText = ValueNotifier('');
-  final ValueNotifier<String> _replyText = ValueNotifier('');
-  Timer? _debounceTimer;
-  final FocusNode _commentFocusNode = FocusNode(); // Add this
-  void _focusCommentField() {
-    _commentFocusNode.requestFocus();
-  }
+  final TextEditingController _commentController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  final FocusNode _commentFocusNode = FocusNode();
 
   @override
   void initState() {
@@ -48,229 +43,35 @@ class _TweetDetailPageState extends State<TweetDetailPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<TweetProvider>().subscribeToTweetDetail(widget.tweetId);
     });
-    // Add debouncing to text listeners
-    _mainCommentController.addListener(() {
-      if (_debounceTimer?.isActive ?? false) _debounceTimer!.cancel();
-      _debounceTimer = Timer(const Duration(milliseconds: 50), () {
-        if (mounted) {
-          _mainCommentText.value = _mainCommentController.text;
-        }
-      });
-    });
   }
 
   @override
   void dispose() {
-    _debounceTimer?.cancel();
-    _mainCommentController.dispose();
+    _commentController.dispose();
     _scrollController.dispose();
+    _commentFocusNode.dispose();
     context.read<TweetProvider>().unsubscribeFromTweetDetail(widget.tweetId);
-    _mainCommentText.dispose();
-    _replyText.dispose();
     super.dispose();
   }
 
-  void _showReplyDialog({
-    String? commentId,
-    String? commentContent,
-    int? commentIndex,
-    bool isSubReply = false,
-  }) {
-    final replyController = TextEditingController();
-    bool isSubmitting = false;
-
-    replyController.addListener(() {
-      _replyText.value = replyController.text;
-    });
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            final colorScheme = Theme.of(context).colorScheme;
-            final textTheme = Theme.of(context).textTheme;
-
-            return AlertDialog(
-              insetPadding: const EdgeInsets.symmetric(horizontal: 16),
-              contentPadding: EdgeInsets.zero,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              content: Container(
-                width: double.maxFinite,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Header
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        border: Border(
-                          bottom: BorderSide(
-                            color: colorScheme.outline.withOpacity(0.1),
-                          ),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            commentId == null ? 'Add Comment' : 'Reply',
-                            style: textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          IconButton(
-                            onPressed: () => Navigator.pop(context),
-                            icon: Icon(
-                              Icons.close,
-                              color: colorScheme.onSurfaceVariant,
-                              size: 24,
-                            ),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Context preview for replies
-                    if (commentContent != null)
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: colorScheme.surfaceVariant.withOpacity(0.1),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(
-                              Icons.reply,
-                              size: 16,
-                              color: colorScheme.primary,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                commentContent.length > 100
-                                    ? '${commentContent.substring(0, 100)}...'
-                                    : commentContent,
-                                style: textTheme.bodyMedium?.copyWith(
-                                  color: colorScheme.onSurfaceVariant,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                    // Input section
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // User avatar
-                          CircleAvatar(
-                            radius: 20,
-                            backgroundImage: NetworkImage(
-                              widget.company.imageUrl,
-                            ),
-                            backgroundColor: colorScheme.surfaceVariant,
-                          ),
-                          const SizedBox(width: 12),
-
-                          // Text input
-                          Expanded(
-                            child: TextField(
-                              controller: replyController,
-                              maxLines: 4,
-                              minLines: 1,
-                              autofocus: true,
-                              decoration: InputDecoration(
-                                hintText:
-                                    'Write your ${isSubReply ? 'reply' : 'comment'}...',
-                                border: InputBorder.none,
-                                contentPadding: EdgeInsets.zero,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Action buttons
-                    Container(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('Cancel'),
-                          ),
-                          const SizedBox(width: 12),
-                          ValueListenableBuilder<String>(
-                            valueListenable: _replyText,
-                            builder: (context, text, _) {
-                              return ElevatedButton(
-                                onPressed: isSubmitting || text.trim().isEmpty
-                                    ? null
-                                    : () async {
-                                        setState(() => isSubmitting = true);
-                                        await _submitReply(
-                                          replyController,
-                                          commentId: commentId,
-                                          commentIndex: commentIndex,
-                                        );
-                                        setState(() => isSubmitting = false);
-                                        if (mounted) Navigator.pop(context);
-                                      },
-                                child: isSubmitting
-                                    ? const SizedBox(
-                                        height: 20,
-                                        width: 20,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                    : Text(isSubReply ? 'Reply' : 'Comment'),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
+  void _focusCommentField() {
+    _commentFocusNode.requestFocus();
   }
 
-  Future<void> _submitMainComment() async {
-    final commentText = _mainCommentController.text.trim();
+  Future<void> _submitComment() async {
+    final commentText = _commentController.text.trim();
     if (commentText.isEmpty) return;
 
-    setState(() => _isSubmittingMainComment = true);
+    final textToSubmit = commentText;
+    _commentController.clear();
 
     try {
       await context.read<TweetProvider>().postCommentToTweet(
         widget.tweetId,
-        commentText,
+        textToSubmit,
         widget.user,
       );
 
-      _mainCommentController.clear();
-
-      // Scroll to show new comment
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _scrollController.animateTo(
           0,
@@ -280,217 +81,160 @@ class _TweetDetailPageState extends State<TweetDetailPage> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Comment added!'),
+        const SnackBar(
+          content: Text('Comment posted!'),
+          backgroundColor: Colors.green,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          duration: Duration(seconds: 2),
         ),
       );
-    } catch (e, s) {
-      debugPrint("error posting comment: $e");
-      debugPrintStack(stackTrace: s);
+    } catch (e) {
+      _commentController.text = textToSubmit;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to post: $e'),
-          backgroundColor: Theme.of(context).colorScheme.error,
+          content: Text('Failed to post comment: $e'),
+          backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
         ),
       );
-    } finally {
-      setState(() => _isSubmittingMainComment = false);
     }
   }
 
-  Future<void> _submitReply(
-    TextEditingController controller, {
-    String? commentId,
-    int? commentIndex,
-  }) async {
-    final replyText = controller.text.trim();
-    if (replyText.isEmpty) return;
-
-    final tweetProvider = context.read<TweetProvider>();
-
-    try {
-      if (commentId != null && commentIndex != null) {
-        await tweetProvider.postReply(
-          widget.tweetId,
-          commentId,
-          commentIndex,
-          replyText,
-          widget.user,
-          '',
-        );
-        _replyText.value = '';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Reply added!'),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        );
-      }
-    } catch (e, s) {
-      debugPrint("error posting reply: $e");
-      debugPrintStack(stackTrace: s);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to post: $e'),
-          backgroundColor: Theme.of(context).colorScheme.error,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+  void _navigateToCommentDetail(Comment comment, int commentIndex) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CommentDetailPage(
+          tweetId: widget.tweetId,
+          comment: comment,
+          commentIndex: commentIndex,
+          currentUser: widget.user,
+          tweetAuthor: widget.company,
         ),
-      );
-    }
+      ),
+    );
+  }
+
+  void _navigateToReplyDetail(Comment comment, int commentIndex, Reply reply, int replyIndex) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CommentDetailPage(
+          tweetId: widget.tweetId,
+          comment: comment,
+          commentIndex: commentIndex,
+          currentUser: widget.user,
+          tweetAuthor: widget.company,
+          selectedReply: reply,
+          selectedReplyIndex: replyIndex,
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final isLocked =
-        context.select<TweetProvider, bool?>(
-          (provider) => provider.getTweetDetail(widget.tweetId)?.lock,
-        ) ??
-        false;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
+      backgroundColor: isDark ? Colors.grey[900] : Colors.white,
+      appBar: AppBar(
+        backgroundColor: isDark ? Colors.grey[900] : Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: isDark ? Colors.white : Colors.black87),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          'Post',
+          style: TextStyle(
+            color: isDark ? Colors.white : Colors.black87,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        centerTitle: true,
+      ),
       body: Column(
         children: [
           Expanded(
-            child: NestedScrollView(
-              controller: _scrollController,
-              headerSliverBuilder: (context, innerBoxIsScrolled) {
-                return [
-                  SliverAppBar(
-                    floating: true,
-                    pinned: true,
-                    backgroundColor: colorScheme.surface,
-                    surfaceTintColor: colorScheme.surfaceTint,
-                    elevation: 0,
-                    leading: IconButton(
-                      icon: Icon(
-                        Icons.arrow_back,
-                        color: colorScheme.onSurface,
-                      ),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                    title: Text(
-                      'Post',
-                      style: TextStyle(
-                        color: colorScheme.onSurface,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    centerTitle: true,
-                  ),
-                ];
-              },
-              body: _TweetDetailBody(
-                focusNodeTap: _focusCommentField,
-                student: widget.company,
-                tweetId: widget.tweetId,
-                onReplyToComment: (commentId, commentContent, commentIndex) =>
-                    _showReplyDialog(
-                      commentId: commentId,
-                      commentContent: commentContent,
-                      commentIndex: commentIndex,
-                      isSubReply: true,
-                    ),
-              ),
+            child: _TweetDetailBody(
+              student: widget.company,
+              tweetId: widget.tweetId,
+              currentUser: widget.user,
+              onCommentTap: _navigateToCommentDetail,
+              onReplyTap: _navigateToReplyDetail,
+              onCommentIconTap: _focusCommentField,
             ),
           ),
-
-          // Fixed comment input field (Facebook style)
-          if (!isLocked)
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: colorScheme.surface,
-                border: Border(
-                  top: BorderSide(color: colorScheme.outline.withOpacity(0.1)),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: isDark ? Colors.grey[900] : Colors.white,
+              border: Border(
+                top: BorderSide(
+                  color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
                 ),
               ),
-              child: Row(
-                children: [
-                  // User avatar
-                  CircleAvatar(
-                    radius: 20,
-                    backgroundImage: NetworkImage(widget.user.imageUrl),
-                    backgroundColor: colorScheme.surfaceVariant,
-                  ),
-                  const SizedBox(width: 12),
-
-                  // Text input
-                  Expanded(
+            ),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 18,
+                  backgroundImage: NetworkImage(widget.user.imageUrl),
+                  backgroundColor: Colors.grey[300],
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.grey[800] : Colors.grey[100],
+                      borderRadius: BorderRadius.circular(20),
+                    ),
                     child: TextField(
-                      controller: _mainCommentController,
-                      maxLines: 4,
-                      minLines: 1,
+                      controller: _commentController,
                       focusNode: _commentFocusNode,
-                      autofocus: true,
                       decoration: InputDecoration(
                         hintText: 'Write a comment...',
+                        hintStyle: TextStyle(
+                          color: isDark ? Colors.grey[500] : Colors.grey[500],
+                        ),
                         border: InputBorder.none,
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 16,
-                          vertical: 12,
-                        ),
-                        filled: true,
-                        fillColor: colorScheme.surfaceVariant.withOpacity(0.4),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: BorderSide.none,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: BorderSide(
-                            color: colorScheme.primary,
-                            width: 1,
-                          ),
+                          vertical: 10,
                         ),
                       ),
                     ),
                   ),
-
-                  const SizedBox(width: 12),
-
-                  // Send button
-                  ValueListenableBuilder<String>(
-                    valueListenable: _mainCommentText,
-                    builder: (context, text, _) {
-                      return IconButton(
-                        onPressed:
-                            _isSubmittingMainComment || text.trim().isEmpty
-                            ? null
-                            : _submitMainComment,
-                        icon: _isSubmittingMainComment
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : Icon(
-                                Icons.send,
-                                color: text.trim().isNotEmpty
-                                    ? colorScheme.primary
-                                    : colorScheme.onSurfaceVariant,
-                              ),
-                      );
-                    },
-                  ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 8),
+                ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _commentController,
+                  builder: (context, value, _) {
+                    return GestureDetector(
+                      onTap: value.text.trim().isEmpty ? null : _submitComment,
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: value.text.trim().isEmpty
+                              ? (isDark ? Colors.grey[800] : Colors.grey[200])
+                              : const Color(0xFF1877F2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.send,
+                          size: 18,
+                          color: value.text.trim().isEmpty
+                              ? (isDark ? Colors.grey[600] : Colors.grey[500])
+                              : Colors.white,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
             ),
+          ),
         ],
       ),
     );
@@ -500,14 +244,18 @@ class _TweetDetailPageState extends State<TweetDetailPage> {
 class _TweetDetailBody extends StatelessWidget {
   final UserConverter student;
   final String tweetId;
-  final Function(String, String, int) onReplyToComment;
-  final VoidCallback? focusNodeTap;
+  final UserConverter currentUser;
+  final Function(Comment, int) onCommentTap;
+  final Function(Comment, int, Reply, int) onReplyTap;
+  final VoidCallback onCommentIconTap;
 
   const _TweetDetailBody({
-    this.focusNodeTap,
     required this.student,
     required this.tweetId,
-    required this.onReplyToComment,
+    required this.currentUser,
+    required this.onCommentTap,
+    required this.onReplyTap,
+    required this.onCommentIconTap,
   });
 
   String _formatTimestamp(DateTime timestamp) {
@@ -529,1049 +277,943 @@ class _TweetDetailBody extends StatelessWidget {
     }
   }
 
-  Widget _buildReplyItem(
-    Reply reply,
-    String tweetId,
-    String commentId,
-    int commentIndex,
-    int replyIndex,
-    BuildContext context,
-  ) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
+  void _showCommentBottomSheet({
+    required BuildContext bigContext,
+    required Comment comment,
+    required int commentIndex,
+    required String tweetId,
+    required String commentUserId,
+    required String commentUserName,
+    required bool isOwner,
+  }) {
+    final isDark = Theme.of(bigContext).brightness == Brightness.dark;
 
-    return FutureBuilder<UserConverter?>(
-      future: UserService().getUser(reply.studentId),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Container(
-            height: 100, // Give it a height while loading
-            margin: const EdgeInsets.only(bottom: 12, left: 36),
-            child: const Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        // FIX: Return an error placeholder instead of shrink
-        if (!snapshot.hasData || snapshot.hasError) {
-          return Container(
-            height: 100, // Give it a height even on error
-            margin: const EdgeInsets.only(bottom: 12, left: 36),
-            child: const Center(child: Icon(Icons.error_outline)),
-          );
-        }
-
-        final replyStudent = snapshot.data!;
-        final currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
-
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12, left: 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Connection line
-              // FIXED Connection line - Remove Expanded and alignment issues
-              SizedBox(
-                width: 24,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min, // Important: Don't expand
-                  children: [
-                    Container(
-                      width: 2,
-                      height: 24,
-                      color: colorScheme.outline.withOpacity(0.2),
-                    ),
-                    Container(
-                      width: 8,
-                      height: 8,
-                      margin: const EdgeInsets.symmetric(vertical: 4),
-                      decoration: BoxDecoration(
-                        color: colorScheme.outline.withOpacity(0.4),
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    // FIX: Remove Expanded, use a Container with flex
-                    Container(
-                      width: 2,
-                      constraints: BoxConstraints(
-                        minHeight: 0,
-                        maxHeight: double.infinity,
-                      ),
-                      color: colorScheme.outline.withOpacity(0.2),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-
-              // Reply content
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceVariant.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Reply header
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: colorScheme.surfaceVariant.withOpacity(0.1),
-                          borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(16),
-                          ),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            CircleAvatar(
-                              radius: 16,
-                              backgroundImage: NetworkImage(
-                                replyStudent.imageUrl,
-                              ),
-                              backgroundColor: colorScheme.surfaceVariant,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                              replyStudent.uid.startsWith('admin_')?'${replyStudent.displayName.split(' ').first} ITC Rep' : replyStudent.displayName,
-                                    style: textTheme.bodyLarge?.copyWith(
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    _formatTimestamp(reply.postedAt),
-                                    style: textTheme.bodySmall?.copyWith(
-                                      color: colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (reply.studentId == currentUserId)
-                              IconButton(
-                                onPressed: () {
-                                  _showDeleteReplyDialog(
-                                    context,
-                                    tweetId,
-                                    commentId,
-                                    commentIndex,
-                                    reply.id ?? "",
-                                    replyIndex,
-                                  );
-                                },
-                                icon: Icon(
-                                  Icons.more_vert,
-                                  size: 20,
-                                  color: colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-
-                      // Reply content
-                      Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Text(
-                          reply.content,
-                          style: textTheme.bodyLarge?.copyWith(height: 1.5),
-                        ),
-                      ),
-
-                      // Actions
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: colorScheme.surface,
-                          borderRadius: const BorderRadius.vertical(
-                            bottom: Radius.circular(16),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Consumer<TweetProvider>(
-                              builder: (context, tweetProvider, _) {
-                                final isLiked = reply.likes.contains(
-                                  currentUserId,
-                                );
-                                return FilledButton.tonalIcon(
-                                  onPressed: () {
-                                    tweetProvider.toggleLikeForReply(
-                                      tweetId,
-                                      commentId,
-                                      reply.id ?? "",
-                                      commentIndex,
-                                      replyIndex,
-                                      isLiked,
-                                    );
-                                  },
-                                  icon: Icon(
-                                    isLiked
-                                        ? Icons.favorite
-                                        : Icons.favorite_border,
-                                    size: 18,
-                                  ),
-                                  label: Text('${reply.likes.length}'),
-                                  style: FilledButton.styleFrom(
-                                    backgroundColor: isLiked
-                                        ? colorScheme.errorContainer
-                                        : null,
-                                    foregroundColor: isLiked
-                                        ? colorScheme.onErrorContainer
-                                        : null,
-                                  ),
-                                );
-                              },
-                            ),
-                            const SizedBox(width: 12),
-                            OutlinedButton.icon(
-                              onPressed: () {
-                                onReplyToComment(
-                                  commentId,
-                                  reply.content,
-                                  commentIndex,
-                                );
-                              },
-                              icon: const Icon(Icons.reply, size: 18),
-                              label: const Text('Reply'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  void _showDeleteReplyDialog(
-    BuildContext context,
-    String tweetId,
-    String commentId,
-    int commentIndex,
-    String replyId,
-    int replyIndex,
-  ) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        final colorScheme = Theme.of(context).colorScheme;
-        final textTheme = Theme.of(context).textTheme;
-
-        return AlertDialog(
-          title: Text(
-            'Delete Reply',
-            style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-          ),
-          content: Text(
-            'Are you sure you want to delete this reply? This action cannot be undone.',
-            style: textTheme.bodyMedium?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(
-                'Cancel',
-                style: textTheme.bodyLarge?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
+    showModalBottomSheet(
+      context: bigContext,
+      backgroundColor: isDark ? Colors.grey[850] : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 8),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: isDark ? Colors.grey[600] : Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
               ),
             ),
-            FilledButton(
-              onPressed: () async {
-                Navigator.pop(context);
-                await _deleteReply(
-                  context,
-                  tweetId,
-                  commentId,
-                  commentIndex,
-                  replyId,
-                  replyIndex,
+            if (isOwner)
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Colors.red),
+                title: const Text('Delete Comment'),
+                onTap: () {
+                  Navigator.pop(bigContext);
+                  _showDeleteConfirmation(
+                    bigContext,
+                    'Delete this comment?',
+                        () => bigContext.read<TweetProvider>().deleteComment(tweetId, commentIndex),
+                  );
+                },
+              ),
+            ListTile(
+              leading: const Icon(Icons.reply_outlined),
+              title: const Text('Reply'),
+              onTap: () {
+                Navigator.pop(bigContext);
+                // This will need to be handled - you might want to pass this up
+                ScaffoldMessenger.of(bigContext).showSnackBar(
+                  const SnackBar(content: Text('Reply functionality coming')),
                 );
               },
-              style: FilledButton.styleFrom(
-                backgroundColor: colorScheme.error,
-                foregroundColor: colorScheme.onError,
-              ),
-              child: const Text('Delete'),
             ),
+            ListTile(
+              leading: const Icon(Icons.content_copy_outlined),
+              title: const Text('Copy Text'),
+              onTap: () {
+                Navigator.pop(bigContext);
+                _copyToClipboard(bigContext, comment.content);
+              },
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.report_outlined, color: Colors.orange),
+              title: const Text('Report'),
+              onTap: () {
+                Navigator.pop(bigContext);
+                _showReportDialog(bigContext, comment.id ?? '');
+              },
+            ),
+            const SizedBox(height: 8),
           ],
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-        );
-      },
+        ),
+      ),
     );
   }
 
-  Future<void> _deleteReply(
-    BuildContext context,
-    String tweetId,
-    String commentId,
-    int commentIndex,
-    String replyId,
-    int replyIndex,
-  ) async {
-    try {
-      final tweetProvider = context.read<TweetProvider>();
-      await tweetProvider.deleteReply(
-        tweetId,
-        commentId,
-        commentIndex,
-        replyIndex,
-      );
+  void _showReplyBottomSheet({
+    required BuildContext parentContext,
+    required Reply reply,
+    required int replyIndex,
+    required String commentId,
+    required int commentIndex,
+    required String tweetId,
+    required String replyUserId,
+    required String replyUserName,
+    required bool isOwner,
+    required VoidCallback onReplyTap,
+  }) {
+    final isDark = Theme.of(parentContext).brightness == Brightness.dark;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Reply deleted'),
-          behavior: SnackBarBehavior.floating,
+    showModalBottomSheet(
+      context: parentContext,
+      backgroundColor: isDark ? Colors.grey[850] : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 8),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: isDark ? Colors.grey[600] : Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            if (isOwner)
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Colors.red),
+                title: const Text('Delete Reply'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showDeleteConfirmation(
+                    context,
+                    'Delete this reply?',
+                        () => parentContext.read<TweetProvider>().deleteReply(
+                      tweetId,
+                      commentId,
+                      commentIndex,
+                      replyIndex,
+                    ),
+                  );
+                },
+              ),
+            ListTile(
+              leading: const Icon(Icons.reply_outlined),
+              title: const Text('Reply'),
+              onTap: () {
+                Navigator.pop(context);
+                onReplyTap();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.content_copy_outlined),
+              title: const Text('Copy Text'),
+              onTap: () {
+                Navigator.pop(context);
+                _copyToClipboard(context, reply.content);
+              },
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.report_outlined, color: Colors.orange),
+              title: const Text('Report'),
+              onTap: () {
+                Navigator.pop(context);
+                _showReportDialog(context, reply.id ?? '');
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
         ),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to delete: $e'),
-          backgroundColor: Theme.of(context).colorScheme.error,
-          behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _copyToClipboard(BuildContext context, String text) {
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Copied to clipboard'),
+        duration: Duration(seconds: 1),
+      ),
+    );
+  }
+
+  void _showReportDialog(BuildContext context, String id) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: isDark ? Colors.grey[850] : Colors.white,
+        title: Text(
+          'Report Content',
+          style: TextStyle(color: isDark ? Colors.white : Colors.black87),
         ),
-      );
-    }
+        content: Text(
+          'Are you sure you want to report this content?',
+          style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[600]),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Reported. We will review it.'),
+                  backgroundColor: Colors.orange,
+                ),
+              );
+            },
+            child: const Text(
+              'Report',
+              style: TextStyle(color: Colors.orange),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showDeleteConfirmation(
+      BuildContext context,
+      String message,
+      Future<void> Function() onDelete,
+      ) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: isDark ? Colors.grey[850] : Colors.white,
+        title: Text(
+          'Confirm Delete',
+          style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+        ),
+        content: Text(
+          message,
+          style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[600]),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              // Use dialogContext to close the dialog
+              Navigator.pop(dialogContext);
+              try {
+                await onDelete();
+                // Use the original context parameter, but check if it's mounted
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Deleted successfully'),
+                      backgroundColor: Colors.green,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                }
+              } catch (e,s) {
+                debugPrint("error deletion $e");
+                debugPrintStack(stackTrace: s);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to delete: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext parentContext) {
+    final isDark = Theme.of(parentContext).brightness == Brightness.dark;
+
     return Consumer<TweetProvider>(
       builder: (context, tweetProvider, _) {
         final tweet = tweetProvider.getTweetDetail(tweetId);
         final isLoading = tweetProvider.isTweetDetailLoading(tweetId);
         final error = tweetProvider.getTweetDetailError(tweetId);
 
-        if (isLoading) return _buildLoadingState(context);
-        if (error != null) return _buildErrorState(error, context);
-        if (tweet == null) return _buildEmptyState(context);
+        if (isLoading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (error != null) {
+          return Center(child: Text('Error: $error'));
+        }
+        if (tweet == null) {
+          return const Center(child: Text('Post not found'));
+        }
 
-        return _buildTweetDetail(tweet, tweetProvider, context);
+        final currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
+
+        return ListView(
+          controller: ScrollController(),
+          children: [
+            _buildPostCard(context, tweet, currentUserId,parentContext),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Comments',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                  if (tweet.comments.isNotEmpty)
+                    Text(
+                      '${tweet.comments.length} total',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: isDark ? Colors.grey[500] : Colors.grey[500],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            if (tweet.comments.isEmpty)
+              _buildEmptyComments(context)
+            else
+              ...tweet.comments.asMap().entries.map((entry) {
+                final index = entry.key;
+                final comment = entry.value;
+                return _buildCommentCard(
+                  bigContext: parentContext,
+                  comment: comment,
+                  commentIndex: index,
+                  currentUserId: currentUserId,
+                  tweetId: tweet.id,
+                  onCommentTap: () => onCommentTap(comment, index),
+                  onReplyTap: (reply, replyIndex) => onReplyTap(comment, index, reply, replyIndex),
+                );
+              }),
+            const SizedBox(height: 80),
+          ],
+        );
       },
     );
   }
 
-  Widget _buildLoadingState(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+  Widget _buildPostCard(BuildContext context, TweetModel tweet, String currentUserId,BuildContext parentContext) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isOwner = tweet.userId == currentUserId;
 
-    return Center(
+    return Container(
+      margin: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.grey[850] : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircularProgressIndicator(color: colorScheme.primary),
-          const SizedBox(height: 20),
-          Text(
-            'Loading post...',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: colorScheme.onSurfaceVariant,
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundImage: NetworkImage(student.imageUrl),
+                backgroundColor: Colors.grey[300],
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      student.uid.startsWith('admin_')
+                          ? '${student.displayName.split(' ').first} ITC Rep'
+                          : student.displayName,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                    Text(
+                      _formatTimestamp(tweet.timestamp),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark ? Colors.grey[500] : Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (isOwner)
+                PopupMenuButton<String>(
+                  icon: Icon(Icons.more_vert,
+                    color: isDark ? Colors.white70 : Colors.black54,
+                    size: 20,
+                  ),
+                  onSelected: (value) {
+                    if (value == 'delete') {
+                      _showDeleteConfirmation(
+                        context,
+                        'Delete this post?',
+                            () => parentContext.read<TweetProvider>().deleteTweet(tweet.id, context),
+                      );
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                          SizedBox(width: 8),
+                          Text('Delete', style: TextStyle(color: Colors.red)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ExpandableText(
+            text: tweet.content,
+            isDark: isDark,
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              children: [
+                if (tweet.likes.isNotEmpty)
+                  Row(
+                    children: [
+                      const Icon(Icons.thumb_up, size: 14, color: Color(0xFF1877F2)),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${tweet.likes.length}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isDark ? Colors.grey[400] : Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                const SizedBox(width: 16),
+                if (tweet.comments.isNotEmpty)
+                  Text(
+                    '${tweet.comments.length} comments',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: isDark ? Colors.grey[400] : Colors.grey[600],
+                    ),
+                  ),
+              ],
             ),
+          ),
+          const Divider(height: 1),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildActionButton(
+                context: context,
+                icon: Icons.thumb_up_outlined,
+                activeIcon: Icons.thumb_up,
+                isActive: tweet.likes.contains(currentUserId),
+                label: 'Like',
+                onTap: () => context.read<TweetProvider>().toggleLike(
+                  tweet.id,
+                  currentUserId,
+                  tweet.likes.contains(currentUserId),
+                ),
+              ),
+              _buildActionButton(
+                context: context,
+                icon: Icons.chat_bubble_outline,
+                activeIcon: Icons.chat_bubble,
+                isActive: false,
+                label: 'Comment',
+                onTap: onCommentIconTap,
+              ),
+              _buildActionButton(
+                context: context,
+                icon: Icons.share_outlined,
+                activeIcon: Icons.share,
+                isActive: false,
+                label: 'Share',
+                onTap: () => _shareTweet(tweet.content, context, tweet.id),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildErrorState(String error, BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline, size: 48, color: colorScheme.error),
-            const SizedBox(height: 16),
-            Text(
-              'Unable to load post',
-              style: textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              error,
-              textAlign: TextAlign.center,
-              style: textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmptyState(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.chat_bubble_outline,
-              size: 48,
-              color: colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Post not found',
-              style: textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'The post you\'re looking for doesn\'t exist or has been deleted.',
-              textAlign: TextAlign.center,
-              style: textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTweetDetail(
-    TweetModel tweet,
-    TweetProvider tweetProvider,
-    BuildContext context,
-  ) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-    final currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
-    final isLocked = tweet.lock ?? false;
-
-    return CustomScrollView(
-      slivers: [
-        // Tweet content
-        SliverToBoxAdapter(
-          child: Container(
-            margin: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: colorScheme.surface,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: colorScheme.shadow.withOpacity(0.08),
-                  blurRadius: 16,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Header
-                Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Row(
-                    children: [
-                      // Avatar
-                      CircleAvatar(
-                        radius: 28,
-                        backgroundImage: NetworkImage(student.imageUrl),
-                        backgroundColor: colorScheme.surfaceVariant,
-                      ),
-                      const SizedBox(width: 16),
-
-                      // User info
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              student.uid.startsWith('admin_')?'${student.displayName.split(' ').first} ITC Rep' : student.displayName,
-                              style: textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              _formatTimestamp(tweet.timestamp),
-                              style: textTheme.bodySmall?.copyWith(
-                                color: colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      // Student badge
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: colorScheme.primaryContainer,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          'Student',
-                          style: textTheme.labelSmall?.copyWith(
-                            color: colorScheme.onPrimaryContainer,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Content
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Text(
-                    tweet.content,
-                    style: textTheme.bodyLarge?.copyWith(height: 1.6),
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                // Stats and actions
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 16,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceVariant.withOpacity(0.1),
-                    borderRadius: const BorderRadius.vertical(
-                      bottom: Radius.circular(20),
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          _buildActionButton(
-                            context: context,
-                            icon: Icons.favorite_border,
-                            activeIcon: Icons.favorite,
-                            count: tweet.likes.length,
-                            label: 'Likes',
-                            isActive: tweet.likes.contains(currentUserId),
-                            onTap: () {
-                              tweetProvider.toggleLike(
-                                tweet.id,
-                                currentUserId,
-                                tweet.likes.contains(currentUserId),
-                              );
-                            },
-                          ),
-                          _buildActionButton(
-                            context: context,
-                            icon: Icons.chat_bubble_outline,
-                            activeIcon: Icons.chat_bubble,
-                            count: tweet.comments.length,
-                            label: 'Comments',
-                            isActive: false,
-                            onTap: focusNodeTap ?? () {},
-                          ),
-                          _buildActionButton(
-                            context: context,
-                            icon: Icons.share_outlined,
-                            activeIcon: Icons.share,
-                            count: tweet.shares.length,
-                            label: 'Shares',
-                            isActive: false,
-                            onTap: () =>
-                                _shareTweet(tweet.content, context, tweet.id),
-                          ),
-                        ],
-                      ),
-                      if (isLocked) ...[
-                        const SizedBox(height: 16),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: colorScheme.errorContainer.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: colorScheme.errorContainer.withOpacity(
-                                0.3,
-                              ),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.lock_outline,
-                                size: 18,
-                                color: colorScheme.error,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'Comments locked by author',
-                                  style: textTheme.bodySmall?.copyWith(
-                                    color: colorScheme.error,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-
-        // Comments section
-        SliverPadding(
-          padding: const EdgeInsets.only(top: 8),
-          sliver: SliverToBoxAdapter(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              child: Text(
-                'Comments',
-                style: textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
-        ),
-
-        if (tweet.comments.isEmpty)
-          SliverToBoxAdapter(child: _buildEmptyCommentsState(context))
-        else
-          SliverList(
-            delegate: SliverChildBuilderDelegate((context, index) {
-              final comment = tweet.comments[index];
-              debugPrint("comment index ${index}");
-              return _buildCommentItem(
-                comment,
-                tweet.id,
-                index,
-                context,
-                tweetProvider,
-              );
-            }, childCount: tweet.comments.length),
-          ),
-
-        const SliverToBoxAdapter(child: SizedBox(height: 80)),
-      ],
-    );
-  }
-
-  Widget _buildCommentItem(
-    Comment comment,
-    String tweetId,
-    int index,
-    BuildContext context,
-    TweetProvider tweetProvider,
-  ) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-    final currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
-    // Add a local state to track if replies are shown
-    bool showReplies = false;
+  Widget _buildCommentCard({
+    required BuildContext bigContext,
+    required Comment comment,
+    required int commentIndex,
+    required String currentUserId,
+    required String tweetId,
+    required VoidCallback onCommentTap,
+    required Function(Reply, int) onReplyTap,
+  }) {
+    final isDark = Theme.of(bigContext).brightness == Brightness.dark;
+    final isOwner = comment.userId == currentUserId;
 
     return FutureBuilder<UserConverter?>(
       future: UserService().getUser(comment.userId),
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const SizedBox.shrink();
-
-        final commentStudent = snapshot.data!;
+        final commentUser = snapshot.data!;
 
         return Container(
-          margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: colorScheme.surface,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: colorScheme.shadow.withOpacity(0.05),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
+            color: isDark ? Colors.grey[850] : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
+            ),
           ),
-          child: StatefulBuilder(
-            builder: (context, setState) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Comment header
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onCommentTap,
+              onLongPress: () {
+                _showCommentBottomSheet(
+                  bigContext: bigContext,
+                  comment: comment,
+                  commentIndex: commentIndex,
+                  tweetId: tweetId,
+                  commentUserId: comment.userId,
+                  commentUserName: commentUser.displayName,
+                  isOwner: isOwner,
+                );
+              },
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         CircleAvatar(
-                          radius: 20,
-                          backgroundImage: NetworkImage(
-                            commentStudent.imageUrl,
-                          ),
-                          backgroundColor: colorScheme.surfaceVariant,
+                          radius: 16,
+                          backgroundImage: NetworkImage(commentUser.imageUrl),
+                          backgroundColor: Colors.grey[300],
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 2,
                                 children: [
-                                  Expanded(
-                                    child: Text(
-                                      commentStudent.uid.startsWith('admin_')?'${commentStudent.displayName.split(' ').first} ITC Rep' : commentStudent.displayName,
-                                      style: textTheme.bodyLarge?.copyWith(
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
+                                  Text(
+                                    commentUser.displayName,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13,
+                                      color: isDark ? Colors.white : Colors.black87,
                                     ),
                                   ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: colorScheme.primaryContainer,
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Text(
-                                      commentStudent.role,
-                                      style: textTheme.labelSmall?.copyWith(
-                                        color: colorScheme.onPrimaryContainer,
-                                        fontWeight: FontWeight.w600,
-                                      ),
+                                  Text(
+                                    _formatTimestamp(comment.timestamp),
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: isDark ? Colors.grey[500] : Colors.grey[500],
                                     ),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 2),
+                              const SizedBox(height: 4),
                               Text(
-                                _formatTimestamp(comment.timestamp),
-                                style: textTheme.bodySmall?.copyWith(
-                                  color: colorScheme.onSurfaceVariant,
+                                comment.content,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: isDark ? Colors.white70 : Colors.black87,
                                 ),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  GestureDetector(
+                                    onTap: () => _toggleCommentLike(
+                                      context,
+                                      tweetId,
+                                      comment.id ?? '',
+                                      commentIndex,
+                                      comment.likes.contains(currentUserId),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          comment.likes.contains(currentUserId)
+                                              ? Icons.thumb_up
+                                              : Icons.thumb_up_outlined,
+                                          size: 14,
+                                          color: comment.likes.contains(currentUserId)
+                                              ? const Color(0xFF1877F2)
+                                              : (isDark ? Colors.grey[500] : Colors.grey[600]),
+                                        ),
+                                        if (comment.likes.isNotEmpty) ...[
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            '${comment.likes.length}',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: isDark ? Colors.grey[500] : Colors.grey[500],
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  GestureDetector(
+                                    onTap: onCommentTap,
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.reply_outlined,
+                                          size: 14,
+                                          color: isDark ? Colors.grey[500] : Colors.grey[500],
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          'Reply',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: isDark ? Colors.grey[500] : Colors.grey[500],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
                         ),
-                        if (comment.userId == currentUserId)
-                          IconButton(
-                            onPressed: () {
-                              _showDeleteCommentDialog(
-                                context,
-                                tweetId,
-                                index,
-                                tweetProvider,
-                              );
-                            },
-                            icon: Icon(
-                              Icons.more_vert,
-                              size: 20,
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                          ),
                       ],
                     ),
-                  ),
-
-                  // Comment content
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    child: ExpandableText(
-                      isDark: Theme.of(context).brightness == Brightness.dark,
-                      text: comment.content,
-                    ),
-                  ),
-
-                  // Actions
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      color: colorScheme.surfaceVariant.withOpacity(0.1),
-                      borderRadius: const BorderRadius.vertical(
-                        bottom: Radius.circular(16),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Consumer<TweetProvider>(
-                          builder: (context, tweetProvider, _) {
-                            final isLiked = comment.likes.contains(
-                              currentUserId,
-                            );
-                            return FilledButton.tonalIcon(
-                              onPressed: () {
-                                tweetProvider.toggleLikeForComment(
-                                  tweetId,
-                                  comment.id ?? '',
-                                  index,
-                                  comment.likes.contains(currentUserId),
-                                );
-                              },
-                              icon: Icon(
-                                isLiked
-                                    ? Icons.favorite
-                                    : Icons.favorite_border,
-                                size: 18,
-                              ),
-                              label: Text('${comment.likes.length}'),
-                              style: FilledButton.styleFrom(
-                                backgroundColor: isLiked
-                                    ? colorScheme.errorContainer
-                                    : null,
-                                foregroundColor: isLiked
-                                    ? colorScheme.onErrorContainer
-                                    : null,
-                              ),
-                            );
-                          },
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: GeneralMethods.isSmallScreen(context) && comment.replies.isNotEmpty?IconButton(
-                            icon: Icon(Icons.messenger_outline),
-                            onPressed: () {
-                              onReplyToComment(
-                                comment.id ?? '',
-                                comment.content,
-                                index,
+                    if (comment.replies.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 26),
+                        child: Column(
+                          children: [
+                            ...comment.replies.take(3).toList().asMap().entries.map((replyEntry) {
+                              final replyIndex = replyEntry.key;
+                              final reply = replyEntry.value;
+                              return _buildReplyPreview(
+                                bigContext: context,
+                                reply: reply,
+                                replyIndex: replyIndex,
+                                comment: comment,
+                                commentIndex: commentIndex,
+                                currentUserId: currentUserId,
+                                tweetId: tweetId,
+                                onReplyTap: () => onReplyTap(reply, replyIndex),
                               );
-                            },
-                          ):OutlinedButton.icon(
-                            onPressed: () {
-                              onReplyToComment(
-                                comment.id ?? '',
-                                comment.content,
-                                index,
-                              );
-                            },
-                            icon: const Icon(Icons.messenger_outline, size: 18),
-                            label: Text(
-                              comment.replies.isNotEmpty
-                                  ? 'Reply (${comment.replies.length})'
-                                  : 'Reply',
-                            ),
-                          ),
-                        ),
-
-                        // Add "Show Replies" button if there are replies
-                        if (comment.replies.isNotEmpty) ...[
-                          const SizedBox(width: 12),
-                          OutlinedButton.icon(
-                            onPressed: () {
-                              setState(() {
-                                showReplies = !showReplies;
-                              });
-                            },
-                            icon: Icon(
-                              showReplies
-                                  ? Icons.visibility_off
-                                  : Icons.visibility,
-                              size: 18,
-                            ),
-                            label: Text(showReplies ? 'Hide' : 'See'),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-
-                  // Replies - Only show when expanded
-                  if (comment.replies.isNotEmpty && showReplies)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Replies header
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.subdirectory_arrow_right,
-                                  size: 18,
-                                  color: colorScheme.onSurfaceVariant,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Replies (${comment.replies.length})',
-                                  style: textTheme.bodyLarge?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                    color: colorScheme.onSurfaceVariant,
+                            }),
+                            if (comment.replies.length > 3)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: GestureDetector(
+                                  onTap: onCommentTap,
+                                  child: Text(
+                                    'View all ${comment.replies.length} replies',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: const Color(0xFF1877F2),
+                                      fontWeight: FontWeight.w500,
+                                    ),
                                   ),
                                 ),
-                              ],
-                            ),
-                          ),
-
-                          // Replies list
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              for (
-                                int i = comment.replies.length - 1;
-                                i >= 0;
-                                i--
-                              )
-                                _buildReplyItem(
-                                  comment.replies[i],
-                                  tweetId,
-                                  comment.id ?? '',
-                                  index,
-                                  i,
-                                  context,
-                                ),
-                            ],
-                          ),
-                        ],
+                              ),
+                          ],
+                        ),
                       ),
-                    ),
-                ],
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
-
-  void _showDeleteCommentDialog(
-    BuildContext context,
-    String tweetId,
-    int index,
-    TweetProvider tweetProvider,
-  ) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        final colorScheme = Theme.of(context).colorScheme;
-        final textTheme = Theme.of(context).textTheme;
-
-        return AlertDialog(
-          title: Text(
-            'Delete Comment',
-            style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-          ),
-          content: Text(
-            'Are you sure you want to delete this comment? This action cannot be undone.',
-            style: textTheme.bodyMedium?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(
-                'Cancel',
-                style: textTheme.bodyLarge?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
+                    ],
+                  ],
                 ),
               ),
             ),
-            FilledButton(
-              onPressed: () async {
-                Navigator.pop(context);
-                try {
-                  await tweetProvider.deleteComment(tweetId, index);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Comment deleted'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Failed to delete: $e'),
-                      backgroundColor: colorScheme.error,
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                }
-              },
-              style: FilledButton.styleFrom(
-                backgroundColor: colorScheme.error,
-                foregroundColor: colorScheme.onError,
-              ),
-              child: const Text('Delete'),
-            ),
-          ],
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
           ),
         );
       },
     );
   }
 
-  Widget _buildEmptyCommentsState(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
+  Widget _buildReplyPreview({
+    required BuildContext bigContext,
+    required Reply reply,
+    required int replyIndex,
+    required Comment comment,
+    required int commentIndex,
+    required String currentUserId,
+    required String tweetId,
+    required VoidCallback onReplyTap,
+  }) {
+    final isDark = Theme.of(bigContext).brightness == Brightness.dark;
+    final isOwner = reply.studentId == currentUserId;
+
+    return FutureBuilder<UserConverter?>(
+      future: UserService().getUser(reply.studentId),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox.shrink();
+        final replyUser = snapshot.data!;
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onReplyTap,
+              onLongPress: () {
+                _showReplyBottomSheet(
+                  parentContext: bigContext,
+                  reply: reply,
+                  replyIndex: replyIndex,
+                  commentId: comment.id ?? '',
+                  commentIndex: commentIndex,
+                  tweetId: tweetId,
+                  replyUserId: reply.studentId,
+                  replyUserName: replyUser.displayName,
+                  isOwner: isOwner,
+                  onReplyTap: onReplyTap,
+                );
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    CircleAvatar(
+                      radius: 12,
+                      backgroundImage: NetworkImage(replyUser.imageUrl),
+                      backgroundColor: Colors.grey[300],
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Wrap(
+                            spacing: 4,
+                            runSpacing: 2,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Text(
+                                replyUser.displayName,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 12,
+                                  color: isDark ? Colors.white : Colors.black87,
+                                ),
+                              ),
+                              if (reply.userReplyingTo != null && reply.userReplyingTo!.isNotEmpty)
+                                Text(
+                                  '→ @${reply.userReplyingTo}',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: const Color(0xFF1877F2),
+                                  ),
+                                ),
+                              Text(
+                                _formatTimestamp(reply.postedAt),
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  color: isDark ? Colors.grey[500] : Colors.grey[500],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            reply.content,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark ? Colors.white70 : Colors.black87,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              GestureDetector(
+                                onTap: () => _toggleReplyLike(
+                                  context,
+                                  tweetId,
+                                  comment.id ?? '',
+                                  reply.id ?? '',
+                                  commentIndex,
+                                  replyIndex,
+                                  reply.likes.contains(currentUserId),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      reply.likes.contains(currentUserId)
+                                          ? Icons.thumb_up
+                                          : Icons.thumb_up_outlined,
+                                      size: 10,
+                                      color: reply.likes.contains(currentUserId)
+                                          ? const Color(0xFF1877F2)
+                                          : (isDark ? Colors.grey[500] : Colors.grey[600]),
+                                    ),
+                                    if (reply.likes.isNotEmpty) ...[
+                                      const SizedBox(width: 2),
+                                      Text(
+                                        '${reply.likes.length}',
+                                        style: TextStyle(
+                                          fontSize: 9,
+                                          color: isDark ? Colors.grey[500] : Colors.grey[500],
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              GestureDetector(
+                                onTap: onReplyTap,
+                                child: Text(
+                                  'Reply',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: isDark ? Colors.grey[500] : Colors.grey[500],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+
+  Widget _buildActionButton({
+    required BuildContext context,
+    required IconData icon,
+    required IconData activeIcon,
+    required bool isActive,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(4),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                isActive ? activeIcon : icon,
+                size: 20,
+                color: isActive
+                    ? const Color(0xFF1877F2)
+                    : (isDark ? Colors.grey[400] : Colors.grey[600]),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: isActive
+                      ? const Color(0xFF1877F2)
+                      : (isDark ? Colors.grey[400] : Colors.grey[600]),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyComments(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       margin: const EdgeInsets.all(24),
       padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceVariant.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: colorScheme.outline.withOpacity(0.2)),
-      ),
       child: Column(
         children: [
           Icon(
-            Icons.forum_outlined,
+            Icons.chat_bubble_outline,
             size: 48,
-            color: colorScheme.onSurfaceVariant,
+            color: isDark ? Colors.grey[600] : Colors.grey[400],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
           Text(
             'No comments yet',
-            style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              color: isDark ? Colors.grey[400] : Colors.grey[600],
+            ),
           ),
           const SizedBox(height: 8),
           Text(
-            'Be the first to share your thoughts on this post!',
-            textAlign: TextAlign.center,
-            style: textTheme.bodyMedium?.copyWith(
-              color: colorScheme.onSurfaceVariant,
+            'Be the first to comment',
+            style: TextStyle(
+              fontSize: 13,
+              color: isDark ? Colors.grey[500] : Colors.grey[500],
             ),
           ),
         ],
@@ -1579,56 +1221,48 @@ class _TweetDetailBody extends StatelessWidget {
     );
   }
 
-  Widget _buildActionButton({
-    required BuildContext context,
-    required IconData icon,
-    required IconData activeIcon,
-    required int count,
-    required String label,
-    required bool isActive,
-    required VoidCallback onTap,
-  }) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
+  void _toggleCommentLike(
+      BuildContext context,
+      String tweetId,
+      String commentId,
+      int commentIndex,
+      bool isLiked,
+      ) {
+    context.read<TweetProvider>().toggleLikeForComment(
+      tweetId,
+      commentId,
+      commentIndex,
+      isLiked,
+    );
+  }
 
-    return Column(
-      children: [
-        IconButton.filledTonal(
-          onPressed: onTap,
-          icon: Icon(isActive ? activeIcon : icon),
-          isSelected: isActive,
-          style: IconButton.styleFrom(
-            backgroundColor: isActive
-                ? colorScheme.primaryContainer
-                : colorScheme.surfaceVariant,
-            foregroundColor: isActive
-                ? colorScheme.onPrimaryContainer
-                : colorScheme.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          count.toString(),
-          style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: textTheme.bodySmall?.copyWith(
-            color: colorScheme.onSurfaceVariant,
-          ),
-        ),
-      ],
+  void _toggleReplyLike(
+      BuildContext context,
+      String tweetId,
+      String commentId,
+      String replyId,
+      int commentIndex,
+      int replyIndex,
+      bool isLiked,
+      ) {
+    context.read<TweetProvider>().toggleLikeForReply(
+      tweetId,
+      commentId,
+      replyId,
+      commentIndex,
+      replyIndex,
+      isLiked,
     );
   }
 }
 
 Future<void> _shareTweet(
-  String content,
-  BuildContext context,
-  String tweetId,
-) async {
+    String content,
+    BuildContext context,
+    String tweetId,
+    ) async {
   try {
+    final provider = context.read<TweetProvider>();
     await showDialog(
       context: context,
       builder: (context) =>
@@ -1640,7 +1274,9 @@ Future<void> _shareTweet(
         content: Text('Failed to share: $e'),
         backgroundColor: Theme.of(context).colorScheme.error,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
       ),
     );
   }
