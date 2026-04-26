@@ -87,16 +87,16 @@ class _CompanyDashboardControllerState
               }
               await loadAuthorityRules();
               await _loadCompany();
-
-              if (_company != null &&
-                  (_company!.isUnderAuthority == false) &&
-                  widget.tweetCompany.originalAuthority == null) {
-                checkAndShowAuthoritySpecificationDialog(
-                  context: context,
-                  company: _company!,
-                  firebaseLogic: ITCFirebaseLogic(GlobalIdService.firestoreId),
-                );
-              }
+            debugPrint("is company under authority ? ${widget.tweetCompany.isUnderAuthority}");
+              // if (_company != null &&
+              //     (_company!.isUnderAuthority == false) &&
+              //     widget.tweetCompany.originalAuthority == null) {
+              //   checkAndShowAuthoritySpecificationDialog(
+              //     context: context,
+              //     company: _company!,
+              //     firebaseLogic: ITCFirebaseLogic(GlobalIdService.firestoreId),
+              //   );
+              // }
 
 
             }
