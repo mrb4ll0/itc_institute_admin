@@ -51,6 +51,41 @@ class ChatService extends ChangeNotifier {
     });
   }
 
+
+  /// Get unread messages count using Firestore aggregation
+  Future<int> getUnreadMessagesCountEfficient(String currentUserId) async {
+    try {
+      // Get all chat rooms where current user is participant
+      final chatRoomsSnapshot = await _firebaseFirestore
+          .collection('chat_rooms')
+          .where('participants', arrayContains: currentUserId)
+          .get();
+
+      if (chatRoomsSnapshot.docs.isEmpty) return 0;
+
+      // Filter and count unread messages
+      int unreadCount = 0;
+      for (final doc in chatRoomsSnapshot.docs) {
+        final data = doc.data();
+        final latestMessage = data['latest_message'] as Map<String, dynamic>?;
+
+        if (latestMessage != null) {
+          final senderId = latestMessage['sender_id'] as String?;
+          final isRead = latestMessage['is_read'] as bool? ?? false;
+
+          if (senderId != currentUserId && !isRead) {
+            unreadCount++;
+          }
+        }
+      }
+
+      return unreadCount;
+    } catch (e) {
+      debugPrint('Error getting unread messages count: $e');
+      return 0;
+    }
+  }
+
   Future<void> removeGroupMember(String groupId, String userId) async {
     await groupsCollection.doc(groupId).update({
       'members': FieldValue.arrayRemove([userId]),
@@ -220,6 +255,7 @@ class ChatService extends ChangeNotifier {
     List<String> ids = [userId, otherUserId];
     ids.sort();
     String chatRoomID = ids.join("_");
+    debugPrint("id is ${chatRoomID}");
 
     return _firebaseFirestore
         .collection("chat_rooms")

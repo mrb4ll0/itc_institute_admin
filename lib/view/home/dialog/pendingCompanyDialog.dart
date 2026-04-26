@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../../itc_logic/firebase/authority_cloud.dart';
+import '../../../itc_logic/idservice/globalIdService.dart';
 import '../../../model/authority.dart';
 import '../../../model/company.dart';
 import '../LinkedCompaniesScreen.dart';
@@ -789,7 +790,7 @@ void showPendingCompaniesDialog(BuildContext context, Authority authority) {
     barrierDismissible: false,
     builder: (context) => PendingCompaniesDialog(
       authority: authority,
-      authorityService: AuthorityService(FirebaseAuth.instance.currentUser!.uid),
+      authorityService: AuthorityService(GlobalIdService.firestoreId),
     ),
   );
 }

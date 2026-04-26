@@ -16,6 +16,7 @@ import 'package:flutter_file_dialog/flutter_file_dialog.dart'; // For file previ
 import 'package:path_provider/path_provider.dart';
 
 import '../../firebase_cloud_storage/firebase_cloud.dart';
+import '../../itc_logic/idservice/globalIdService.dart';
 import '../../model/companyForm.dart';
 import '../../style/BorderStyle.dart';
 
@@ -41,7 +42,7 @@ class _CompanyFormUploadPageState extends State<CompanyFormUploadPage> {
   final Uuid _uuid = const Uuid();
   String? _fileError;
   List<Map<String, String>> _fileDetails = []; // Store file details
-  final companyService = Company_Cloud(FirebaseAuth.instance.currentUser!.uid);
+  final companyService = Company_Cloud(GlobalIdService.firestoreId);
 
   @override
   void initState() {

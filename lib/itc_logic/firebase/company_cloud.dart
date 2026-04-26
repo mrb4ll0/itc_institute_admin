@@ -559,6 +559,26 @@ class Company_Cloud {
     }
   }
 
+  /// Get total count of pending internships
+  Future<int> getPendingInternshipsCount(String companyId) async {
+    try {
+      // Use count() aggregation for better performance
+      final snapshot = await _firebaseFirestore
+          .collection("users")
+          .doc('companies')
+          .collection('companies')
+          .doc(companyId)
+          .collection('IT')
+          .count()
+          .get();
+
+      return snapshot.count ?? 0;
+    } catch (e) {
+      debugPrint('Error getting pending internships count: $e');
+      return 0;
+    }
+  }
+
   Future<List<StudentApplication>> getBasicApplicationsForInternshipFuture(
     String companyId,
     String internshipId,

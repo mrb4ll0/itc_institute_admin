@@ -12,6 +12,7 @@ import 'package:itc_institute_admin/view/home/industrailTraining/fileDetails.dar
 import 'package:itc_institute_admin/view/home/industrailTraining/specificITApplicationLists.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../itc_logic/idservice/globalIdService.dart';
 import '../../../model/company.dart';
 
 class InternshipDetailsPage extends StatefulWidget {
@@ -28,8 +29,8 @@ class _InternshipDetailsPageState extends State<InternshipDetailsPage> {
   bool _isExpanded = false;
   bool _showFullDescription = false;
   late IndustrialTraining _internship;
-  final Company_Cloud company_cloud = Company_Cloud(FirebaseAuth.instance.currentUser!.uid);
-  final ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
+  final Company_Cloud company_cloud = Company_Cloud(GlobalIdService.firestoreId);
+  final ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic(GlobalIdService.firestoreId);
 
   @override
   void initState() {
@@ -470,7 +471,7 @@ class _InternshipDetailsPageState extends State<InternshipDetailsPage> {
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) return null;
 
-      return await itcFirebaseLogic.getCompany(currentUser.uid);
+      return await itcFirebaseLogic.getCompany(GlobalIdService.firestoreId);
     } catch (e) {
       debugPrint('Error loading company data: $e');
       return null;

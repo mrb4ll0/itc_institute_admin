@@ -15,6 +15,7 @@ import '../../../../itc_logic/firebase/general_cloud.dart';
 import '../../../../itc_logic/firebase/message/message_service.dart';
 import '../../../../model/student.dart';
 import '../../../itc_logic/firebase/provider/groupChatProvider.dart';
+import '../../../itc_logic/idservice/globalIdService.dart';
 import '../../../model/company.dart';
 
 
@@ -26,9 +27,9 @@ class GroupInfoPage extends StatefulWidget {
 }
 
 class _GroupInfoPageState extends State<GroupInfoPage> {
-  final ChatService _chatService = ChatService(FirebaseAuth.instance.currentUser!.uid);
-  final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
-  final AdminCloud adminCloud = AdminCloud(FirebaseAuth.instance.currentUser!.uid);
+  final ChatService _chatService = ChatService(GlobalIdService.firestoreId);
+  final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic(GlobalIdService.firestoreId);
+  final AdminCloud adminCloud = AdminCloud(GlobalIdService.firestoreId);
   bool _isLoading = false;
   String? _error;
   Map<String, dynamic>? group;
@@ -66,8 +67,8 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
     }
   }
 
-  bool get isAdmin => adminIds.contains(widget.currentUser.uid);
-  bool get isCreator => group?['createdBy'] == widget.currentUser.uid;
+  bool get isAdmin => adminIds.contains(widget.currentUser);
+  bool get isCreator => group?['createdBy'] == widget.currentUser;
 
   Future<void> _addMember() async {
     // Show dialog to select students to add
@@ -137,7 +138,7 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
   }
 
   Future<void> _removeMember(Student member) async {
-    if (member.uid == widget.currentUser.uid && !isCreator) {
+    if (member.uid == widget.currentUser && !isCreator) {
       // Leave group
       final confirm = await showDialog<bool>(
         context: context,
@@ -636,7 +637,7 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (isAdmin && m.uid != widget.currentUser.uid)
+                      if (isAdmin && m.uid != widget.currentUser)
                         Tooltip(
                           message: 'Remove from group',
                           child: IconButton(
@@ -646,7 +647,7 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
                           ),
                         ),
                       if (isAdmin &&
-                          m.uid != widget.currentUser.uid &&
+                          m.uid != widget.currentUser &&
                           !adminIds.contains(m.uid))
                         Tooltip(
                           message: 'Promote to Admin',
@@ -659,7 +660,7 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
                           ),
                         ),
                       if (isAdmin &&
-                          m.uid != widget.currentUser.uid &&
+                          m.uid != widget.currentUser &&
                           adminIds.contains(m.uid) &&
                           !(isCreator && m.uid == group?['createdBy']))
                         Tooltip(
@@ -670,7 +671,7 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
                             onPressed: () => _promoteDemoteAdmin(m, false),
                           ),
                         ),
-                      if (m.uid == widget.currentUser.uid && !isCreator)
+                      if (m.uid == widget.currentUser && !isCreator)
                         Tooltip(
                           message: 'Leave Group',
                           child: IconButton(
@@ -702,7 +703,7 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
                             horizontal: 24, vertical: 14),
                       ),
                       onPressed: () => _removeMember(members
-                          .firstWhere((m) => m.uid == widget.currentUser.uid)),
+                          .firstWhere((m) => m.uid == widget.currentUser)),
                     ),
                   ),
                 ),

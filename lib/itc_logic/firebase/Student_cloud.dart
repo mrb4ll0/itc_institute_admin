@@ -5,6 +5,7 @@ import 'package:rxdart/rxdart.dart';
 import '../../model/applicationNotification.dart';
 import '../../model/company.dart';
 import '../../model/internship_model.dart';
+import '../idservice/globalIdService.dart';
 
 class Student_cloud_db {
   final FirebaseFirestore _firebaseFirestore = FirebaseFirestore.instance;
@@ -256,7 +257,7 @@ class Student_cloud_db {
         .collection('users')
         .doc('students')
         .collection('students')
-        .doc(user.uid)
+        .doc(GlobalIdService.firestoreId)
         .collection('saved_internships')
         .get();
 

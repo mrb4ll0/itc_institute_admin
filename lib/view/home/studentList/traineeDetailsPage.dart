@@ -27,7 +27,7 @@ import '../student/studentDetails.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
-
+import '../../../itc_logic/idservice/globalIdService.dart';
 class TraineeDetailPage extends StatefulWidget {
   final TraineeRecord trainee;
   final int tabIndex;
@@ -81,7 +81,7 @@ class _TraineeDetailPageState extends State<TraineeDetailPage> {
 
   Future<void> _loadStudentDetails() async {
     try {
-      final student = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid)
+      final student = await ITCFirebaseLogic(GlobalIdService.firestoreId)
           .getStudent(widget.trainee.studentId);
       if (mounted) {
         setState(() {
@@ -100,7 +100,7 @@ class _TraineeDetailPageState extends State<TraineeDetailPage> {
 
   Future<void> _loadCompanyDetails() async {
     try {
-      final company = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid)
+      final company = await ITCFirebaseLogic(GlobalIdService.firestoreId)
           .getCompany(widget.trainee.companyId);
       if (mounted) {
         setState(() {
@@ -211,7 +211,7 @@ class _TraineeDetailPageState extends State<TraineeDetailPage> {
                             Expanded(
                               child: InkWell(
                                 onTap: () async {
-                                  Student? student = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid)
+                                  Student? student = await ITCFirebaseLogic(GlobalIdService.firestoreId)
                                       .getStudent(trainee.studentId);
                                   if (student == null) {
                                     Fluttertoast.showToast(msg: "Student Record not found");
@@ -1312,7 +1312,7 @@ class _TraineeDetailPageState extends State<TraineeDetailPage> {
       }
 
       // Use the service to update the status
-      final success = await TraineeService(FirebaseAuth.instance.currentUser!.uid)
+      final success = await TraineeService(GlobalIdService.firestoreId)
           .updateTraineeStatus(
         traineeId: trainee.id,
         newStatus: newStatus,
@@ -1448,7 +1448,7 @@ class _TraineeDetailPageState extends State<TraineeDetailPage> {
       'studentName': widget.trainee.studentName,
       'oldStatus': widget.trainee.status.toString(),
       'newStatus': newStatus.toString(),
-      'changedBy': FirebaseAuth.instance.currentUser?.uid,
+      'changedBy': GlobalIdService.firestoreId,
       'changedAt': DateTime.now().toIso8601String(),
       'reason': _terminationReason,
     };
@@ -1458,7 +1458,7 @@ class _TraineeDetailPageState extends State<TraineeDetailPage> {
   }
 
   void _navigateToMessage() async{
-    Student? student = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser?.uid??"").getStudent(widget.trainee.studentId);
+    Student? student = await ITCFirebaseLogic(GlobalIdService.firestoreId??"").getStudent(widget.trainee.studentId);
      if(student == null)
        {
          Fluttertoast.showToast(msg: "Student Info not found");

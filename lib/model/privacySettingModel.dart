@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../itc_logic/idservice/globalIdService.dart';
+
 // Add enum for 2FA method
 enum TwoFactorMethod {
   sms,
@@ -164,7 +166,7 @@ class PrivacySettings {
       showLastSeen: true,
       showActivityStatus: true,
       lastUpdated: DateTime.now(),
-      updatedBy: FirebaseAuth.instance.currentUser?.uid,
+      updatedBy: GlobalIdService.firestoreId,
       twoFactorMethod: TwoFactorMethod.none,
     );
   }
@@ -209,7 +211,7 @@ class PrivacySettings {
 
       // Metadata
       'lastUpdated': FieldValue.serverTimestamp(),
-      'updatedBy': FirebaseAuth.instance.currentUser?.uid,
+      'updatedBy': GlobalIdService.firestoreId,
     };
   }
 

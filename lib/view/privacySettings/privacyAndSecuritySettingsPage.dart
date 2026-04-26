@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
 
+import '../../itc_logic/idservice/globalIdService.dart';
 import '../../itc_logic/service/privacySettingsService.dart';
 import '../../itc_logic/service/securitySettingsService.dart';
 import '../../itc_logic/service/2FactorAuthService.dart';
@@ -39,15 +40,15 @@ class _PrivacyAndSecuritySettingsPageState extends State<PrivacyAndSecuritySetti
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        _userId = user.uid;
+        _userId =GlobalIdService.firestoreId;
 
         // Set up real-time streams
-        _privacySettingsStream = PrivacySettingsService.streamPrivacySettings(user.uid);
-        _securitySettingsStream = SecuritySettingsService.streamSecuritySettings(user.uid);
+        _privacySettingsStream = PrivacySettingsService.streamPrivacySettings(GlobalIdService.firestoreId);
+        _securitySettingsStream = SecuritySettingsService.streamSecuritySettings(GlobalIdService.firestoreId);
 
         // Initial load
-        final privacySettings = await PrivacySettingsService.getUserPrivacySettings(user.uid);
-        final securitySettings = await SecuritySettingsService.getUserSecuritySettings(user.uid);
+        final privacySettings = await PrivacySettingsService.getUserPrivacySettings(GlobalIdService.firestoreId);
+        final securitySettings = await SecuritySettingsService.getUserSecuritySettings(GlobalIdService.firestoreId);
 
         setState(() {
           _privacySettings = privacySettings;

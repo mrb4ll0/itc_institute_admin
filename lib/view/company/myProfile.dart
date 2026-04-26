@@ -1,25 +1,21 @@
-import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:itc_institute_admin/itc_logic/admin_task.dart';
-import 'package:itc_institute_admin/itc_logic/firebase/company_cloud.dart';
-import 'package:itc_institute_admin/model/company.dart';
-import 'package:itc_institute_admin/itc_logic/firebase/general_cloud.dart';
 import 'package:intl/intl.dart';
+import 'package:itc_institute_admin/itc_logic/admin_task.dart';
+import 'package:itc_institute_admin/itc_logic/firebase/general_cloud.dart';
+import 'package:itc_institute_admin/model/company.dart';
 import 'package:itc_institute_admin/model/student.dart';
 import 'package:itc_institute_admin/model/studentApplication.dart';
-import 'package:itc_institute_admin/model/traineeRecord.dart';
 import 'package:itc_institute_admin/notification/view/companyFormUploadPage.dart';
 import 'package:itc_institute_admin/traineeRecord/traineeRecordService.dart';
-import 'package:itc_institute_admin/view/security/securitySettingsPage.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:itc_institute_admin/view/company/companyEdit.dart';
 
 import '../../auth/login_view.dart';
 import '../../generalmethods/GeneralMethods.dart';
 import '../../itc_logic/help_support/help.dart';
+import '../../itc_logic/idservice/globalIdService.dart';
 import '../../migrationService/ui/migrationSettingsPage.dart';
 import '../../notification/settings/notificationSettingsPage.dart';
 import '../../notification/view/companyFormsList.dart';
@@ -48,7 +44,7 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final ITCFirebaseLogic _firebaseLogic = ITCFirebaseLogic(
-    FirebaseAuth.instance.currentUser!.uid,
+    GlobalIdService.firestoreId,
   );
   bool _isLoading = false;
 
@@ -66,7 +62,7 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage>
 
   loadTrainee()async
   {
-      pontentialTrainee = await AdminCloud(FirebaseAuth.instance.currentUser?.uid??"").getPotentialStudents(
+      pontentialTrainee = await AdminCloud(GlobalIdService.firestoreId??"").getPotentialStudents(
         company: widget.company
       );
 

@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../itc_logic/firebase/company_cloud.dart';
+import '../../itc_logic/idservice/globalIdService.dart';
 import '../../model/localNotification.dart';
 
 
@@ -22,7 +23,7 @@ class CompanyNotificationsPage extends StatefulWidget {
 
 class _CompanyNotificationsPageState extends State<CompanyNotificationsPage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final Company_Cloud _companyCloud = Company_Cloud(FirebaseAuth.instance.currentUser!.uid);
+  final Company_Cloud _companyCloud = Company_Cloud(GlobalIdService.firestoreId);
   final ScrollController _scrollController = ScrollController();
   bool _showFAB = true;
   String _selectedFilter = 'all';

@@ -5,13 +5,14 @@ import '../../../generalmethods/GeneralMethods.dart';
 import '../../../itc_logic/admin_task.dart';
 import '../../../itc_logic/firebase/message/message_service.dart';
 import '../../../itc_logic/firebase/tweet/tweet_cloud.dart';
+import '../../../itc_logic/idservice/globalIdService.dart';
 import '../../../model/company.dart';
 import '../../../model/student.dart';
 
 class UserSelectionDialog extends StatefulWidget {
   final String tweetContent;
   final String tweetId;
-  final ChatService chatService = ChatService(FirebaseAuth.instance.currentUser!.uid);
+  final ChatService chatService = ChatService(GlobalIdService.firestoreId);
 
   UserSelectionDialog({
     Key? key,
@@ -38,7 +39,7 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
 
   Future<void> _fetchUsers() async {
     try {
-      final adminCloud = AdminCloud(FirebaseAuth.instance.currentUser!.uid);
+      final adminCloud = AdminCloud(GlobalIdService.firestoreId);
       final students = await adminCloud.getAllStudents();
       final companies = await adminCloud.getAllCompanies();
       setState(() {
@@ -120,7 +121,7 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
                             radius: 20,
                           ),
                           title: Text(name),
-                          onTap: () => _shareTweet(user is Company? user.id :user.uid??""),
+                          onTap: () => _shareTweet(user is Company? user.id :GlobalIdService.firestoreId??""),
                         );
                       },
                     ),

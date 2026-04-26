@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../itc_logic/idservice/globalIdService.dart';
+
 class Student {
   // Basic Information
   String fullName;
@@ -382,7 +384,7 @@ class Student {
     final user = credential.user!;
     return Student(
       phoneNumber: user.phoneNumber ?? "Add your phone number",
-      uid: user.uid,
+      uid:GlobalIdService.firestoreId,
       fullName: user.displayName ?? '',
       email: user.email ?? '',
       bio: '',

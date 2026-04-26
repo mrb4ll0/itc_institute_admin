@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/services.dart';
 
+import '../../itc_logic/idservice/globalIdService.dart';
 import '../../itc_logic/service/2FactorAuthService.dart';
 import '../../model/privacySettingModel.dart';
 
@@ -701,7 +702,7 @@ debugPrint("existing password ${_hasExistingPassword}");
   }
 
   Future<void> _updatePrivacySettings(TwoFactorMethod method) async {
-    final userId = FirebaseAuth.instance.currentUser?.uid;
+    final userId = GlobalIdService.firestoreId;
     if (userId != null) {
       await FirebaseFirestore.instance
           .collection('privacy_settings')

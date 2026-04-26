@@ -8,6 +8,7 @@ import '../../model/company.dart';
 import '../../model/internship_model.dart';
 import '../../model/studentApplication.dart';
 import '../itc_logic/firebase/company_cloud.dart';
+import '../itc_logic/idservice/globalIdService.dart';
 import '../itc_logic/service/tranineeService.dart';
 import '../model/traineeRecord.dart';
 
@@ -332,7 +333,7 @@ class TraineeRecordService {
       await _updateStudentWithTraineeRecord(studentId, traineeRecordId);
 
       // Update the application status to 'confirmed'
-      await Company_Cloud(FirebaseAuth.instance.currentUser?.uid??"").updateApplicationStatus(
+      await Company_Cloud(GlobalIdService.firestoreId??"").updateApplicationStatus(
         companyId: companyId,
         internshipId: internshipId,
         studentId: studentId,

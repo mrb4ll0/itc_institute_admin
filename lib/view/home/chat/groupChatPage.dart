@@ -15,6 +15,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
 import '../../../itc_logic/firebase/provider/groupChatProvider.dart';
+import '../../../itc_logic/idservice/globalIdService.dart';
 import 'groupChatInfo.dart';
 
 class GroupChatPage extends StatefulWidget {
@@ -25,8 +26,8 @@ class GroupChatPage extends StatefulWidget {
 }
 
 class _GroupChatPageState extends State<GroupChatPage> with WidgetsBindingObserver {
-  final ChatService _chatService = ChatService(FirebaseAuth.instance.currentUser!.uid);
-  final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
+  final ChatService _chatService = ChatService(GlobalIdService.firestoreId);
+  final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic(GlobalIdService.firestoreId);
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _messageController = TextEditingController();
   final FocusNode _inputFocusNode = FocusNode();
@@ -136,7 +137,7 @@ class _GroupChatPageState extends State<GroupChatPage> with WidgetsBindingObserv
   }
 
   void _showGroupMessageActions(BuildContext context, Map<String, dynamic> msg, String groupId, GroupChatProvider groupChatProvider) {
-    final currentUserId = widget.currentUser.uid;
+    final currentUserId = widget.currentUser;
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -540,7 +541,7 @@ class _GroupChatPageState extends State<GroupChatPage> with WidgetsBindingObserv
                     );
                   }
 
-                  final currentUserId = widget.currentUser.uid;
+                  final currentUserId = widget.currentUser;
                   final newMessages = (snapshot.data ?? [])
                       .where((msg) => msg['deletedFor'] == null || !(msg['deletedFor'] is List && (msg['deletedFor'] as List).contains(currentUserId)))
                       .toList();
@@ -570,7 +571,7 @@ class _GroupChatPageState extends State<GroupChatPage> with WidgetsBindingObserv
                     itemCount: _messages.length,
                     itemBuilder: (context, index) {
                       final msg = _messages[index];
-                      final isMe = msg['senderId'] == widget.currentUser.uid;
+                      final isMe = msg['senderId'] == widget.currentUser;
                       final isSystem = msg['type'] == 'system';
                       final time = msg['timestamp'] != null && msg['timestamp'] is Timestamp
                           ? (msg['timestamp'] as Timestamp).toDate()

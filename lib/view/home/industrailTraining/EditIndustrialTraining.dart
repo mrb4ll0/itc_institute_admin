@@ -12,6 +12,7 @@ import 'package:itc_institute_admin/model/internship_model.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../../firebase_cloud_storage/firebase_cloud.dart';
+import '../../../itc_logic/idservice/globalIdService.dart';
 import '../../../model/company.dart';
 
 class EditIndustrialTrainingPage extends StatefulWidget {
@@ -44,8 +45,8 @@ class _EditIndustrialTrainingPageState
   final TextEditingController _contactPersonController =
       TextEditingController();
 
-  final Company_Cloud company_cloud = Company_Cloud(FirebaseAuth.instance.currentUser!.uid);
-  final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
+  final Company_Cloud company_cloud = Company_Cloud(GlobalIdService.firestoreId);
+  final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic(GlobalIdService.firestoreId);
   final FirebaseUploader firebaseUploader = FirebaseUploader();
 
   String? _aptitudeTest;
@@ -77,14 +78,16 @@ class _EditIndustrialTrainingPageState
       if (user == null) return;
 
       final companyDoc = await FirebaseFirestore.instance
-          .collection('companies')
-          .doc(user.uid)
+          .collection('users')
+          .doc("companies")
+          .collection("companies")
+          .doc(GlobalIdService.firestoreId)
           .get();
 
       if (companyDoc.exists) {
         final data = companyDoc.data()!;
         setState(() {
-          _companyId = user.uid;
+          _companyId =GlobalIdService.firestoreId;
           _companyName = data['companyName'] ?? 'Company';
           _companyLogoUrl = data['logoUrl'] ?? data['profileImage'] ?? '';
         });
@@ -161,7 +164,7 @@ class _EditIndustrialTrainingPageState
       // Call uploadMultipleFiles with converted Files
       downloadUrls = await firebaseUploader.uploadMultipleFiles(
         filesToUpload,
-        _companyId ?? FirebaseAuth.instance.currentUser!.uid,
+        _companyId ?? GlobalIdService.firestoreId,
         'training_opportunities',
       );
 
@@ -250,7 +253,7 @@ class _EditIndustrialTrainingPageState
 
       // Get company data
       Company? company = await _itcFirebaseLogic.getCompany(
-        FirebaseAuth.instance.currentUser!.uid,
+        GlobalIdService.firestoreId,
       );
 
       if (company == null) {
@@ -294,7 +297,7 @@ class _EditIndustrialTrainingPageState
       // If it's a universal template, also update template
       if (_formUsage == 'universal') {
         await company_cloud.updateCompanyForm(
-          FirebaseAuth.instance.currentUser!.uid,
+          GlobalIdService.firestoreId,
           allAttachmentUrls,
         );
 

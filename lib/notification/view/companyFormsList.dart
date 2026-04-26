@@ -6,6 +6,7 @@ import 'package:itc_institute_admin/model/company.dart';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../../itc_logic/idservice/globalIdService.dart';
 import '../../model/companyForm.dart';
 import '../../view/home/industrailTraining/fileDetails.dart';
 import 'companyFormUploadPage.dart';
@@ -32,7 +33,7 @@ class _CompanyFormsListPageState extends State<CompanyFormsListPage> {
   final Dio _dio = Dio();
   final Map<String, File> _cachedFiles = {};
   bool _sortByDateAscending = false;
-  final Company_Cloud _companyService = Company_Cloud(FirebaseAuth.instance.currentUser!.uid); // Add service instance
+  final Company_Cloud _companyService = Company_Cloud(GlobalIdService.firestoreId); // Add service instance
 
   @override
   void initState() {

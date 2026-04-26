@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../model/privacySettingModel.dart';
+import '../idservice/globalIdService.dart';
 
 
 class PrivacySettingsService {
@@ -53,7 +54,7 @@ class PrivacySettingsService {
       await docRef.update({
         field: value,
         'lastUpdated': FieldValue.serverTimestamp(),
-        'updatedBy': FirebaseAuth.instance.currentUser?.uid,
+        'updatedBy': GlobalIdService.firestoreId,
       });
     } catch (e) {
       print('Error updating privacy setting: $e');

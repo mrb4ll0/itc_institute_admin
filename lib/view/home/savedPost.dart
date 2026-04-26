@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../../../../itc_logic/firebase/tweet/tweet_cloud.dart';
 import '../../itc_logic/firebase/general_cloud.dart';
+import '../../itc_logic/idservice/globalIdService.dart';
 import '../../model/tweetModel.dart';
 import '../../model/userProfile.dart';
 
@@ -29,7 +30,7 @@ class _SavedPostsPageState extends State<SavedPostsPage> {
   String? _currentUserId;
   SortType _currentSortType = SortType.newestFirst;
   String _searchQuery = '';
-  final ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
+  final ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic(GlobalIdService.firestoreId);
   final UserService userService = UserService();
   final TweetService tweetService = TweetService();
 
@@ -58,7 +59,7 @@ class _SavedPostsPageState extends State<SavedPostsPage> {
   void _getCurrentUser() {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      _currentUserId = user.uid;
+      _currentUserId =GlobalIdService.firestoreId;
       // Don't call _loadSavedTweets() here - wait for didChangeDependencies
     } else {
       // Handle user not logged in

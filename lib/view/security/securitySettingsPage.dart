@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
 
+import '../../itc_logic/idservice/globalIdService.dart';
 import '../../itc_logic/service/2FactorAuthService.dart';
 import '../../itc_logic/service/securitySettingsService.dart';
 import '../../model/securitySettingsModel.dart';
@@ -36,20 +37,20 @@ class _SecuritySettingsPageState extends State<SecuritySettingsPage> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        _userId = user.uid;
+        _userId =GlobalIdService.firestoreId;
 
         // Set up real-time stream for settings
-        _settingsStream = SecuritySettingsService.streamSecuritySettings(user.uid);
+        _settingsStream = SecuritySettingsService.streamSecuritySettings(GlobalIdService.firestoreId);
 
         // Load active sessions
-        SecuritySettingsService.getActiveSessions(user.uid).listen((sessions) {
+        SecuritySettingsService.getActiveSessions(GlobalIdService.firestoreId).listen((sessions) {
           setState(() {
             _activeSessions = sessions;
           });
         });
 
         // Initial load
-        final settings = await SecuritySettingsService.getUserSecuritySettings(user.uid);
+        final settings = await SecuritySettingsService.getUserSecuritySettings(GlobalIdService.firestoreId);
         debugPrint("two factor settings is ${settings.twoFactorAuth}");
         setState(() {
           _settings = settings;

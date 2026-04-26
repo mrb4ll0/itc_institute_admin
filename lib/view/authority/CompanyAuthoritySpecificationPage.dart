@@ -8,6 +8,8 @@ import 'package:itc_institute_admin/itc_logic/firebase/general_cloud.dart';
 import 'package:itc_institute_admin/model/authority.dart';
 import 'package:itc_institute_admin/model/company.dart';
 
+import '../../itc_logic/idservice/globalIdService.dart';
+
 class CompanyAuthoritySpecificationPage extends StatefulWidget {
   final Company company;
   final ITCFirebaseLogic firebaseLogic;
@@ -27,7 +29,7 @@ class CompanyAuthoritySpecificationPage extends StatefulWidget {
 }
 
 class _CompanyAuthoritySpecificationPageState extends State<CompanyAuthoritySpecificationPage> {
-  final AuthorityService _authorityService = AuthorityService(FirebaseAuth.instance.currentUser!.uid);
+  final AuthorityService _authorityService = AuthorityService(GlobalIdService.firestoreId);
 
   String _selectedOption = 'not_selected'; // 'standalone', 'under_authority', 'not_selected'
   String? _selectedAuthorityId;

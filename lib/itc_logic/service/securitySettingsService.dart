@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../model/securitySettingsModel.dart';
+import '../idservice/globalIdService.dart';
 
 
 class SecuritySettingsService {
@@ -51,7 +52,7 @@ class SecuritySettingsService {
       await docRef.update({
         field: value,
         'lastUpdated': FieldValue.serverTimestamp(),
-        'updatedBy': FirebaseAuth.instance.currentUser?.uid,
+        'updatedBy': GlobalIdService.firestoreId,
       });
     } catch (e) {
       print('Error updating security setting: $e');

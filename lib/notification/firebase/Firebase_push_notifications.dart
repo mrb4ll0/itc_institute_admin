@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
 
+import '../../itc_logic/idservice/globalIdService.dart';
+
 class NotificationService {
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
   final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin =
@@ -173,7 +175,7 @@ class NotificationService {
   /// 💾 Save FCM token to the correct user document
   static Future<void> saveTokenToFirestore(String role) async {
     final token = await FirebaseMessaging.instance.getToken();
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = GlobalIdService.firestoreId;
     if (uid == null || token == null) return;
 
     final roles = ['students', 'companies'];

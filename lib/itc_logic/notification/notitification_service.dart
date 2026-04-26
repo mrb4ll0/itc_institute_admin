@@ -15,6 +15,7 @@ import 'package:mailer/smtp_server/gmail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../auth/authService/authService.dart';
+import '../idservice/globalIdService.dart';
 
 class NotificationService {
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
@@ -184,7 +185,7 @@ class NotificationService {
   /// 💾 Save FCM token to the correct user document
   Future<void> saveTokenToFirestore() async {
     final token = await FirebaseMessaging.instance.getToken();
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = GlobalIdService.firestoreId;
     if (uid == null || token == null) return;
 
     final roles = ['students', 'companies','authorities'];

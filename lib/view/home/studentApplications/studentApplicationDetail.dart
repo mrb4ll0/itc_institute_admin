@@ -13,6 +13,7 @@ import '../../../extensions/extensions.dart';
 import '../../../generalmethods/GeneralMethods.dart';
 import '../../../itc_logic/firebase/AuthorityRulesHelper.dart';
 import '../../../itc_logic/firebase/company_cloud.dart';
+import '../../../itc_logic/idservice/globalIdService.dart';
 import '../../../itc_logic/notification/notificationPanel/notificationPanelService.dart';
 import '../../../itc_logic/notification/notitification_service.dart';
 import '../../../letterGenerator/GenerateAcceptanceLetter.dart';
@@ -39,7 +40,7 @@ class _StudentApplicationDetailsPageState
     extends State<StudentApplicationDetailsPage> {
   final DateFormat _dateFormat = DateFormat('dd MMM yyyy');
   final DateFormat _dateTimeFormat = DateFormat('dd MMM yyyy, hh:mm a');
-  final Company_Cloud company_cloud = Company_Cloud(FirebaseAuth.instance.currentUser!.uid);
+  final Company_Cloud company_cloud = Company_Cloud(GlobalIdService.firestoreId);
   final NotificationService notificationService = NotificationService();
   final FireStoreNotification fireStoreNotification = FireStoreNotification();
   bool canAcceptOrReject = false;
@@ -47,14 +48,14 @@ class _StudentApplicationDetailsPageState
   void initState() {
     // TODO: implement initState
     super.initState();
-    canAcceptOrReject = widget.isAuthority?true:AuthorityRulesHelper.canAcceptStudents(FirebaseAuth.instance.currentUser!.uid);
+    canAcceptOrReject = widget.isAuthority?true:AuthorityRulesHelper.canAcceptStudents(GlobalIdService.firestoreId);
     loadAuthority();
   }
   
   Authority? authority;
   loadAuthority()async
   {
-    authority = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid).getAuthority(FirebaseAuth.instance.currentUser!.uid);
+    authority = await ITCFirebaseLogic(GlobalIdService.firestoreId).getAuthority(GlobalIdService.firestoreId);
   }
   @override
   Widget build(BuildContext context) {
@@ -180,8 +181,8 @@ class _StudentApplicationDetailsPageState
             InkWell(
               onTap: ()async
               {
-                final itcFirebaseAuthority = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
-                String uid = FirebaseAuth.instance.currentUser!.uid;
+                final itcFirebaseAuthority = ITCFirebaseLogic(GlobalIdService.firestoreId);
+                String uid = GlobalIdService.firestoreId;
                 Company? company = await itcFirebaseAuthority.getCompany(uid);
                 if(company == null)
                   {
@@ -860,7 +861,7 @@ class _StudentApplicationDetailsPageState
               
               await company_cloud.updateApplicationStatus(
                 isAuthority: widget.isAuthority,
-                companyId: FirebaseAuth.instance.currentUser!.uid,
+                companyId: GlobalIdService.firestoreId,
                 internshipId: application.internship!.id!,
                 studentId: application.student.uid,
                 status: action,
@@ -889,7 +890,7 @@ class _StudentApplicationDetailsPageState
                 pdfUrl =
                 await runPdfGeneration(acceptanceLetterData, userId: student.uid,);
 
-                await Company_Cloud(FirebaseAuth.instance.currentUser!.uid).storeAcceptanceLetter(
+                await Company_Cloud(GlobalIdService.firestoreId).storeAcceptanceLetter(
                     studentId: application.student.uid,
                     acceptanceLetterData: acceptanceLetterData,
                     internshipId: application.internship.id!,

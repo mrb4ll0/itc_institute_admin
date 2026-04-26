@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:itc_institute_admin/migrationService/ui/migrationSettingsPage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../itc_logic/idservice/globalIdService.dart';
 import 'migrationService.dart';
 
 class MigrationManager {
@@ -42,7 +43,7 @@ class MigrationManager {
 
     _isRunning = true;
 
-    final migrationService = MigrationService(user.uid);
+    final migrationService = MigrationService(GlobalIdService.firestoreId);
 
     try {
       debugPrint('Starting migration for trigger: $trigger');

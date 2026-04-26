@@ -11,6 +11,7 @@ import 'package:itc_institute_admin/model/studentApplication.dart';
 import 'package:itc_institute_admin/view/home/studentApplications/studentApplicationDetail.dart';
 
 import '../../../extensions/extensions.dart';
+import '../../../itc_logic/idservice/globalIdService.dart';
 import '../../../itc_logic/notification/notificationPanel/notificationPanelService.dart';
 import '../../../letterGenerator/GenerateAcceptanceLetter.dart';
 import '../../../model/authority.dart';
@@ -36,16 +37,16 @@ class _SpecificITStudentApplicationsPageState
     with AutomaticKeepAliveClientMixin {
   final TextEditingController _searchController = TextEditingController();
   final Company_Cloud company_cloud = Company_Cloud(
-    FirebaseAuth.instance.currentUser!.uid,
+    GlobalIdService.firestoreId,
   );
   final NotificationService notificationService = NotificationService();
   ActionLogger actionLogger = ActionLogger();
   final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic(
-    FirebaseAuth.instance.currentUser!.uid,
+    GlobalIdService.firestoreId,
   );
   int applicationCount = 0;
   final Company_Cloud companyCloud = Company_Cloud(
-    FirebaseAuth.instance.currentUser!.uid,
+    GlobalIdService.firestoreId,
   );
   bool _isRefreshing = false;
   bool _isDataLoaded = false;
@@ -89,7 +90,7 @@ class _SpecificITStudentApplicationsPageState
     canAcceptOrReject = widget.isAuthority
         ? true
         : AuthorityRulesHelper.canAcceptStudents(
-            FirebaseAuth.instance.currentUser!.uid,
+            GlobalIdService.firestoreId,
           );
     debugPrint("canAcceptOrReject: $canAcceptOrReject");
     _loadSupervisors();
@@ -104,7 +105,7 @@ class _SpecificITStudentApplicationsPageState
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) return;
 
-      String companyId = currentUser.uid;
+      String companyId = GlobalIdService.firestoreId;
       authority = await _itcFirebaseLogic.getAuthority(companyId);
 
       // Get initial data without showing loading indicator
@@ -168,12 +169,12 @@ class _SpecificITStudentApplicationsPageState
         throw Exception('No user is currently logged in.');
       }
 
-      String companyId = currentUser.uid;
+      String companyId = GlobalIdService.firestoreId;
 
       // Get the stream first
       final applicationsStream = company_cloud
           .studentInternshipApplicationsForSpecificITStream(
-            companyId: currentUser.uid,
+            companyId: GlobalIdService.firestoreId,
             itId: widget.itId,
             isAuthority: widget.isAuthority,
             companyIds: authority?.linkedCompanies ?? [],
@@ -1100,7 +1101,7 @@ class _SpecificITStudentApplicationsPageState
 
     return StreamBuilder<List<StudentApplication>?>(
       stream: company_cloud.studentInternshipApplicationsForSpecificITStream(
-        companyId: currentUser.uid,
+        companyId: GlobalIdService.firestoreId,
         itId: widget.itId,
         isAuthority: widget.isAuthority,
         companyIds: authority?.linkedCompanies ?? [],
@@ -1705,7 +1706,7 @@ class _SpecificITStudentApplicationsPageState
             try {
               await company_cloud.deleteApplications(
                 isAuthority: widget.isAuthority,
-                companyId: FirebaseAuth.instance.currentUser!.uid,
+                companyId: GlobalIdService.firestoreId,
                 studentId: application.student.uid,
                 internship: application.internship!.id ?? "",
                 reason: result['reason'],
@@ -1952,7 +1953,7 @@ class _SpecificITStudentApplicationsPageState
     canAcceptOrReject = widget.isAuthority
         ? true
         : AuthorityRulesHelper.canAcceptStudents(
-            FirebaseAuth.instance.currentUser!.uid,
+            GlobalIdService.firestoreId,
           );
     // Implement your action logic here
     if (!canAcceptOrReject && isCompany) {
@@ -1980,7 +1981,7 @@ class _SpecificITStudentApplicationsPageState
               GeneralMethods.showLoading(context);
               await company_cloud.updateApplicationStatus(
                 isAuthority: widget.isAuthority,
-                companyId: FirebaseAuth.instance.currentUser!.uid,
+                companyId: GlobalIdService.firestoreId,
                 internshipId: application.internship!.id!,
                 studentId: application.student.uid,
                 status: action,
@@ -2126,7 +2127,7 @@ class _SpecificITStudentApplicationsPageState
                 setState(() async {
                   _cachedApplications = companyCloud
                       .studentInternshipApplicationsForCompanyStream(
-                        FirebaseAuth.instance.currentUser!.uid,
+                        GlobalIdService.firestoreId,
                       );
                   _isDataLoaded = true;
                 });

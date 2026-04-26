@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../itc_logic/idservice/globalIdService.dart';
+
 class SecuritySettings {
   // Authentication Security
    bool twoFactorAuth;
@@ -136,7 +138,7 @@ class SecuritySettings {
       autoBackup: true,
       backupFrequencyDays: 7,
       lastUpdated: DateTime.now(),
-      updatedBy: FirebaseAuth.instance.currentUser?.uid,
+      updatedBy: GlobalIdService.firestoreId,
     );
   }
 
@@ -189,7 +191,7 @@ class SecuritySettings {
 
       // Metadata
       'lastUpdated': FieldValue.serverTimestamp(),
-      'updatedBy': FirebaseAuth.instance.currentUser?.uid,
+      'updatedBy': GlobalIdService.firestoreId,
     };
   }
 

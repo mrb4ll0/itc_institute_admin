@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:firestore_lazy_loading_totalxsoftware/firestore_lazy_loading_totalxsoftware.dart';
 import 'package:intl/intl.dart';
 
+import '../../itc_logic/idservice/globalIdService.dart';
 import '../../model/RecentActions.dart';
 
 
@@ -47,7 +48,7 @@ class _RecentActionsFullPageState extends State<RecentActionsFullPage> {
       context,
       query: FirebaseFirestore.instance.collection("users").doc(widget.isAuthority?"authorities":"companies")
           .collection(widget.isAuthority?"authorities":"companies")
-          .doc(FirebaseAuth.instance.currentUser!.uid)
+          .doc(GlobalIdService.firestoreId)
           .collection('recentActions')
           .orderBy('timestamp', descending: true),
       limit: 10,

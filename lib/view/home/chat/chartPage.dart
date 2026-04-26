@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 import 'package:itc_institute_admin/firebase_cloud_storage/firebase_cloud.dart';
 import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/general_cloud.dart';
+import 'package:itc_institute_admin/loadingService/loadingService.dart';
 import 'package:itc_institute_admin/model/authorityCompanyMapper.dart';
 import 'package:itc_institute_admin/model/userProfile.dart';
 import 'package:itc_institute_admin/view/home/industrailTraining/fileDetails.dart';
@@ -17,6 +18,7 @@ import 'package:itc_institute_admin/view/home/student/studentDetails.dart';
 
 import '../../../itc_logic/firebase/message/message_service.dart';
 import '../../../itc_logic/firebase/tweet/tweet_cloud.dart';
+import '../../../itc_logic/idservice/globalIdService.dart';
 import '../../../itc_logic/service/userService.dart';
 import '../../../model/admin.dart';
 import '../../../model/authority.dart';
@@ -52,7 +54,7 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
   final TextEditingController _messageController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
-  late ChatService _chatService = ChatService(FirebaseAuth.instance.currentUser!.uid);
+  late ChatService _chatService = ChatService(GlobalIdService.firestoreId);
   late Stream<List<Message>> _messagesStream;
   String? _currentUserId;
   String? _currentUserRole;
@@ -64,7 +66,7 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
   bool _showStudentInfo = false; // For showing student profile card
   late dynamic _receiverData; // Store the receiver data
   late Company? _company;
-  ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
+  ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic(GlobalIdService.firestoreId);
   int? _previousMessageCount;
   bool _showScrollToBottomButton = false;
   Timestamp? previousDate;
@@ -172,7 +174,7 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
   }
 
   void _initializeChat() async {
-    _currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    _currentUserId = GlobalIdService.firestoreId;
     if (_currentUserId != null) {
       // Get current user role
       final userService = UserService();
@@ -182,7 +184,7 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
       // Store receiver data
       _receiverData = widget.receiverData;
 
-      _chatService = ChatService(FirebaseAuth.instance.currentUser!.uid);
+      _chatService = ChatService(GlobalIdService.firestoreId);
       _messagesStream = _chatService.getFilteredMessages(
         _currentUserId!,
         widget.receiverId,
@@ -192,11 +194,11 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
         _isLoading = false;
       });
       _company = await itcFirebaseLogic.getCompany(
-        FirebaseAuth.instance.currentUser!.uid,
+        GlobalIdService.firestoreId,
       );
       if(_company == null)
         {
-          Authority? authority = await itcFirebaseLogic.getAuthority(FirebaseAuth.instance.currentUser!.uid);
+          Authority? authority = await itcFirebaseLogic.getAuthority(GlobalIdService.firestoreId);
           if(authority != null)
             {
               _company = AuthorityCompanyMapper.createCompanyFromAuthority(authority: authority);
@@ -235,7 +237,7 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
         final firstImage = _selectedImages.first;
         // Upload image to storage and get URL
         // String imageUrl = await _uploadImage(firstImage);
-        List<String> imageUrls = await FirebaseUploader().uploadMultipleFiles(_selectedImages,FirebaseAuth.instance.currentUser!.uid, "chatImage");
+        List<String> imageUrls = await FirebaseUploader().uploadMultipleFiles(_selectedImages,GlobalIdService.firestoreId, "chatImage");
 
         final message = Message(
           senderId: _currentUserId!,
@@ -540,12 +542,17 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
                   if (isTweetLink)
                     GestureDetector(
                       onTap: () async {
+
                         if (tweetId != null) {
                           debugPrint("tweet id is ${tweetId}");
                           UserConverter? user = await TweetService().getTweetCreator(tweetId);
-                           Company? currentUser = await itcFirebaseLogic.getCompany(FirebaseAuth.instance.currentUser?.uid??"");
+                           Company? currentUser = await itcFirebaseLogic.getCompany(GlobalIdService.firestoreId??"");
                           debugPrint("user display name is ${user?.displayName}");
-                          if (user == null || currentUser == null) return;
+                          if (user == null || currentUser == null)
+                            {
+                              LoadingOverlay.hide();
+                              return;
+                            }
                           Navigator.push(
                             context,
                             MaterialPageRoute(

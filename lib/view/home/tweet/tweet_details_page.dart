@@ -8,7 +8,7 @@ import 'package:itc_institute_admin/itc_logic/service/ConverterUserService.dart'
 import 'package:itc_institute_admin/model/userProfile.dart';
 import 'package:itc_institute_admin/view/home/tweet/user_selection_dialog.dart';
 import 'package:provider/provider.dart';
-
+import '../../../itc_logic/idservice/globalIdService.dart';
 import '../../../../../model/comments_model.dart';
 import '../../../../../model/reply_model.dart';
 import '../../../auth/tweet_provider.dart';
@@ -577,7 +577,7 @@ class _TweetDetailBody extends StatelessWidget {
           return const Center(child: Text('Post not found'));
         }
 
-        final currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
+        final currentUserId = GlobalIdService.firestoreId ?? '';
 
         return ListView(
           controller: ScrollController(),

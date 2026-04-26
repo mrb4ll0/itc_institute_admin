@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/company_cloud.dart';
 
+import '../../itc_logic/idservice/globalIdService.dart';
 import '../../model/internship_model.dart';
 import 'industrailTraining/ITDetails.dart';
 import 'industrailTraining/newIndustrialTraining.dart';
@@ -24,7 +25,7 @@ class _IndustrialTrainingPostsPageState
     with AutomaticKeepAliveClientMixin {
   final TextEditingController _searchController = TextEditingController();
   bool _showSearchBar = false;
-  final Company_Cloud companyCloud = Company_Cloud(FirebaseAuth.instance.currentUser!.uid);
+  final Company_Cloud companyCloud = Company_Cloud(GlobalIdService.firestoreId);
   late Stream<List<IndustrialTraining>> _internshipsStream;
   late StreamSubscription<List<IndustrialTraining>> _internshipsSubscription;
   int postCount = 0;
@@ -34,7 +35,7 @@ class _IndustrialTrainingPostsPageState
   void initState() {
     super.initState();
     _internshipsStream = companyCloud.getCurrentCompanyInternships(
-      FirebaseAuth.instance.currentUser!.uid,
+      GlobalIdService.firestoreId,
       isAuthority: widget.isAuthority,
       companyIds: widget.companyIds
     );
@@ -172,7 +173,7 @@ class _IndustrialTrainingPostsPageState
                     setState(() {
                       _internshipsStream = companyCloud
                           .getCurrentCompanyInternships(
-                            FirebaseAuth.instance.currentUser!.uid,
+                            GlobalIdService.firestoreId,
                           isAuthority: widget.isAuthority,
                           companyIds: widget.companyIds
                           );

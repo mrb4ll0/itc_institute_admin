@@ -11,6 +11,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'auth/login_view.dart';
 import 'itc_logic/notification/notitification_service.dart';
+import 'loadingService/loadingService.dart';
 
 void main() async {
   debugPrint("before ensureInitialized");

@@ -11,6 +11,7 @@ import 'package:itc_institute_admin/itc_logic/firebase/general_cloud.dart';
 import 'package:itc_institute_admin/model/authorityCompanyMapper.dart';
 import 'package:itc_institute_admin/view/home/industrailTraining/newIndustrialTraining.dart';
 
+import '../../itc_logic/idservice/globalIdService.dart';
 import '../../model/RecentActions.dart';
 import '../../model/authority.dart';
 import '../../model/company.dart';
@@ -38,8 +39,8 @@ class _CompanydashboardState extends State<Companydashboard>
   late int supervisorCount = 0;
   late int totalCompany = 0;
   late int acceptedApplicationCount = 0;
-  final Company_Cloud company_cloud = new Company_Cloud(FirebaseAuth.instance.currentUser!.uid);
-  final ActiveTrainingService activeTrainingService = ActiveTrainingService(FirebaseAuth.instance.currentUser!.uid);
+  final Company_Cloud company_cloud = new Company_Cloud(GlobalIdService.firestoreId);
+  final ActiveTrainingService activeTrainingService = ActiveTrainingService(GlobalIdService.firestoreId);
 
   final TextEditingController _searchController = TextEditingController();
 
@@ -79,12 +80,12 @@ class _CompanydashboardState extends State<Companydashboard>
         throw Exception('No user is currently logged in.');
       }
 
-      String companyId = currentUser.uid;
-      Authority? authority = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid).getAuthority(companyId);
+      String companyId = GlobalIdService.firestoreId;
+      Authority? authority = await ITCFirebaseLogic(GlobalIdService.firestoreId).getAuthority(companyId);
 
       // Load all data in parallel for better performance
       final results = await Future.wait([
-        ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid).getCompany(companyId),
+        ITCFirebaseLogic(GlobalIdService.firestoreId).getCompany(companyId),
         company_cloud.getTotalNewApplications(companyId,isAuthority: widget.isAuthority,companyIds: authority == null?[]:authority.linkedCompanies),
         company_cloud.getTotalAcceptedApplications(companyId,isAuthority: widget.isAuthority, companyIds:authority == null?[]:authority.linkedCompanies),
         activeTrainingService.getActiveTraineesCount(companyId,isAuthority: widget.isAuthority,companyIds: authority?.linkedCompanies?? []),
@@ -201,12 +202,12 @@ class _CompanydashboardState extends State<Companydashboard>
       if (currentUser == null) {
         throw Exception('No user is currently logged in.');
       }
-      String companyId = currentUser.uid;
+      String companyId = GlobalIdService.firestoreId;
       Company? company;
-       company = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid).getCompany(companyId);
+       company = await ITCFirebaseLogic(GlobalIdService.firestoreId).getCompany(companyId);
        if(company == null)
          {
-           Authority? authority = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid).getAuthority(companyId);
+           Authority? authority = await ITCFirebaseLogic(GlobalIdService.firestoreId).getAuthority(companyId);
            if(authority != null) {
              company = AuthorityCompanyMapper.createCompanyFromAuthority(
                  authority: authority);

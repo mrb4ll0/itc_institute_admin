@@ -7,6 +7,7 @@ import '../../model/authority.dart';
 import '../../model/company.dart';
 import '../../model/student.dart';
 import '../../model/userProfile.dart';
+import '../idservice/globalIdService.dart';
 
 class UserService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -68,7 +69,7 @@ class UserService {
           .collection('users')
           .doc('students')
           .collection('students')
-          .doc(user.uid)
+          .doc(GlobalIdService.firestoreId)
           .get();
 
       if (studentDoc.exists) {
@@ -80,7 +81,7 @@ class UserService {
           .collection('users')
           .doc('companies')
           .collection('companies')
-          .doc(user.uid)
+          .doc(GlobalIdService.firestoreId)
           .get();
 
       if (companyDoc.exists) {
@@ -88,7 +89,7 @@ class UserService {
       }
 
       // Check in general users collection
-      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      final userDoc = await _firestore.collection('users').doc(GlobalIdService.firestoreId).get();
 
       if (userDoc.exists) {
         return userDoc.data();

@@ -12,6 +12,7 @@ import 'package:itc_institute_admin/model/notificationModel.dart';
 import 'package:itc_institute_admin/model/userProfile.dart';
 
 import '../itc_logic/firebase/tweet/tweet_cloud.dart';
+import '../itc_logic/idservice/globalIdService.dart';
 import '../model/comments_model.dart';
 import '../model/reply_model.dart';
 import '../model/tweetModel.dart';
@@ -19,7 +20,7 @@ import '../model/tweetModel.dart';
 class TweetProvider extends ChangeNotifier {
   final TweetService _tweetService = TweetService();
   final NotificationService notificationService = NotificationService();
-  final ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
+  final ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic(GlobalIdService.firestoreId);
 
   // Main tweets list state
   List<TweetModel> _tweets = [];
@@ -415,11 +416,11 @@ class TweetProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final userId = FirebaseAuth.instance.currentUser?.uid ?? "";
+      final userId = GlobalIdService.firestoreId ?? "";
 
       // First post the tweet to get the actual Firestore document ID
       final postedTweet = await _tweetService.postTweet(
-        FirebaseAuth.instance.currentUser!.uid,
+        GlobalIdService.firestoreId,
         text.trim(),
       );
        final usersInfo = await itcFirebaseLogic.getAllUserContactInfo();
@@ -534,7 +535,7 @@ class TweetProvider extends ChangeNotifier {
     int commentIndex,
     bool isCurrentlyLiked,
   ) async {
-    final userId = FirebaseAuth.instance.currentUser?.uid ?? "";
+    final userId = GlobalIdService.firestoreId ?? "";
     if (userId.isEmpty) return;
 
     // Update tweet detail
@@ -574,7 +575,7 @@ class TweetProvider extends ChangeNotifier {
       int replyIndex,
       bool isCurrentlyLiked,
       ) async {
-    final userId = FirebaseAuth.instance.currentUser?.uid ?? "";
+    final userId = GlobalIdService.firestoreId ?? "";
     if (userId.isEmpty) return;
 
     debugPrint("like toggle for this reply $replyId");

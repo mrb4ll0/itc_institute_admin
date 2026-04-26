@@ -18,6 +18,7 @@ import 'package:itc_institute_admin/model/traineeRecord.dart';
 import 'package:itc_institute_admin/view/home/student/studentDetails.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../itc_logic/firebase/general_cloud.dart';
+import '../itc_logic/idservice/globalIdService.dart';
 import '../itc_logic/service/tranineeService.dart';
 import '../migrationService/migrationService.dart';
 import '../model/studentApplication.dart';
@@ -38,7 +39,7 @@ class StudentListPage extends StatefulWidget {
 
 class _StudentListPageState extends State<StudentListPage> {
   late final TraineeService _traineeService;
-  final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
+  final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic(GlobalIdService.firestoreId);
   final BackgroundTaskManager backgroundTaskManager = BackgroundTaskManager();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
@@ -128,7 +129,7 @@ class _StudentListPageState extends State<StudentListPage> {
   @override
   void initState() {
     super.initState();
-    _traineeService = TraineeService(FirebaseAuth.instance.currentUser!.uid);
+    _traineeService = TraineeService(GlobalIdService.firestoreId);
     _loadTrainees();
   }
 
@@ -1211,7 +1212,7 @@ class _StudentListPageState extends State<StudentListPage> {
 
   // Keep all your existing methods below (_showStatistics, _syncWithApplication, etc.)
   void startMigration() async {
-    final migrationService = MigrationService(FirebaseAuth.instance.currentUser!.uid);
+    final migrationService = MigrationService(GlobalIdService.firestoreId);
     unawaited(
       migrationService.startMigration().catchError((e, s) {
         debugPrint("background Task failed with error $e");
@@ -1841,7 +1842,7 @@ class TraineeCard extends StatelessWidget {
                                   children: [
                                     InkWell(
                                       onTap: () async {
-                                        Student? student = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid).getStudent(trainee.studentId);
+                                        Student? student = await ITCFirebaseLogic(GlobalIdService.firestoreId).getStudent(trainee.studentId);
                                         if(student == null) {
                                           Fluttertoast.showToast(msg: "Student Record not found");
                                           return;
@@ -1902,7 +1903,7 @@ class TraineeCard extends StatelessWidget {
                                     Expanded(
                                       child: InkWell(
                                         onTap: () async {
-                                          Student? student = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid).getStudent(trainee.studentId);
+                                          Student? student = await ITCFirebaseLogic(GlobalIdService.firestoreId).getStudent(trainee.studentId);
                                           if(student == null) {
                                             Fluttertoast.showToast(msg: "Student Record not found");
                                             return;

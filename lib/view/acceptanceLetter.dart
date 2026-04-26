@@ -6,6 +6,7 @@ import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
 import 'package:itc_institute_admin/view/home/industrailTraining/fileDetails.dart';
 
 import '../itc_logic/firebase/company_cloud.dart';
+import '../itc_logic/idservice/globalIdService.dart';
 import '../letterGenerator/GenerateAcceptanceLetter.dart';
 
 class AcceptanceLettersPage extends StatefulWidget {
@@ -25,7 +26,7 @@ class AcceptanceLettersPage extends StatefulWidget {
 }
 
 class _AcceptanceLettersPageState extends State<AcceptanceLettersPage> {
-  final Company_Cloud _companyCloud = Company_Cloud(FirebaseAuth.instance.currentUser!.uid);
+  final Company_Cloud _companyCloud = Company_Cloud(GlobalIdService.firestoreId);
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   String _selectedFilter = 'all'; // 'all', 'sent', 'accepted', 'rejected'

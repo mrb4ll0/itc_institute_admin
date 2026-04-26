@@ -16,6 +16,7 @@ import 'package:itc_institute_admin/model/company.dart';
 import 'package:itc_institute_admin/view/home/companyDashBoard.dart';
 
 import '../firebase_cloud_storage/firebase_cloud.dart';
+import '../itc_logic/idservice/globalIdService.dart';
 import '../model/authority.dart';
 
 class CompanySignupScreen extends StatefulWidget {
@@ -35,7 +36,7 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser?.uid??"");
+  ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic(GlobalIdService.firestoreId??"");
 
   String? _selectedState;
   String? _selectedLocalGovernment;

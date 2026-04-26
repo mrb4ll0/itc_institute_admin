@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../../idservice/globalIdService.dart';
+
 class ReportService
 {
   Future<void> sendReport({
@@ -8,7 +10,7 @@ class ReportService
     required String message,
     String? reportedUserId,
   }) async {
-    final reporterId = FirebaseAuth.instance.currentUser?.uid;
+    final reporterId = GlobalIdService.firestoreId;
 
     if (reporterId == null) {
       throw Exception("User not logged in.");

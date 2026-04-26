@@ -17,6 +17,7 @@ import '../../firebase_cloud_storage/firebase_cloud.dart';
 import '../../itc_logic/firebase/general_cloud.dart';
 import '../../itc_logic/firebase/message/message_service.dart';
 import '../../itc_logic/firebase/provider/groupChatProvider.dart';
+import '../../itc_logic/idservice/globalIdService.dart';
 import '../../itc_logic/service/ConverterUserService.dart';
 import '../../model/authority.dart';
 import '../../model/company.dart';
@@ -33,10 +34,10 @@ class MessagesView extends StatefulWidget {
 }
 
 class _MessagesViewState extends State<MessagesView> {
-  final ChatService _chatService = ChatService(FirebaseAuth.instance.currentUser!.uid);
+  final ChatService _chatService = ChatService(GlobalIdService.firestoreId);
   final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
-  final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
-  final AdminCloud _adminCloud = AdminCloud(FirebaseAuth.instance.currentUser!.uid);
+  final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic(GlobalIdService.firestoreId);
+  final AdminCloud _adminCloud = AdminCloud(GlobalIdService.firestoreId);
 
   late Stream<List<Message>> _messageStream;
   late Stream<List<Map<String, dynamic>>> _groupStream;
@@ -63,10 +64,10 @@ class _MessagesViewState extends State<MessagesView> {
 Company? company;
   loadCompany()async
   {
-    company = await _itcFirebaseLogic.getCompany(FirebaseAuth.instance.currentUser!.uid);
+    company = await _itcFirebaseLogic.getCompany(GlobalIdService.firestoreId);
      if(company == null)
        {
-         Authority? authority = await _itcFirebaseLogic.getAuthority(FirebaseAuth.instance.currentUser!.uid);
+         Authority? authority = await _itcFirebaseLogic.getAuthority(GlobalIdService.firestoreId);
          if(authority != null)
            {
              company = AuthorityCompanyMapper.createCompanyFromAuthority(authority: authority);
@@ -215,7 +216,7 @@ Company? company;
                                 itemBuilder: (context, index) {
                                   final group = groups[index];
                                   return FutureBuilder<QuerySnapshot>(
-                                    future: ChatService(FirebaseAuth.instance.currentUser!.uid)
+                                    future: ChatService(GlobalIdService.firestoreId)
                                         .groupsCollection
                                         .doc(group['id'])
                                         .collection('messages')
@@ -384,6 +385,7 @@ Company? company;
                                 width: 80,
                                 child: GestureDetector(
                                   onTap: () {
+                                    debugPrint("on tap 1 and id is ${s.uid}");
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
@@ -458,7 +460,7 @@ Company? company;
                           return const Center(child: Text("Error loading messages."));
                         }
 
-                        final userId = _firebaseAuth.currentUser?.uid;
+                        final userId = GlobalIdService.firestoreId;
                         final messages = (snapshot.data ?? [])
                             .where((msg) =>
                         msg.deletedFor == null ||
@@ -555,10 +557,12 @@ Company? company;
                           itemCount: messages.length,
                           itemBuilder: (context, index) {
                             final message = messages[index];
+                            debugPrint("sender name ${message.senderId} receiver id ${message.receiverId}");
                             final otherUserId =
-                            message.senderId == _firebaseAuth.currentUser!.uid
+                            message.senderId == GlobalIdService.firestoreId
                                 ? message.receiverId
                                 : message.senderId;
+                            debugPrint("sender id ${message.senderId} current user ${GlobalIdService.firestoreId}");
 
                             return FutureBuilder<UserConverter?>(
                               future: UserService().getUser(otherUserId),
@@ -614,13 +618,13 @@ Company? company;
                                       ),
                                     ),
                                     title: Text(
-                                        user.uid.startsWith("admin_")
+                                       GlobalIdService.firestoreId.startsWith("admin_")
                                             ? "${user.displayName.split(" ").first} ITC Rep"
                                             : user.displayName,
                                         style: theme.textTheme.titleMedium),
                                     subtitle: Text(
                                       message.senderId ==
-                                          FirebaseAuth.instance.currentUser!.uid
+                                          GlobalIdService.firestoreId
                                           ? "You: ${message.content.replaceAll(RegExp(r'\([^)]*\)$'), '')}"
                                           : message.content
                                           .replaceAll(RegExp(r'\([^)]*\)$'), ''),
@@ -634,7 +638,7 @@ Company? company;
                                         ),
                                         if (!message.isRead &&
                                             message.receiverId ==
-                                                _firebaseAuth.currentUser!.uid)
+                                                GlobalIdService.firestoreId)
                                           Container(
                                             height: 24,
                                             width: 24,
@@ -651,7 +655,7 @@ Company? company;
                                       ],
                                     ),
                                     onTap: () {
-                                      final isAdminChat = user.uid.startsWith('admin_');
+                                      final isAdminChat =GlobalIdService.firestoreId.startsWith('admin_');
                                       debugPrint("role is ${user.role}");
                                       Navigator.push(
                                         context,
@@ -659,7 +663,7 @@ Company? company;
                                           builder: (_) => ChatDetailsPage(
                                             receiverName: user.displayName,
                                             receiverAvatarUrl: user.imageUrl,
-                                            receiverId: user.uid,
+                                            receiverId:user.uid,
                                             receiverRole: user.role,
                                           ),
                                         ),
@@ -695,7 +699,7 @@ Company? company;
                                             child: CircularProgressIndicator(),
                                           ),
                                         );
-                                        await _deleteChatWithUser(user.uid);
+                                        await _deleteChatWithUser(GlobalIdService.firestoreId);
                                         Navigator.of(context, rootNavigator: true)
                                             .pop();
                                         setState(() {});
@@ -786,7 +790,7 @@ Company? company;
   }
 
   Future<void> _deleteChatWithUser(String otherUserId) async {
-    final userId = _firebaseAuth.currentUser?.uid;
+    final userId = GlobalIdService.firestoreId;
     if (userId == null) return;
     try {
       // Compute chatRoomID
@@ -837,124 +841,225 @@ class _StartNewChatDialog extends StatefulWidget {
 
 class _StartNewChatDialogState extends State<_StartNewChatDialog> {
   final TextEditingController _searchController = TextEditingController();
-  bool _isLoading = false;
+  List<Student> _allStudents = [];
+  List<Student> _filteredStudents = [];
+  bool _isLoading = true;
+  bool _isSearching = false;
   String? _error;
 
   @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Start New Chat'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: _searchController,
-            decoration: const InputDecoration(
-              labelText: 'Enter student name',
-              prefixIcon: Icon(Icons.search),
-            ),
-            keyboardType: TextInputType.text,
-          ),
-          if (_isLoading)
-            const Padding(
-              padding: EdgeInsets.only(top: 16),
-              child: CircularProgressIndicator(),
-            ),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 16),
-              child: Text("Student not found",
-                  style: const TextStyle(color: Colors.red)),
-            ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed: _isLoading ? null : _startChat,
-          child: const Text('Start Chat'),
-        ),
-      ],
-    );
+  void initState() {
+    super.initState();
+    _loadStudents();
+    _searchController.addListener(_onSearchChanged);
   }
 
-  Future<void> _startChat() async {
+  @override
+  void dispose() {
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadStudents() async {
     setState(() {
       _isLoading = true;
       _error = null;
     });
-    final input = _searchController.text.trim();
-    if (input.isEmpty) {
-      setState(() {
-        _isLoading = false;
-        _error = 'Please enter a name.';
-      });
-      return;
-    }
     try {
-      dynamic user;
-      // Search all students and match by name (case-insensitive)
       final allStudents = await widget.adminCloud.getAllStudents();
-      user = allStudents.firstWhere(
-            (s) => s.fullName.toLowerCase() == input.toLowerCase(),
-        orElse: () => null as dynamic,
-      );
-      if (user == null || (user is Student && user.uid == widget.student.uid)) {
-        // Not found or self
-        setState(() {
-          _isLoading = false;
-        });
-        await showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Student Not Found'),
-            content: const Text(
-                'This student is not on ITConnect. Would you like to share the app link with them?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  Share.share(
-                    'Check out my app: https://play.google.com/store/apps/details?id=com.mrb4ll0.it_connect',
-                    subject: 'IT Connect , Find your IT Placement fast!',
-                  );
-                  Navigator.pop(context);
-                },
-                child: const Text('Share App Link'),
-              ),
-            ],
-          ),
-        );
-        return;
-      }
-      // If found, open chat page
-      Navigator.pop(context);
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ChatDetailsPage(
-            receiverName: user.fullName,
-            receiverAvatarUrl: user.imageUrl,
-            receiverId: user.uid,
-            receiverRole: user.role,
-          ),
-        ),
-      );
+      // Filter out current user
+      _allStudents = allStudents.where((s) => s.uid != widget.student.uid).toList();
+      _filteredStudents = _allStudents;
     } catch (e) {
       setState(() {
-        _error = 'Error: ${e.toString()}';
+        _error = 'Failed to load students: ${e.toString()}';
       });
     } finally {
       setState(() {
         _isLoading = false;
       });
     }
+  }
+
+  void _onSearchChanged() {
+    final query = _searchController.text.trim().toLowerCase();
+    setState(() {
+      _isSearching = query.isNotEmpty;
+      if (query.isEmpty) {
+        _filteredStudents = _allStudents;
+      } else {
+        _filteredStudents = _allStudents.where((student) {
+          return student.fullName.toLowerCase().contains(query) ||
+              (student.email?.toLowerCase().contains(query) ?? false) ||
+              (student.matricNumber?.toLowerCase().contains(query) ?? false);
+        }).toList();
+      }
+    });
+  }
+
+  void _startChat(Student selectedStudent) {
+    Navigator.pop(context);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChatDetailsPage(
+          receiverName: selectedStudent.fullName,
+          receiverAvatarUrl: selectedStudent.imageUrl,
+          receiverId: selectedStudent.uid,
+          receiverRole: selectedStudent.role,
+          receiverData: selectedStudent,
+        ),
+      ),
+    );
+  }
+
+  void _showStudentNotFoundDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Student Not Found'),
+        content: const Text(
+          'This student is not on ITConnect. Would you like to share the app link with them?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Share.share(
+                'Check out my app: https://play.google.com/store/apps/details?id=com.mrb4ll0.it_connect',
+                subject: 'IT Connect , Find your IT Placement fast!',
+              );
+              Navigator.pop(context);
+            },
+            child: const Text('Share App Link'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Start New Chat'),
+      content: Container(
+        width: double.maxFinite,
+        height: 400, // Fixed height for dialog
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _searchController,
+              decoration: const InputDecoration(
+                labelText: 'Search students by name, email, or matric number',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
+              ),
+              autofocus: true,
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: _buildContent(),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildContent() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 48, color: Colors.red),
+            const SizedBox(height: 12),
+            Text(_error!),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: _loadStudents,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_filteredStudents.isEmpty) {
+      if (_searchController.text.isNotEmpty) {
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.search_off, size: 48, color: Colors.grey),
+              const SizedBox(height: 12),
+              const Text('No students found matching your search'),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: _showStudentNotFoundDialog,
+                child: const Text('Invite Student?'),
+              ),
+            ],
+          ),
+        );
+      } else {
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.people_outline, size: 48, color: Colors.grey),
+              const SizedBox(height: 12),
+              const Text('No other students available'),
+            ],
+          ),
+        );
+      }
+    }
+
+    return ListView.builder(
+      shrinkWrap: true,
+      itemCount: _filteredStudents.length,
+      itemBuilder: (context, index) {
+        final student = _filteredStudents[index];
+        return ListTile(
+          leading: CircleAvatar(
+            backgroundImage: student.imageUrl.isNotEmpty
+                ? NetworkImage(student.imageUrl)
+                : null,
+            child: student.imageUrl.isEmpty
+                ? Text(student.fullName[0].toUpperCase())
+                : null,
+          ),
+          title: Text(student.fullName),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (student.email.isNotEmpty)
+                Text(student.email, style: TextStyle(fontSize: 12)),
+              if (student.matricNumber.isNotEmpty)
+                Text('Matric: ${student.matricNumber}', style: TextStyle(fontSize: 10)),
+            ],
+          ),
+          trailing: Icon(Icons.chat_bubble_outline, color: Colors.blue),
+          onTap: () => _startChat(student),
+        );
+      },
+    );
   }
 }
 
@@ -992,10 +1097,10 @@ class _CreateGroupDialogState extends State<CreateGroupDialog> {
          return;
        }
 
-    final students = await AdminCloud(FirebaseAuth.instance.currentUser!.uid).getPotentialStudents(company: company);
+    final students = await AdminCloud(GlobalIdService.firestoreId).getPotentialStudents(company: company);
     setState(() {
       _allStudents =
-          students.where((s) => s.uid != widget.currentUser.uid).toList();
+          students.where((s) => s.uid != widget.currentUser).toList();
     });
   }
 
@@ -1022,7 +1127,7 @@ class _CreateGroupDialogState extends State<CreateGroupDialog> {
         avatarUrl = await FirebaseUploader()
             .uploadFile(_avatarFile!, widget.currentUser.uid, 'group_avatar');
       }
-      final groupId = await ChatService(FirebaseAuth.instance.currentUser!.uid).createGroup(
+      final groupId = await ChatService(GlobalIdService.firestoreId).createGroup(
         name: _nameController.text.trim(),
         createdBy: widget.currentUser.uid,
         members: _selectedMembers.map((s) => s.uid).toList(),

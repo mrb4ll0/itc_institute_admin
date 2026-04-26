@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../generalmethods/GeneralMethods.dart';
 import '../../../itc_logic/firebase/message/message_service.dart';
+import '../../../itc_logic/idservice/globalIdService.dart';
 import '../../../itc_logic/service/privacySettingsService.dart';
 import '../../../itc_logic/service/userService.dart';
 import '../../../model/student.dart';
@@ -31,7 +32,7 @@ class StudentProfilePage extends StatefulWidget {
 class _StudentProfilePageState extends State<StudentProfilePage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final ChatService _chatService = ChatService(FirebaseAuth.instance.currentUser!.uid);
+  final ChatService _chatService = ChatService(GlobalIdService.firestoreId);
   final UserService _userService = UserService();
   String? _currentUserId;
   bool _isLoading = false;
@@ -109,7 +110,7 @@ class _StudentProfilePageState extends State<StudentProfilePage>
 
   Future<void> _getCurrentUser() async {
     final user = FirebaseAuth.instance.currentUser;
-    _currentUserId = user?.uid ?? widget.currentUserId;
+    _currentUserId = GlobalIdService.firestoreId ?? widget.currentUserId;
   }
 
   @override

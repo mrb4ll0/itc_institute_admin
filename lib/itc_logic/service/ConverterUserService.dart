@@ -9,6 +9,7 @@ import '../../model/authority.dart';
 import '../../model/company.dart';
 import '../../model/student.dart';
 import '../../model/userProfile.dart';
+import '../idservice/globalIdService.dart';
 
 class UserService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -195,7 +196,7 @@ final authorityDoc = await _firestore
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return null;
 
-    return getUser(currentUser.uid);
+    return getUser(GlobalIdService.firestoreId);
   }
 
   /// Stream version for real-time updates

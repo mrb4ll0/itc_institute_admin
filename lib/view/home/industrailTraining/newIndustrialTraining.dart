@@ -14,6 +14,7 @@ import 'package:itc_institute_admin/view/home/industrailTraining/fileDetails.dar
 import 'package:path_provider/path_provider.dart';
 
 import '../../../firebase_cloud_storage/firebase_cloud.dart';
+import '../../../itc_logic/idservice/globalIdService.dart';
 import '../../../model/company.dart';
 import '../../../model/companyForm.dart';
 
@@ -40,8 +41,8 @@ class _CreateIndustrialTrainingPageState
   final TextEditingController _contactPersonController =
   TextEditingController();
 
-  final Company_Cloud company_cloud = Company_Cloud(FirebaseAuth.instance.currentUser!.uid);
-  final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
+  final Company_Cloud company_cloud = Company_Cloud(GlobalIdService.firestoreId);
+  final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic(GlobalIdService.firestoreId);
 
   final FirebaseUploader firebaseUploader = FirebaseUploader();
 
@@ -82,13 +83,13 @@ class _CreateIndustrialTrainingPageState
 
       final companyDoc = await FirebaseFirestore.instance.collection("users").doc("companies")
           .collection('companies')
-          .doc(user.uid)
+          .doc(GlobalIdService.firestoreId)
           .get();
 
       if (companyDoc.exists) {
         final data = companyDoc.data()!;
         setState(() {
-          _companyId = user.uid;
+          _companyId =GlobalIdService.firestoreId;
           _companyName = data['companyName'] ?? 'Company';
           _companyLogoUrl = data['logoUrl'] ?? data['profileImage'] ?? '';
         });
@@ -158,7 +159,7 @@ class _CreateIndustrialTrainingPageState
         if (filesToUpload.isNotEmpty) {
           List<String> newUrls = await firebaseUploader.uploadMultipleFiles(
             filesToUpload,
-            _companyId ?? FirebaseAuth.instance.currentUser!.uid,
+            _companyId ?? GlobalIdService.firestoreId,
             'training_opportunities',
           );
           downloadUrls.addAll(newUrls);
@@ -309,7 +310,7 @@ class _CreateIndustrialTrainingPageState
       }
         }
       Company? company = await _itcFirebaseLogic.getCompany(
-        FirebaseAuth.instance.currentUser!.uid,
+        GlobalIdService.firestoreId,
       );
 
       if (company == null) {

@@ -6,6 +6,7 @@ import 'package:itc_institute_admin/itc_logic/firebase/general_cloud.dart';
 import '../../model/localNotification.dart';
 import '../../model/notificationModel.dart';
 import '../../notification/firebase/Firebase_push_notifications.dart';
+import '../idservice/globalIdService.dart';
 import 'notificationPanel/notificationPanelService.dart';
 
 class NotificationSender {
@@ -22,7 +23,7 @@ class NotificationSender {
 
 
       //final fcmToken = await _getFcmTokenOfReceiver(receiverID);
-      final usersInfo = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser?.uid??"").getAllUserContactInfo(specificUserId: receiverID);
+      final usersInfo = await ITCFirebaseLogic(GlobalIdService.firestoreId??"").getAllUserContactInfo(specificUserId: receiverID);
 
       if (usersInfo != null && usersInfo.isNotEmpty) {
         await _notificationService.sendNotificationToUser(

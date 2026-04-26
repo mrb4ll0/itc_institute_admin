@@ -4,6 +4,7 @@ import 'package:itc_institute_admin/itc_logic/firebase/general_cloud.dart';
 import 'package:provider/provider.dart';
 import '../../itc_logic/firebase/AuthorityRulesHelper.dart';
 import '../../itc_logic/firebase/StudentAcceptanceRepository.dart';
+import '../../itc_logic/idservice/globalIdService.dart';
 import '../../model/AuthorityRule.dart';
 import '../../model/authorityRuleExtension.dart';
 import '../../model/company.dart';
@@ -27,18 +28,18 @@ class StudentAcceptanceViewModel extends ChangeNotifier {
   final repo = StudentAcceptanceRepository();
   void _initializeDefaultRule() async {
     // Fetch the existing rule
-    _studentAcceptanceRule = await repo.fetchRule(FirebaseAuth.instance.currentUser!.uid);
+    _studentAcceptanceRule = await repo.fetchRule(GlobalIdService.firestoreId);
 
     // Preload all companies under the current authority
-    await AuthorityRulesHelper.preloadCompanies(FirebaseAuth.instance.currentUser!.uid);
+    await AuthorityRulesHelper.preloadCompanies(GlobalIdService.firestoreId);
 
     // Get all company IDs under this authority
     final allCompanyIds = AuthorityRulesHelper.getAllCompanies().map((c) => c.id).toList();
 
     // Create a default rule if none exists
     _studentAcceptanceRule ??= AuthorityRule(
-      id: "${FirebaseAuth.instance.currentUser!.uid}_${DateTime.now()}",
-      authorityId: FirebaseAuth.instance.currentUser!.uid, // current authority ID
+      id: "${GlobalIdService.firestoreId}_${DateTime.now()}",
+      authorityId: GlobalIdService.firestoreId, // current authority ID
       title: 'Student Acceptance Permission',
       description: 'Controls which companies under this authority can accept students for training/internship',
       category: RuleCategory.COMPANY_RELATIONSHIP,
@@ -81,7 +82,7 @@ class StudentAcceptanceViewModel extends ChangeNotifier {
   bool isLoadingCompanies = false;
 
   List<Company> get companies => _companyCache.values.toList();
- ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
+ ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic(GlobalIdService.firestoreId);
   Future<void> loadCompanies(List<String> companyIds) async {
     if (_companyCache.isNotEmpty) return;
 
@@ -188,7 +189,7 @@ class StudentAcceptanceControlPage extends StatefulWidget {
 class _StudentAcceptanceControlPageState extends State<StudentAcceptanceControlPage> {
   final _searchController = TextEditingController();
   String _searchQuery = '';
-  ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
+  ITCFirebaseLogic itcFirebaseLogic = ITCFirebaseLogic(GlobalIdService.firestoreId);
   List<String> applicableCompanies = [];
 
   @override

@@ -12,6 +12,7 @@ import '../../generalmethods/GeneralMethods.dart';
 import '../../itc_logic/firebase/company_cloud.dart';
 import '../../itc_logic/firebase/general_cloud.dart';
 import '../../itc_logic/firebase/message/message_service.dart';
+import '../../itc_logic/idservice/globalIdService.dart';
 import '../../model/company.dart';
 import '../../model/review.dart';
 import '../../model/userProfile.dart';
@@ -32,7 +33,7 @@ class CompanyDetailPage extends StatefulWidget {
 
 class _CompanyDetailPageState extends State<CompanyDetailPage>
     with TickerProviderStateMixin {
-  final Company_Cloud _companyCloud = Company_Cloud(FirebaseAuth.instance.currentUser!.uid);
+  final Company_Cloud _companyCloud = Company_Cloud(GlobalIdService.firestoreId);
   final FirebaseAuth _auth = FirebaseAuth.instance;
   late TabController _tabController;
   double _rating = 0.0;
@@ -825,7 +826,7 @@ class _CompanyDetailPageState extends State<CompanyDetailPage>
 
   Widget _buildReviewCard(CompanyReview review, ThemeData theme) {
     return FutureBuilder<Student?>(
-      future: ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid).getStudent(review.studentId),
+      future: ITCFirebaseLogic(GlobalIdService.firestoreId).getStudent(review.studentId),
       builder: (context, snapshot) {
         final student = snapshot.data;
         return Container(
@@ -972,7 +973,7 @@ class _CompanyDetailPageState extends State<CompanyDetailPage>
         return _AddReviewDialog(
           companyId: widget.company.id,
           studentName: _auth.currentUser?.displayName ?? 'Student',
-          studentId: _auth.currentUser?.uid ?? '',
+          studentId: GlobalIdService.firestoreId ?? '',
           onReviewAdded: () {
             _loadCompanyRating();
             ScaffoldMessenger.of(context).showSnackBar(
@@ -1180,7 +1181,7 @@ class _AddReviewDialogState extends State<_AddReviewDialog> {
                           rating: _rating,
                           createdAt: DateTime.now(),
                         );
-                        await Company_Cloud(FirebaseAuth.instance.currentUser!.uid).addCompanyReview(review);
+                        await Company_Cloud(GlobalIdService.firestoreId).addCompanyReview(review);
                         widget.onReviewAdded();
                         Navigator.pop(context);
                       }

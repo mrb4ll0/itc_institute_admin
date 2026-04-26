@@ -7,6 +7,8 @@ import 'package:itc_institute_admin/itc_logic/firebase/company_cloud.dart';
 import 'package:itc_institute_admin/model/company.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/general_cloud.dart';
 
+import '../../itc_logic/idservice/globalIdService.dart';
+
 class CompanyEditPage extends StatefulWidget {
   final Company company;
   final Function(Company) onSave;
@@ -29,8 +31,8 @@ class _CompanyEditPageState extends State<CompanyEditPage> {
   bool _isLoading = false;
   File? _logoFile;
   final ImagePicker _picker = ImagePicker();
-  final ITCFirebaseLogic _firebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
-  final Company_Cloud company_cloud = Company_Cloud(FirebaseAuth.instance.currentUser!.uid);
+  final ITCFirebaseLogic _firebaseLogic = ITCFirebaseLogic(GlobalIdService.firestoreId);
+  final Company_Cloud company_cloud = Company_Cloud(GlobalIdService.firestoreId);
   final FirebaseUploader firebaseUploader = FirebaseUploader();
 
   // Nigerian states for dropdown
@@ -135,7 +137,7 @@ class _CompanyEditPageState extends State<CompanyEditPage> {
       setState(() => _isLoading = true);
       final downloadUrl = await firebaseUploader.uploadFile(
          _logoFile!,
-         FirebaseAuth.instance.currentUser!.uid,
+         GlobalIdService.firestoreId,
          'company_logos/${_editedCompany.id}'
       );
       return downloadUrl;

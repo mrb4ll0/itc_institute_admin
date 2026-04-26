@@ -23,6 +23,7 @@ import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../../itc_logic/firebase/AuthorityRulesHelper.dart';
+import '../../../../itc_logic/idservice/globalIdService.dart';
 import '../../../../itc_logic/notification/fireStoreNotification.dart';
 import '../../../../itc_logic/notification/notificationPanel/notificationPanelService.dart';
 import '../../../../itc_logic/notification/notitification_service.dart';
@@ -105,8 +106,8 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
   @override
   void initState() {
     super.initState();
-    _applicationService = Company_Cloud(FirebaseAuth.instance.currentUser!.uid);
-    canAcceptOrReject = widget.isAuthority?true:AuthorityRulesHelper.canAcceptStudents(FirebaseAuth.instance.currentUser!.uid);
+    _applicationService = Company_Cloud(GlobalIdService.firestoreId);
+    canAcceptOrReject = widget.isAuthority?true:AuthorityRulesHelper.canAcceptStudents(GlobalIdService.firestoreId);
 
     _loadApplications();
   }
@@ -125,7 +126,7 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
         companiesIds: widget.companyIds
 
       );
-      authority = await ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid).getAuthority(FirebaseAuth.instance.currentUser!.uid);
+      authority = await ITCFirebaseLogic(GlobalIdService.firestoreId).getAuthority(GlobalIdService.firestoreId);
 
       setState(() {
         _applications = applications;
@@ -274,7 +275,7 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
         pdfUrl =
         await runPdfGeneration(acceptanceLetterData, userId: student.uid,);
 
-        await Company_Cloud(FirebaseAuth.instance.currentUser!.uid).storeAcceptanceLetter(
+        await Company_Cloud(GlobalIdService.firestoreId).storeAcceptanceLetter(
             studentId: application.student.uid,
             acceptanceLetterData: acceptanceLetterData,
             internshipId: application.internship.id!,

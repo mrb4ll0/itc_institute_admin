@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../model/comments_model.dart';
+import '../itc_logic/idservice/globalIdService.dart';
 
 String anonymousWithUid(String? userId) {
   if (userId == null || userId.isEmpty) return 'Anonymous';
@@ -63,12 +64,12 @@ class TweetModel {
 
   bool get isLiked {
     final currentUser = FirebaseAuth.instance.currentUser;
-    return currentUser != null && likes.contains(currentUser.uid);
+    return currentUser != null && likes.contains(GlobalIdService.firestoreId);
   }
 
   bool get isShared {
     final currentUser = FirebaseAuth.instance.currentUser;
-    return currentUser != null && shares.contains(currentUser.uid);
+    return currentUser != null && shares.contains(GlobalIdService.firestoreId);
   }
 
   String get timeAgo {

@@ -9,6 +9,7 @@ import '../../../../../model/comments_model.dart';
 import '../../../../../model/reply_model.dart';
 import '../../../../../model/userProfile.dart';
 import '../../../auth/tweet_provider.dart';
+import '../../../itc_logic/idservice/globalIdService.dart';
 import '../../../itc_logic/service/userService.dart';
 
 
@@ -360,7 +361,7 @@ class _CommentDetailPageState extends State<CommentDetailPage> {
   @override
   Widget build(BuildContext parentContext) {
     final isDark = Theme.of(parentContext).brightness == Brightness.dark;
-    final currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final currentUserId = GlobalIdService.firestoreId ?? '';
 
     return Scaffold(
       backgroundColor: isDark ? Colors.grey[900] : Colors.white,

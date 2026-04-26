@@ -5,7 +5,8 @@ import 'package:itc_institute_admin/view/home/aboutITConnect.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:itc_institute_admin/itc_logic/service/userService.dart';
 
-import '../firebase/report/report_cloud.dart'; // For chat functionality
+import '../firebase/report/report_cloud.dart';
+import '../idservice/globalIdService.dart'; // For chat functionality
 
 class CompanyHelpPage extends StatefulWidget {
   const CompanyHelpPage({super.key});
@@ -251,7 +252,7 @@ class _CompanyHelpPageState extends State<CompanyHelpPage> {
                           type: selectedType!, // Use the selected type
                           message: feedbackController.text.trim(),
                           reportedUserId:
-                              FirebaseAuth.instance.currentUser!.uid,
+                              GlobalIdService.firestoreId,
                         );
 
                         ScaffoldMessenger.of(outerContext).showSnackBar(

@@ -9,6 +9,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 
 import '../../model/ConnectedDevice.dart';
+import '../idservice/globalIdService.dart';
 
 
 class ConnectedDeviceService {
@@ -18,12 +19,13 @@ class ConnectedDeviceService {
   // Collection reference
   CollectionReference get _devicesCollection => _firestore
       .collection('users')
-      .doc(_auth.currentUser?.uid)
+      .doc(
+      GlobalIdService.firestoreId)
       .collection('connected_devices');
 
   // Save current device info on login
   Future<void> saveCurrentDevice() async {
-    final userId = _auth.currentUser?.uid;
+    final userId = GlobalIdService.firestoreId;
     if (userId == null) return;
 
     try {
@@ -93,7 +95,7 @@ class ConnectedDeviceService {
 
   // Revoke a specific device
   Future<void> revokeDevice(String deviceId) async {
-    final userId = _auth.currentUser?.uid;
+    final userId = GlobalIdService.firestoreId;
     if (userId == null) throw Exception('User not logged in');
 
     await _devicesCollection.doc(deviceId).delete();
@@ -104,7 +106,7 @@ class ConnectedDeviceService {
 
   // Revoke all devices except current
   Future<void> revokeAllOtherDevices(String currentDeviceId) async {
-    final userId = _auth.currentUser?.uid;
+    final userId = GlobalIdService.firestoreId;
     if (userId == null) throw Exception('User not logged in');
 
     final devices = await _devicesCollection.get();
@@ -271,7 +273,7 @@ class ConnectedDeviceService {
 
   // Remove all devices (when user deletes account)
   Future<void> deleteAllDevices() async {
-    final userId = _auth.currentUser?.uid;
+    final userId = GlobalIdService.firestoreId;
     if (userId == null) return;
 
     final devices = await _devicesCollection.get();

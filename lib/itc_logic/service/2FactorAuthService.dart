@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/cupertino.dart';
 
+import '../idservice/globalIdService.dart';
+
 class TwoFactorAuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   late final FirebaseFunctions _functions;
@@ -237,7 +239,7 @@ class TwoFactorAuthService {
 
   /// Check if user has a password-based 2FA set
   Future<bool> hasTwoFactorPassword() async {
-    final userId = _auth.currentUser?.uid;
+    final userId = GlobalIdService.firestoreId;
     if (userId == null) return false;
 
     final doc = await FirebaseFirestore.instance

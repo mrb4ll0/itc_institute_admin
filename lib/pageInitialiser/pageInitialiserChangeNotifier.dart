@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:itc_institute_admin/itc_logic/idservice/globalIdService.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../auth/login_view.dart';
@@ -202,7 +204,9 @@ class _InitializerPageState extends State<InitializerPage> {
       await NotificationService().init();
 
       FirebaseMessaging.onBackgroundMessage(NotificationService.backgroundHandler);
-
+       if(FirebaseAuth.instance.currentUser != null) {
+         await GlobalIdService.initialize();
+       }
 
       // Once done, go to login
       if (mounted) {

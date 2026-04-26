@@ -34,6 +34,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../backgroundTask/backgroundTaskRegistry.dart';
 import '../itc_logic/admin_task.dart';
 import '../itc_logic/firebase/general_cloud.dart';
+import '../itc_logic/idservice/globalIdService.dart';
 import '../itc_logic/service/ConnectedDeviceService.dart';
 import '../migrationService/migrationSettingsStrorage.dart';
 import '../model/authority.dart';
@@ -59,7 +60,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isCheckingAuth = true;
   final NotificationService notificationService = NotificationService();
   int failedCount = 0;
-  final adminCloud = AdminCloud(FirebaseAuth.instance.currentUser?.uid ?? "");
+  final adminCloud = AdminCloud(GlobalIdService.firestoreId ?? "");
 
   @override
   void initState() {
@@ -84,7 +85,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       setState(() => _isLoading = true);
       PrivacySettings privacySettings =
-      await PrivacySettingsService.getUserPrivacySettings(currentUser.uid);
+      await PrivacySettingsService.getUserPrivacySettings(GlobalIdService.firestoreId);
 
       if (privacySettings.twoFactorAuth) {
         GeneralMethods.navigateTo(
@@ -129,7 +130,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     SecuritySettings securitySettings =
     await SecuritySettingsService.getUserSecuritySettings(
-      FirebaseAuth.instance.currentUser?.uid ?? "",
+      GlobalIdService.firestoreId ?? "",
     );
 
     setState(() => _isLoading = true);
@@ -280,18 +281,18 @@ class _LoginScreenState extends State<LoginScreen> {
     final currentUser = FirebaseAuth.instance.currentUser;
     SecuritySettings securitySettings =
     await SecuritySettingsService.getUserSecuritySettings(
-      currentUser?.uid ?? "",
+      GlobalIdService.firestoreId,
     );
-
+    await GlobalIdService.initialize();
     Company? company;
     company = await ITCFirebaseLogic(
-      FirebaseAuth.instance.currentUser!.uid,
+      GlobalIdService.firestoreId,
     ).getCompany(currentUser!.uid);
 
     if (company == null) {
       Authority? authority = await ITCFirebaseLogic(
-        FirebaseAuth.instance.currentUser!.uid,
-      ).getAuthority(currentUser.uid);
+        GlobalIdService.firestoreId,
+      ).getAuthority(GlobalIdService.firestoreId);
       if (authority != null) {
         company = AuthorityCompanyMapper.createCompanyFromAuthority(
           authority: authority,
@@ -373,7 +374,7 @@ class _LoginScreenState extends State<LoginScreen> {
       timestamp: timestamp,
       read: false,
       targetAudience: currentUser.email ?? '',
-      targetStudentId: currentUser.uid,
+      targetStudentId: GlobalIdService.firestoreId,
       fcmToken: fcmToken ?? "",
       type: NotificationType.systemAlert.name,
     );
@@ -835,3 +836,25 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
+
+//// After user claims their account
+// Future<void> claimAccount(String systemCreatedId, String userType) async {
+//   try {
+//     await GlobalIdService.linkToFirestoreId(
+//       firestoreId: systemCreatedId,
+//       userType: userType,
+//     );
+//
+//     // Refresh the global ID
+//     await GlobalIdService.refresh();
+//
+//     // Proceed to dashboard
+//     if (GlobalIdService.isCompany) {
+//       navigateToCompanyDashboard();
+//     } else {
+//       navigateToAuthorityDashboard();
+//     }
+//   } catch (e) {
+//     // Handle error
+//   }
+// }

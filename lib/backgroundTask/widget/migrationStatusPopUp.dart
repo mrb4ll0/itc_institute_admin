@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:itc_institute_admin/backgroundTask/backgroundTask.dart';
 import 'package:itc_institute_admin/backgroundTask/backgroundTaskRegistry.dart';
 
+import '../../itc_logic/idservice/globalIdService.dart';
 import '../../migrationService/migrationService.dart';
 
 
@@ -84,7 +85,7 @@ class _MigrationPopupMenuState extends State<MigrationPopupMenu> {
                         onRefresh: widget.onRefresh,
                         onMigrationStart: () async {
                           setState(() => _isStartingMigration = true);
-                          await MigrationService(FirebaseAuth.instance.currentUser!.uid).startMigration();
+                          await MigrationService(GlobalIdService.firestoreId).startMigration();
                           setState(() => _isStartingMigration = false);
                           _closeMenu();
                         },

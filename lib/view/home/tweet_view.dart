@@ -12,6 +12,7 @@ import 'package:provider/provider.dart';
 import '../../../../itc_logic/firebase/tweet/tweet_cloud.dart';
 import '../../auth/tweet_provider.dart';
 import '../../generalmethods/GeneralMethods.dart';
+import '../../itc_logic/idservice/globalIdService.dart';
 import '../../model/admin.dart';
 import '../../model/comments_model.dart';
 import '../../model/company.dart';
@@ -1444,14 +1445,14 @@ class _ProfessionalTweetCardState extends State<ProfessionalTweetCard> {
           // Like Button
           _buildFacebookActionButton(
             icon: widget.tweet.likes.contains(
-              FirebaseAuth.instance.currentUser!.uid,
+              GlobalIdService.firestoreId,
             )
                 ? Icons.thumb_up
                 : Icons.thumb_up_outlined,
             label: 'Like',
             isActive: _isLiked,
             color: widget.tweet.likes.contains(
-              FirebaseAuth.instance.currentUser!.uid,
+              GlobalIdService.firestoreId,
             )
                 ? const Color(0xFF1877F2)
                 : null,
@@ -1795,7 +1796,7 @@ class _ProfessionalTweetCardState extends State<ProfessionalTweetCard> {
   void _bookmarkTweet() async {
     //save implementations
     bool isTweetSaved = await tweetService.isTweetSavedByUser(
-      FirebaseAuth.instance.currentUser!.uid,
+      GlobalIdService.firestoreId,
       widget.tweet.id,
     );
     if (isTweetSaved) {
@@ -1808,10 +1809,10 @@ class _ProfessionalTweetCardState extends State<ProfessionalTweetCard> {
       );
       return;
     }
-    debugPrint("userid ${FirebaseAuth.instance.currentUser!.uid}");
+    debugPrint("userid ${GlobalIdService.firestoreId}");
     debugPrint("tweetId ${widget.tweet.id}");
     await tweetService.saveTweet(
-      userId: FirebaseAuth.instance.currentUser!.uid,
+      userId: GlobalIdService.firestoreId,
       tweetId: widget.tweet.id,
     );
 

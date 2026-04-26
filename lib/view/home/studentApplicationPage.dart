@@ -8,6 +8,7 @@ import 'package:itc_institute_admin/itc_logic/notification/fireStoreNotification
 import 'package:itc_institute_admin/itc_logic/notification/notitification_service.dart';
 import 'package:itc_institute_admin/model/studentApplication.dart';
 import 'package:itc_institute_admin/view/home/industrailTraining/applications/studentApplicationsPage.dart';
+import '../../itc_logic/idservice/globalIdService.dart';
 import 'industrailTraining/applications/studentWithLatestApplication.dart';
 import 'industrailTraining/newIndustrialTraining.dart';
 
@@ -26,19 +27,19 @@ class StudentApplicationsPage extends StatefulWidget {
 class _StudentApplicationsPageState extends State<StudentApplicationsPage>
     with AutomaticKeepAliveClientMixin {
   final TextEditingController _searchController = TextEditingController();
-  final Company_Cloud company_cloud = Company_Cloud(FirebaseAuth.instance.currentUser!.uid);
+  final Company_Cloud company_cloud = Company_Cloud(GlobalIdService.firestoreId);
   final NotificationService notificationService = NotificationService();
   ActionLogger actionLogger = ActionLogger();
-  final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic(FirebaseAuth.instance.currentUser!.uid);
+  final ITCFirebaseLogic _itcFirebaseLogic = ITCFirebaseLogic(GlobalIdService.firestoreId);
   int applicationCount = 0;
-  final Company_Cloud companyCloud = Company_Cloud(FirebaseAuth.instance.currentUser!.uid);
+  final Company_Cloud companyCloud = Company_Cloud(GlobalIdService.firestoreId);
   bool _isRefreshing = false;
   bool _isDataLoaded = false;
   DateTime? _lastRefreshTime;
 
   // Updated: Use new model
   final Company_Cloud _companyApplicationsService =
-  Company_Cloud(FirebaseAuth.instance.currentUser!.uid);
+  Company_Cloud(GlobalIdService.firestoreId);
   List<StudentWithLatestApplication> _allStudents = [];
   List<StudentWithLatestApplication> _filteredStudents = [];
   String _searchQuery = '';
@@ -87,7 +88,7 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) return;
 
-      String companyId = currentUser.uid;
+      String companyId = GlobalIdService.firestoreId;
 
       // Get students with their latest applications
       final studentsStream = _companyApplicationsService
@@ -169,7 +170,7 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
         throw Exception('No user is currently logged in.');
       }
 
-      String companyId = currentUser.uid;
+      String companyId = GlobalIdService.firestoreId;
 
       // Get fresh data
       final studentsStream = _companyApplicationsService
