@@ -123,21 +123,21 @@ class GlobalIdService {
       'linkedAt': FieldValue.serverTimestamp(),
     });
 
-    // Also update the user document with authUid reference
-    final collectionPath = userType == 'company'
-        ? 'companies/companies'
-        : 'authorities/authorities';
-
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(collectionPath.split('/').first)
-        .collection(collectionPath.split('/').last)
-        .doc(firestoreId)
-        .update({
-      'authUid': _currentAuthUid,
-      'claimedAt': FieldValue.serverTimestamp(),
-      'claimed': true,
-    });
+    // // Also update the user document with authUid reference
+    // final collectionPath = userType == 'company'
+    //     ? 'companies/companies'
+    //     : 'authorities/authorities';
+    //
+    // await FirebaseFirestore.instance
+    //     .collection('users')
+    //     .doc(collectionPath.split('/').first)
+    //     .collection(collectionPath.split('/').last)
+    //     .doc(firestoreId)
+    //     .update({
+    //   'authUid': _currentAuthUid,
+    //   'claimedAt': FieldValue.serverTimestamp(),
+    //   'claimed': true,
+    // });
 
     // Update local variables
     _currentFirestoreId = firestoreId;

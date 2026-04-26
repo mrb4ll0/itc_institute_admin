@@ -38,6 +38,7 @@ import '../../itc_logic/service/tranineeService.dart';
 import '../../model/authority.dart';
 import '../../model/company.dart';
 import '../CompanyAuthoritySpecificationDialog.dart';
+import '../accountClaim/accountClaim.dart';
 import '../authorityRule/service/ruleService.dart';
 import '../authorityRule/views/authoriityViewModel.dart';
 import '../company/companyEdit.dart';
@@ -305,6 +306,13 @@ class _CompanyDashboardControllerState
               {
 
               }));
+            },
+          ),
+          _buildDrawerItem(
+            icon: Icons.verified_user,
+            text: 'Claim Account',
+            onTap: () {
+              GeneralMethods.navigateTo(context, AccountClaimPage());
             },
           ),if(false)_buildDrawerItem(
             icon: Icons.rule,
