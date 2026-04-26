@@ -158,6 +158,47 @@ class _FullScreenViewerState extends State<FullScreenViewer> {
   Future<void> _loadFileForPreview() async {
     if (_downloadUrls.isEmpty) return;
 
+    // Show the undismissable loading dialog with progress
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => PopScope(
+        canPop: false,
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10),
+              ],
+            ),
+            child: StatefulBuilder(
+              builder: (context, setDialogState) {
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(
+                      value: _downloadProgress > 0 ? _downloadProgress : null,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      _downloadProgress > 0
+                          ? 'Downloading... ${(_downloadProgress * 100).toStringAsFixed(1)}%'
+                          : 'Loading file...',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
     try {
       debugPrint("Downloading file for preview...");
 
@@ -173,6 +214,7 @@ class _FullScreenViewerState extends State<FullScreenViewer> {
         },
       );
 
+      Navigator.of(context).pop();
       if (response.statusCode == 200 && response.data is List<int>) {
         _fileBytes = Uint8List.fromList(response.data as List<int>);
         debugPrint("File downloaded, size: ${_fileBytes!.length} bytes");
@@ -189,6 +231,7 @@ class _FullScreenViewerState extends State<FullScreenViewer> {
       }
     } catch (e) {
       debugPrint("File loading error: $e");
+      if (mounted) Navigator.of(context).pop();
       setState(() {
         _isLoading = false;
         _errorMessage = 'Preview not available. You can download the file.';

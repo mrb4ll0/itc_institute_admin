@@ -9,6 +9,7 @@ import 'package:itc_institute_admin/itc_logic/notification/notitification_servic
 import 'package:itc_institute_admin/model/studentApplication.dart';
 import 'package:itc_institute_admin/view/home/industrailTraining/applications/studentApplicationsPage.dart';
 import '../../itc_logic/idservice/globalIdService.dart';
+import '../../model/company.dart';
 import 'industrailTraining/applications/studentWithLatestApplication.dart';
 import 'industrailTraining/newIndustrialTraining.dart';
 
@@ -17,7 +18,8 @@ import 'industrailTraining/newIndustrialTraining.dart';
 class StudentApplicationsPage extends StatefulWidget {
   final bool isAuthority;
     final List<String> companyIds;
-  const StudentApplicationsPage({super.key,required this.isAuthority, required this.companyIds});
+    final Company company;
+  const StudentApplicationsPage({super.key,required this.isAuthority, required this.company, required this.companyIds});
 
   @override
   State<StudentApplicationsPage> createState() =>
@@ -1102,7 +1104,7 @@ class _StudentApplicationsPageState extends State<StudentApplicationsPage>
 
   void _navigateToStudentApplications(StudentWithLatestApplication student) {
     // Navigate to page showing all applications for this student
-    GeneralMethods.navigateTo(context, SpecificStudentApplicationsPage(isAuthority: widget.isAuthority,companyId: student.latestApplication?.internship.company.id??"", studentUid: student.student.uid,companyIds: widget.companyIds,));
+    GeneralMethods.navigateTo(context, SpecificStudentApplicationsPage( company: widget.isAuthority?null: widget.company ,isAuthority: widget.isAuthority,companyId: student.latestApplication?.internship.company.id??"", studentUid: student.student.uid,companyIds: widget.companyIds,));
   }
 
   void _showApplicationDetails(

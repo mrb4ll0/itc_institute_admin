@@ -3568,13 +3568,13 @@ debugPrint("targetCompanyIds ${targetCompanyIds.toString()}");
                 if (appDoc.id.startsWith(studentUid)) {
                   try {
                     final data = appDoc.data() as Map<String, dynamic>;
-
+                     debugPrint("appDoc id is ${appDoc.id}");
                     final application = StudentApplication.fromMap(
                       data,
                       internshipId,
                       appDoc.id,
                     );
-
+                    debugPrint("applcication title is ${application.internship.title} and application id is ${application.id}");
                     // Add internship data to the application if needed
                     final internshipData = internshipDoc.data() as Map<String, dynamic>;
                     application.internship = IndustrialTraining.fromMap(

@@ -234,39 +234,42 @@ class GeneralMethods {
 
   // Quick show loading
   static void showLoading(
-    BuildContext context, {
-    String message = 'Loading...',
-  }) {
+      BuildContext context, {
+        String message = 'Loading...',
+        bool canPop = false
+      }) {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => Center(
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              if (message.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Text(message, style: Theme.of(context).textTheme.bodyMedium),
+      builder: (context) => PopScope(
+        canPop: canPop,
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10),
               ],
-            ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                if (message.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text(message, style: Theme.of(context).textTheme.bodyMedium),
+                ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
-
   // Quick hide loading
   static void hideLoading(BuildContext context) {
     Navigator.of(context, rootNavigator: true).pop();

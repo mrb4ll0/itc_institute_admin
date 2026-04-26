@@ -287,7 +287,7 @@ class _LoginScreenState extends State<LoginScreen> {
     Company? company;
     company = await ITCFirebaseLogic(
       GlobalIdService.firestoreId,
-    ).getCompany(currentUser!.uid);
+    ).getCompany(GlobalIdService.firestoreId);
 
     if (company == null) {
       Authority? authority = await ITCFirebaseLogic(

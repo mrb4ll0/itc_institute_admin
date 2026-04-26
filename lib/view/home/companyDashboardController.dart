@@ -72,7 +72,7 @@ class _CompanyDashboardControllerState
 
     _pages = [
       TweetView(company: widget.tweetCompany),
-       StudentApplicationsPage(isAuthority: widget.tweetCompany.originalAuthority != null, companyIds: widget.tweetCompany.originalAuthority?.linkedCompanies??[],),
+       StudentApplicationsPage( company: widget.tweetCompany,isAuthority: widget.tweetCompany.originalAuthority != null, companyIds: widget.tweetCompany.originalAuthority?.linkedCompanies??[],),
        IndustrialTrainingPostsPage(isAuthority: widget.tweetCompany.originalAuthority != null, companyIds: widget.tweetCompany.originalAuthority?.linkedCompanies??[],),
        MessagesView(),
     ];

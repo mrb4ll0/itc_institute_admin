@@ -29,6 +29,7 @@ import '../../../../itc_logic/notification/notificationPanel/notificationPanelSe
 import '../../../../itc_logic/notification/notitification_service.dart';
 import '../../../../letterGenerator/GenerateAcceptanceLetter.dart';
 import '../../../../model/authority.dart';
+import '../../../../model/company.dart';
 import '../../../../model/notificationModel.dart';
 import '../../../../model/student.dart';
 import '../../../../model/studentApplication.dart';
@@ -40,6 +41,7 @@ class SpecificStudentApplicationsPage extends StatefulWidget {
   final int totalApplications;
   final bool isAuthority;
   final List<String> companyIds;
+  final Company? company;
 
   const SpecificStudentApplicationsPage({
     Key? key,
@@ -49,6 +51,7 @@ class SpecificStudentApplicationsPage extends StatefulWidget {
     this.totalApplications = 0,
     required this.isAuthority,
     required this.companyIds,
+    this.company
   }) : super(key: key);
 
   @override
@@ -107,7 +110,7 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
   void initState() {
     super.initState();
     _applicationService = Company_Cloud(GlobalIdService.firestoreId);
-    canAcceptOrReject = widget.isAuthority?true:AuthorityRulesHelper.canAcceptStudents(GlobalIdService.firestoreId);
+    canAcceptOrReject = widget.isAuthority?true: (widget.company != null && !widget.company!.isUnderAuthority ?true:AuthorityRulesHelper.canAcceptStudents(GlobalIdService.firestoreId));
 
     _loadApplications();
   }
@@ -229,15 +232,15 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
       ) async {
     try {
 
-
+             debugPrint("application id first is ${application.id}");
       // Create updated application
       final updatedApplication = application.copyWith(
         applicationStatus: newStatus,
         applicationDate: DateTime.now(),
       );
 
-      GeneralMethods.showLoading(context);
-
+      GeneralMethods.showLoading(context,message: "Accepting Application");
+               debugPrint("company id ${application.internship.company.id}");
 
       await _applicationService.updateApplicationStatus(
         isAuthority: widget.isAuthority,
@@ -791,7 +794,7 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
     final statusColor = _getStatusColor(application.applicationStatus);
-
+   debugPrint("application.applicationStatu is ${application.applicationStatus}");
     return Card(
       elevation: 2,
       margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -1057,6 +1060,13 @@ class _SpecificStudentApplicationsPageState extends State<SpecificStudentApplica
         ),
       ),
     );
+  }
+
+
+  bool canTakeAction(StudentApplication application)
+  {
+    return application.applicationStatus.toLowerCase() == 'pending' &&
+         (widget.isAuthority ? true : canAcceptOrReject);
   }
   Widget _buildDetailItem(IconData icon, String text) {
     final theme = Theme.of(context);

@@ -118,7 +118,8 @@ class NotificationService {
     Map<String, dynamic>? data,
   }) async {
 
-    final url = Uri.parse('https://api-aysosigsha-uc.a.run.app');
+    final url = Uri.parse('https://sendpushnotification-6nik2g7gkq-uc.a.run.app');//production
+    //final url = Uri.parse('https://sendpushnotification-aysosigsha-uc.a.run.app');//dev environment
     final response = await http.post(
       url,
       headers: {'Content-Type': 'application/json'},
