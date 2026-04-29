@@ -238,12 +238,12 @@ class _CompanyEditPageState extends State<CompanyEditPage> {
               items: industries,
               onChanged: (value) => _editedCompany = _editedCompany.copyWith(industry: value!),
             ),
-            const SizedBox(height: 12),
-            _buildTextField(
-              label: 'Registration Number',
-              initialValue: _editedCompany.registrationNumber,
-              onChanged: (value) => _editedCompany = _editedCompany.copyWith(registrationNumber: value),
-            ),
+            // const SizedBox(height: 12),
+            // _buildTextField(
+            //   label: 'Registration Number',
+            //   initialValue: _editedCompany.registrationNumber,
+            //   onChanged: (value) => _editedCompany = _editedCompany.copyWith(registrationNumber: value),
+            // ),
             const SizedBox(height: 12),
             _buildTextField(
               label: 'Description',

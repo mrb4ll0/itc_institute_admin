@@ -37,6 +37,7 @@ import '../../itc_logic/idservice/globalIdService.dart';
 import '../../itc_logic/service/tranineeService.dart';
 import '../../model/authority.dart';
 import '../../model/company.dart';
+import '../../notification/dropdownNotification/notificationDropdownButton.dart';
 import '../CompanyAuthoritySpecificationDialog.dart';
 import '../accountClaim/accountClaim.dart';
 import '../authorityRule/service/ruleService.dart';
@@ -184,7 +185,9 @@ class _CompanyDashboardControllerState
             ],
           ),
         ), elevation: 0,actions: [
-          _AnimatedNotificationBell()],),
+          NotificationDropdownButton(
+            companyId: GlobalIdService.firestoreId,
+          )],),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
@@ -210,7 +213,7 @@ class _CompanyDashboardControllerState
             ],
           ),
         ),
-        actions: [_AnimatedNotificationBell()],
+        actions: [NotificationDropdownButton(companyId: GlobalIdService.firestoreId)],
         elevation: 0,
         backgroundColor: theme.appBarTheme.backgroundColor,
         foregroundColor: theme.appBarTheme.foregroundColor,
@@ -275,7 +278,7 @@ class _CompanyDashboardControllerState
               GeneralMethods.navigateTo(context, StudentListPage(company: _company!,isAuthority: widget.tweetCompany.originalAuthority != null));
             },
           ),_buildDrawerItem(
-            icon: Icons.people,
+            icon: Icons.mark_email_read,
             text: 'Acceptance Letters',
             onTap: () {
                if(_company == null)
@@ -606,6 +609,7 @@ class _CompanyDashboardControllerState
   Future<void> logout() async {
     await FirebaseAuth.instance.signOut();
     await GoogleSignIn().signOut();
+    GlobalIdService.clear();
   }
 
   ListTile _buildDrawerItem({

@@ -212,7 +212,12 @@ class MigrationService {
             traineeService.deleteTraineeById(traineeId);
           }
 
-      TraineeRecord? record = await traineeService.createTraineeFromApplication(application: choosenApplication!,
+        if(choosenApplication == null)
+          {
+            return;
+          }
+
+      TraineeRecord? record = await traineeService.createTraineeFromApplication(application: choosenApplication,
           companyId: companyId, companyName: comp.name, isAuthority: isAuthority);
 
 

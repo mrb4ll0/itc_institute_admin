@@ -1213,6 +1213,7 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage>
   Future<void> logout() async {
     await FirebaseAuth.instance.signOut();
     await GoogleSignIn().signOut();
+    GlobalIdService.clear();
   }
 
   // Helper methods
