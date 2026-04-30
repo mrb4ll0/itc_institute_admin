@@ -6,7 +6,6 @@ import '../../model/studentApplication.dart';
 import '../../model/traineeRecord.dart';
 import '../firebase/company_cloud.dart';
 
-
 /*
 
 ==========================================================
@@ -172,61 +171,45 @@ For questions or issues, refer to the workflow diagram above.
 
 */
 
-
 class TraineeService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  late final Company_Cloud _companyCloud ; // Use your existing Company_Cloud
+  late final Company_Cloud _companyCloud; // Use your existing Company_Cloud
   String globalUserId = "";
-  TraineeService(String userId)
-  {
+  TraineeService(String userId) {
     globalUserId = userId;
-    _companyCloud =  Company_Cloud(userId);
+    _companyCloud = Company_Cloud(userId);
   }
 
   // Collection references - matching your existing structure
   CollectionReference get _traineesRef => _firestore.collection('trainees');
 
   // Applications collection - using your existing structure
-  CollectionReference get _applicationsRef => _firestore
-      .collection('users')
-      .doc('companies')
-      .collection('companies');
+  CollectionReference get _applicationsRef =>
+      _firestore.collection('users').doc('companies').collection('companies');
 
   // Internships collection - using your existing structure
-  CollectionReference get _internshipsRef => _firestore
-      .collection('users')
-      .doc('companies')
-      .collection('companies');
+  CollectionReference get _internshipsRef =>
+      _firestore.collection('users').doc('companies').collection('companies');
 
-  CollectionReference get _companiesRef => _firestore
-      .collection('users')
-      .doc('companies')
-      .collection('companies');
+  CollectionReference get _companiesRef =>
+      _firestore.collection('users').doc('companies').collection('companies');
 
-  CollectionReference get _studentsRef => _firestore
-      .collection('users')
-      .doc('students')
-      .collection('students');
-
-  // Helper method to create application document ID with company prefix
-  String _createApplicationId(String companyId, String applicationId, {String? traineeId}) {
-    if (traineeId != null && traineeId.isNotEmpty) {
-      return '${companyId}_${traineeId}_$applicationId';
-    }
-    return '${companyId}_$applicationId';
-  }
+  CollectionReference get _studentsRef =>
+      _firestore.collection('users').doc('students').collection('students');
 
   // Get trainee record by student ID using document ID prefix
   // Get trainee record by student ID and optionally check status
   Future<TraineeRecord?> getTraineeByStudentId(
-      String companyId,
-      String studentId, {
-        TraineeStatus? requiredStatus,
-        String? requiredStatusString,
-      }) async {
+    String companyId,
+    String studentId, {
+    TraineeStatus? requiredStatus,
+    String? requiredStatusString,
+  }) async {
     try {
-      final docIdPrefix = '${companyId}_${studentId}_';
-      debugPrint("Searching for trainees with prefix: $docIdPrefix, status filter: $requiredStatus");
+      final docIdPrefix = '${companyId}_$studentId';
+      debugPrint(
+        "Searching for trainees with prefix: $docIdPrefix, status filter: $requiredStatus",
+      );
 
       // Get ALL documents with the matching prefix (remove limit)
       final query = await _traineesRef
@@ -239,13 +222,15 @@ class TraineeService {
         return null;
       }
 
-      debugPrint("Found ${query.docs.length} records with prefix: $docIdPrefix");
+      debugPrint(
+        "Found ${query.docs.length} records with prefix: $docIdPrefix",
+      );
 
       // Iterate through all found records
       for (final doc in query.docs) {
         final trainee = TraineeRecord.fromFirestore(
-            doc.data() as Map<String, dynamic>,
-            doc.id
+          doc.data() as Map<String, dynamic>,
+          doc.id,
         );
 
         debugPrint("Checking trainee ID: ${doc.id}, Status: ${trainee.status}");
@@ -269,7 +254,9 @@ class TraineeService {
 
         // If status matches, return this trainee
         if (statusMatches) {
-          debugPrint("Found matching trainee! ID: ${doc.id}, Status: ${trainee.status}");
+          debugPrint(
+            "Found matching trainee! ID: ${doc.id}, Status: ${trainee.status}",
+          );
           return trainee;
         }
 
@@ -279,7 +266,6 @@ class TraineeService {
       // If we get here, no matching status was found
       debugPrint("No trainee found with matching status");
       return null;
-
     } catch (e, s) {
       debugPrintStack(stackTrace: s);
       debugPrint('Error getting trainee by student ID: $e');
@@ -303,9 +289,11 @@ class TraineeService {
     Map<String, dynamic>? additionalData, // For any extra fields
   }) async {
     try {
-      debugPrint('Creating/updating trainee record for student: ${application.student.uid}');
+      debugPrint(
+        'Creating/updating trainee record for student: ${application.student.uid}',
+      );
 
-      final traineeId = '${application.student.uid}_${companyId}_';
+      final traineeId = '${companyId}_${application.student.uid}';
 
       // Check if record already exists
       TraineeRecord? existingRecord = await getTraineeByStudentId(
@@ -320,13 +308,19 @@ class TraineeService {
 
       // Determine the correct status
       final traineeStatus = existingRecord != null
-          ? _determineUpdateStatus(existingRecord.status, status, fromUpdateStatus)
+          ? _determineUpdateStatus(
+              existingRecord.status,
+              status,
+              fromUpdateStatus,
+            )
           : switchStatus(status);
 
       // Prepare notes with update history
       final notes = Map<String, dynamic>.from(existingRecord?.notes ?? {});
       notes['lastUpdated'] = DateTime.now().toIso8601String();
-      notes['updateReason'] = fromUpdateStatus ? 'Status update' : 'Application accepted';
+      notes['updateReason'] = fromUpdateStatus
+          ? 'Status update'
+          : 'Application accepted';
 
       // Add update to history
       final history = List<Map<String, dynamic>>.from(notes['history'] ?? []);
@@ -356,19 +350,22 @@ class TraineeService {
           status: traineeStatus,
           startDate: parsedStartDate,
           endDate: parsedEndDate,
-          department: department.isEmpty ? existingRecord.department : department,
+          department: department.isEmpty
+              ? existingRecord.department
+              : department,
           role: role.isEmpty ? existingRecord.role : role,
-          description: description.isEmpty ? existingRecord.description : description,
+          description: description.isEmpty
+              ? existingRecord.description
+              : description,
           requirements: application.durationDetails,
           updatedAt: DateTime.now(),
           notes: notes,
         );
 
         // Save updated record
-        await _traineesRef.doc(traineeId).set(
-          finalRecord.toMap(),
-          SetOptions(merge: true),
-        );
+        await _traineesRef
+            .doc(traineeId)
+            .set(finalRecord.toMap(), SetOptions(merge: true));
 
         debugPrint('Trainee record updated successfully: $traineeId');
       } else {
@@ -395,19 +392,24 @@ class TraineeService {
           notes: notes,
         );
 
-        await _traineesRef.doc(traineeId).set(
-          finalRecord.toMap(),
-          SetOptions(merge: true),
-        );
+        await _traineesRef
+            .doc(traineeId)
+            .set(finalRecord.toMap(), SetOptions(merge: true));
 
         debugPrint('Trainee record created successfully: $traineeId');
       }
 
       // Update company's trainee lists using your existing Company_Cloud
-      await _updateCompanyTraineeLists(companyId, application.student.uid, status);
+      await _updateCompanyTraineeLists(
+        companyId,
+        application.student.uid,
+        status,
+      );
 
       // Update application status using your existing Company_Cloud
       if (!fromUpdateStatus) {
+        debugPrint("IT id is ${application.internship.id}");
+        debugPrint("application id is ${application.id}");
         await _companyCloud.updateApplicationStatus(
           isAuthority: isAuthority,
           companyId: companyId,
@@ -426,12 +428,12 @@ class TraineeService {
     }
   }
 
-// Helper method to determine the appropriate status when updating
+  // Helper method to determine the appropriate status when updating
   TraineeStatus _determineUpdateStatus(
-      TraineeStatus currentStatus,
-      String newStatus,
-      bool fromUpdateStatus,
-      ) {
+    TraineeStatus currentStatus,
+    String newStatus,
+    bool fromUpdateStatus,
+  ) {
     final targetStatus = switchStatus(newStatus);
 
     // Define valid status transitions
@@ -447,7 +449,8 @@ class TraineeService {
         if (targetStatus == TraineeStatus.active ||
             targetStatus == TraineeStatus.rejected ||
             targetStatus == TraineeStatus.withdrawn ||
-            targetStatus == TraineeStatus.onHold) {  // ADDED: Can put on hold before starting
+            targetStatus == TraineeStatus.onHold) {
+          // ADDED: Can put on hold before starting
           return targetStatus;
         }
         break;
@@ -456,25 +459,27 @@ class TraineeService {
         if (targetStatus == TraineeStatus.completed ||
             targetStatus == TraineeStatus.terminated ||
             targetStatus == TraineeStatus.withdrawn ||
-            targetStatus == TraineeStatus.onHold) {  // ADDED: Can pause active training
+            targetStatus == TraineeStatus.onHold) {
+          // ADDED: Can pause active training
           return targetStatus;
         }
         break;
 
-      case TraineeStatus.onHold:  // ADDED: Handle transitions from On Hold
-        if (targetStatus == TraineeStatus.active ||      // Resume training
-            targetStatus == TraineeStatus.completed ||   // Complete from hold
-            targetStatus == TraineeStatus.terminated ||  // Terminate from hold
-            targetStatus == TraineeStatus.withdrawn) {   // Withdraw from hold
+      case TraineeStatus.onHold: // ADDED: Handle transitions from On Hold
+        if (targetStatus == TraineeStatus.active || // Resume training
+            targetStatus == TraineeStatus.completed || // Complete from hold
+            targetStatus == TraineeStatus.terminated || // Terminate from hold
+            targetStatus == TraineeStatus.withdrawn) {
+          // Withdraw from hold
           return targetStatus;
         }
         break;
 
-      case TraineeStatus.withdrawn:  // Terminal state
+      case TraineeStatus.withdrawn: // Terminal state
       case TraineeStatus.terminated: // Terminal state
-      case TraineeStatus.completed:  // Terminal state
-      case TraineeStatus.rejected:   // Terminal state
-      // Terminal states shouldn't change (except maybe to another terminal state if needed)
+      case TraineeStatus.completed: // Terminal state
+      case TraineeStatus.rejected: // Terminal state
+        // Terminal states shouldn't change (except maybe to another terminal state if needed)
         return currentStatus;
     }
 
@@ -483,10 +488,13 @@ class TraineeService {
     return currentStatus;
   }
 
-  Future<void> syncTraineesFromApplications(String companyId,isAuthority) async {
+  Future<void> syncTraineesFromApplications(
+    String companyId,
+    isAuthority,
+  ) async {
     try {
-      final applications =
-      await _companyCloud.studentInternshipApplicationsForCompany(companyId);
+      final applications = await _companyCloud
+          .studentInternshipApplicationsForCompany(companyId);
 
       //  Group by studentId
       final Map<String, List<StudentApplication>> grouped = {};
@@ -494,7 +502,9 @@ class TraineeService {
       for (final app in applications) {
         debugPrint("app students uid ${app.student.uid}");
         grouped.putIfAbsent(app.student.uid, () => []).add(app);
-        debugPrint("student is present ${grouped.containsKey(app.student.uid)}");
+        debugPrint(
+          "student is present ${grouped.containsKey(app.student.uid)}",
+        );
       }
       debugPrint("grouped key length ${grouped.keys.length}");
 
@@ -510,13 +520,15 @@ class TraineeService {
         final resolvedStatus = _resolveTraineeStatus(latestApp);
 
         // Check existing trainee
-        final existing =
-        await getTraineeByStudentAndCompany(studentId, companyId);
+        final existing = await getTraineeByStudentAndCompany(
+          studentId,
+          companyId,
+        );
 
         if (existing == null) {
           // Create trainee
           await createTraineeFromApplication(
-            isAuthority:isAuthority,
+            isAuthority: isAuthority,
             application: latestApp,
             companyId: companyId,
             companyName: latestApp.internship.company.name,
@@ -536,7 +548,6 @@ class TraineeService {
       debugPrint('Error syncing trainees from applications: $e');
     }
   }
-
 
   TraineeStatus _resolveTraineeStatus(StudentApplication app) {
     final now = DateTime.now();
@@ -578,30 +589,33 @@ class TraineeService {
     }
   }
 
-
   TraineeStatus switchStatus(String status) {
     TraineeStatus statuss = TraineeStatus.pending;
 
     debugPrint("status is ${status}");
-      switch(status.toLowerCase()) { // Convert to lowercase for case-insensitive comparison
-        case "accepted":
-          statuss = TraineeStatus.accepted;
-          break;
-        case "rejected":
-          statuss = TraineeStatus.rejected;
-          break;
-        case "pending":
-          statuss = TraineeStatus.pending;
-          break;
-        default:
-          statuss = TraineeStatus.pending;
-          break;
-      }
+    switch (status.toLowerCase()) {
+      // Convert to lowercase for case-insensitive comparison
+      case "accepted":
+        statuss = TraineeStatus.accepted;
+        break;
+      case "rejected":
+        statuss = TraineeStatus.rejected;
+        break;
+      case "pending":
+        statuss = TraineeStatus.pending;
+        break;
+      default:
+        statuss = TraineeStatus.pending;
+        break;
+    }
 
     return statuss;
   }
+
   // Get pending applications using your existing Company_Cloud
-  Future<List<StudentApplication>> getPendingApplications(String companyId) async {
+  Future<List<StudentApplication>> getPendingApplications(
+    String companyId,
+  ) async {
     try {
       return await _companyCloud.getPendingApplications(companyId);
     } catch (e) {
@@ -611,7 +625,9 @@ class TraineeService {
   }
 
   // Get accepted applications using your existing Company_Cloud
-  Future<List<StudentApplication>> getAcceptedApplications(String companyId) async {
+  Future<List<StudentApplication>> getAcceptedApplications(
+    String companyId,
+  ) async {
     try {
       return await _companyCloud.getAcceptedApplications(companyId);
     } catch (e) {
@@ -621,10 +637,13 @@ class TraineeService {
   }
 
   // Get applications that need attention (mixed status)
-  Future<List<StudentApplication>> getApplicationsForReview(String companyId) async {
+  Future<List<StudentApplication>> getApplicationsForReview(
+    String companyId,
+  ) async {
     try {
       // Get all applications
-      final allApplications = await _companyCloud.studentInternshipApplicationsForCompany(companyId);
+      final allApplications = await _companyCloud
+          .studentInternshipApplicationsForCompany(companyId);
 
       // Filter applications that need review (pending or require attention)
       return allApplications.where((app) {
@@ -646,7 +665,7 @@ class TraineeService {
     required String studentId,
     required String status,
     required StudentApplication application,
-    required bool isAuthority
+    required bool isAuthority,
   }) async {
     try {
       await _companyCloud.updateApplicationStatus(
@@ -671,7 +690,9 @@ class TraineeService {
       if (startDate is DateTime) return startDate;
       if (startDate is String) return DateTime.tryParse(startDate);
     }
-    return DateTime.now().add(const Duration(days: 7)); // Default: start in 1 week
+    return DateTime.now().add(
+      const Duration(days: 7),
+    ); // Default: start in 1 week
   }
 
   DateTime? _parseEndDate(StudentApplication application) {
@@ -689,10 +710,10 @@ class TraineeService {
   }
 
   Future<void> _updateCompanyTraineeLists(
-      String companyId,
-      String studentId,
-      String status
-      ) async {
+    String companyId,
+    String studentId,
+    String status,
+  ) async {
     try {
       final companyRef = _companiesRef.doc(companyId);
       final companyDoc = await companyRef.get();
@@ -701,12 +722,16 @@ class TraineeService {
       final data = companyDoc.data() as Map<String, dynamic>;
       final currentAccepted = List<String>.from(data['acceptedTrainees'] ?? []);
       final currentActive = List<String>.from(data['currentTrainees'] ?? []);
-      final currentCompleted = List<String>.from(data['completedTrainees'] ?? []);
+      final currentCompleted = List<String>.from(
+        data['completedTrainees'] ?? [],
+      );
 
       // Remove from all lists first
-      final updatedAccepted = List<String>.from(currentAccepted)..remove(studentId);
+      final updatedAccepted = List<String>.from(currentAccepted)
+        ..remove(studentId);
       final updatedActive = List<String>.from(currentActive)..remove(studentId);
-      final updatedCompleted = List<String>.from(currentCompleted)..remove(studentId);
+      final updatedCompleted = List<String>.from(currentCompleted)
+        ..remove(studentId);
 
       // Add to appropriate list
       switch (status.toLowerCase()) {
@@ -741,7 +766,10 @@ class TraineeService {
           .get();
 
       return query.docs.map((doc) {
-        return TraineeRecord.fromFirestore(doc.data() as Map<String, dynamic>, doc.id);
+        return TraineeRecord.fromFirestore(
+          doc.data() as Map<String, dynamic>,
+          doc.id,
+        );
       }).toList();
     } catch (e) {
       debugPrint('Error getting company trainees: $e');
@@ -768,15 +796,24 @@ class TraineeService {
           // If more than 10, fetch in chunks
           List<TraineeRecord> results = [];
           for (int i = 0; i < companyIds.length; i += 10) {
-            final chunk = companyIds.sublist(i, (i + 10).clamp(0, companyIds.length));
+            final chunk = companyIds.sublist(
+              i,
+              (i + 10).clamp(0, companyIds.length),
+            );
             final chunkQuery = await _traineesRef
                 .where('companyId', whereIn: chunk)
                 .where('status', isEqualTo: status.name)
                 .orderBy('startDate', descending: false)
                 .get();
 
-            results.addAll(chunkQuery.docs.map((doc) =>
-                TraineeRecord.fromFirestore(doc.data() as Map<String, dynamic>, doc.id)));
+            results.addAll(
+              chunkQuery.docs.map(
+                (doc) => TraineeRecord.fromFirestore(
+                  doc.data() as Map<String, dynamic>,
+                  doc.id,
+                ),
+              ),
+            );
           }
           return results;
         }
@@ -786,14 +823,20 @@ class TraineeService {
       }
 
       // Common filter: status
-      query = query.where('status', isEqualTo: status.name)
+      query = query
+          .where('status', isEqualTo: status.name)
           .orderBy('startDate', descending: false);
 
       final snapshot = await query.get();
 
-      return snapshot.docs.map((doc) =>
-          TraineeRecord.fromFirestore(doc.data() as Map<String, dynamic>, doc.id)
-      ).toList();
+      return snapshot.docs
+          .map(
+            (doc) => TraineeRecord.fromFirestore(
+              doc.data() as Map<String, dynamic>,
+              doc.id,
+            ),
+          )
+          .toList();
     } catch (e, s) {
       debugPrintStack(stackTrace: s);
       debugPrint('Error getting trainees by status: $e');
@@ -802,13 +845,24 @@ class TraineeService {
   }
 
   // Add to TraineeService class
-  Future<List<dynamic>> getAllPendingApplications({required String companyId,required bool isAuthority,required List<String> companyIds}) async {
+  Future<List<dynamic>> getAllPendingApplications({
+    required String companyId,
+    required bool isAuthority,
+    required List<String> companyIds,
+  }) async {
     try {
       // Get pending applications from Company_Cloud
-      final companyApplications = await _companyCloud.getPendingApplications(companyId);
+      final companyApplications = await _companyCloud.getPendingApplications(
+        companyId,
+      );
 
       // Get pending trainees from TraineeService
-      final pendingTrainees = await getTraineesByStatus(companyId: companyId,status: TraineeStatus.pending,isAuthority: isAuthority,companyIds: companyIds, );
+      final pendingTrainees = await getTraineesByStatus(
+        companyId: companyId,
+        status: TraineeStatus.pending,
+        isAuthority: isAuthority,
+        companyIds: companyIds,
+      );
 
       // Combine both lists
       final allPending = <dynamic>[];
@@ -821,8 +875,12 @@ class TraineeService {
 
       // Sort by date (most recent first)
       allPending.sort((a, b) {
-        final dateA = a is StudentApplication ? a.applicationDate : (a as TraineeRecord).createdAt;
-        final dateB = b is StudentApplication ? b.applicationDate : (b as TraineeRecord).createdAt;
+        final dateA = a is StudentApplication
+            ? a.applicationDate
+            : (a as TraineeRecord).createdAt;
+        final dateB = b is StudentApplication
+            ? b.applicationDate
+            : (b as TraineeRecord).createdAt;
         return dateB.compareTo(dateA);
       });
 
@@ -832,6 +890,7 @@ class TraineeService {
       return [];
     }
   }
+
   // Add to TraineeService class
   Future<TraineeRecord?> createPendingTraineeFromApplication({
     required StudentApplication application,
@@ -839,10 +898,12 @@ class TraineeService {
     required String companyName,
   }) async {
     try {
-      debugPrint('Creating pending trainee record for student: ${application.student.uid}');
+      debugPrint(
+        'Creating pending trainee record for student: ${application.student.uid}',
+      );
 
       // Generate a unique ID for the trainee record
-      final traineeId = '${application.student.uid}_${companyId}_${DateTime.now().millisecondsSinceEpoch}';
+      final traineeId = '${companyId}_${application.student.uid}';
 
       // Parse dates from application
       final parsedStartDate = _parseStartDate(application);
@@ -865,8 +926,7 @@ class TraineeService {
         requirements: application.durationDetails,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
-        notes: {}
-
+        notes: {},
       );
 
       // Save to Firestore
@@ -887,21 +947,46 @@ class TraineeService {
     }
   }
 
-
-
   // Get current active trainees
-  Future<List<TraineeRecord>> getCurrentTrainees({required String companyId,required bool isAuthority,required List<String> companyIds}) async {
-    return getTraineesByStatus(companyId:companyId,status: TraineeStatus.active,isAuthority: isAuthority,companyIds: companyIds, );
+  Future<List<TraineeRecord>> getCurrentTrainees({
+    required String companyId,
+    required bool isAuthority,
+    required List<String> companyIds,
+  }) async {
+    return getTraineesByStatus(
+      companyId: companyId,
+      status: TraineeStatus.active,
+      isAuthority: isAuthority,
+      companyIds: companyIds,
+    );
   }
 
   // Get upcoming trainees (accepted but not started)
-  Future<List<TraineeRecord>> getUpcomingTrainees({required String companyId,required bool isAuthority,required List<String> companyIds}) async {
-    return getTraineesByStatus(companyId: companyId, status:TraineeStatus.accepted,isAuthority: isAuthority,companyIds: companyIds, );
+  Future<List<TraineeRecord>> getUpcomingTrainees({
+    required String companyId,
+    required bool isAuthority,
+    required List<String> companyIds,
+  }) async {
+    return getTraineesByStatus(
+      companyId: companyId,
+      status: TraineeStatus.accepted,
+      isAuthority: isAuthority,
+      companyIds: companyIds,
+    );
   }
 
   // Get pending trainees (applications not yet accepted)
-  Future<List<TraineeRecord>> getPendingTrainees({required String companyId,required bool isAuthority,required List<String> companyIds}) async {
-    return getTraineesByStatus(companyId: companyId, status:TraineeStatus.pending,isAuthority: isAuthority,companyIds: companyIds, );
+  Future<List<TraineeRecord>> getPendingTrainees({
+    required String companyId,
+    required bool isAuthority,
+    required List<String> companyIds,
+  }) async {
+    return getTraineesByStatus(
+      companyId: companyId,
+      status: TraineeStatus.pending,
+      isAuthority: isAuthority,
+      companyIds: companyIds,
+    );
   }
 
   // Start a trainee's training
@@ -921,7 +1006,11 @@ class TraineeService {
       });
 
       // Update company lists
-      await _updateCompanyTraineeLists(trainee.companyId, trainee.studentId, 'active');
+      await _updateCompanyTraineeLists(
+        trainee.companyId,
+        trainee.studentId,
+        'active',
+      );
 
       return true;
     } catch (e) {
@@ -948,7 +1037,11 @@ class TraineeService {
       });
 
       // Update company lists
-      await _updateCompanyTraineeLists(trainee.companyId, trainee.studentId, 'completed');
+      await _updateCompanyTraineeLists(
+        trainee.companyId,
+        trainee.studentId,
+        'completed',
+      );
 
       return true;
     } catch (e) {
@@ -1066,12 +1159,18 @@ class TraineeService {
     try {
       final query = await _traineesRef
           .where('supervisorIds', arrayContains: supervisorId)
-          .where('status', whereIn: [TraineeStatus.active.name, TraineeStatus.accepted.name])
+          .where(
+            'status',
+            whereIn: [TraineeStatus.active.name, TraineeStatus.accepted.name],
+          )
           .orderBy('startDate', descending: false)
           .get();
 
       return query.docs.map((doc) {
-        return TraineeRecord.fromFirestore(doc.data() as Map<String, dynamic>, doc.id);
+        return TraineeRecord.fromFirestore(
+          doc.data() as Map<String, dynamic>,
+          doc.id,
+        );
       }).toList();
     } catch (e) {
       debugPrint('Error getting supervised trainees: $e');
@@ -1080,7 +1179,10 @@ class TraineeService {
   }
 
   // Add milestone
-  Future<bool> addMilestone(String traineeId, Map<String, dynamic> milestone) async {
+  Future<bool> addMilestone(
+    String traineeId,
+    Map<String, dynamic> milestone,
+  ) async {
     try {
       await _traineesRef.doc(traineeId).update({
         'milestones': FieldValue.arrayUnion([milestone]),
@@ -1094,7 +1196,10 @@ class TraineeService {
   }
 
   // Add evaluation
-  Future<bool> addEvaluation(String traineeId, Map<String, dynamic> evaluation) async {
+  Future<bool> addEvaluation(
+    String traineeId,
+    Map<String, dynamic> evaluation,
+  ) async {
     try {
       await _traineesRef.doc(traineeId).update({
         'evaluations': FieldValue.arrayUnion([evaluation]),
@@ -1114,13 +1219,13 @@ class TraineeService {
         .orderBy('updatedAt', descending: true)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) {
-        return TraineeRecord.fromFirestore(
-          doc.data() as Map<String, dynamic>,
-          doc.id,
-        );
-      }).toList();
-    });
+          return snapshot.docs.map((doc) {
+            return TraineeRecord.fromFirestore(
+              doc.data() as Map<String, dynamic>,
+              doc.id,
+            );
+          }).toList();
+        });
   }
 
   // Stream of current trainees
@@ -1131,13 +1236,13 @@ class TraineeService {
         .orderBy('startDate', descending: false)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) {
-        return TraineeRecord.fromFirestore(
-          doc.data() as Map<String, dynamic>,
-          doc.id,
-        );
-      }).toList();
-    });
+          return snapshot.docs.map((doc) {
+            return TraineeRecord.fromFirestore(
+              doc.data() as Map<String, dynamic>,
+              doc.id,
+            );
+          }).toList();
+        });
   }
 
   // Stream of upcoming trainees
@@ -1148,22 +1253,23 @@ class TraineeService {
         .orderBy('startDate', descending: false)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) {
-        return TraineeRecord.fromFirestore(
-          doc.data() as Map<String, dynamic>,
-          doc.id,
-        );
-      }).toList();
-    });
+          return snapshot.docs.map((doc) {
+            return TraineeRecord.fromFirestore(
+              doc.data() as Map<String, dynamic>,
+              doc.id,
+            );
+          }).toList();
+        });
   }
 
   // Stream of pending applications (using your Company_Cloud's stream)
   Stream<List<StudentApplication>> streamPendingApplications(String companyId) {
     // Use your existing Company_Cloud's stream method
-    return _companyCloud.studentInternshipApplicationsForCompanyStream(companyId)
+    return _companyCloud
+        .studentInternshipApplicationsForCompanyStream(companyId)
         .map((applications) {
-      return applications.where((app) => app.isPending).toList();
-    });
+          return applications.where((app) => app.isPending).toList();
+        });
   }
 
   // Get trainee by ID
@@ -1182,7 +1288,10 @@ class TraineeService {
   }
 
   // Get trainee by student ID and company ID
-  Future<TraineeRecord?> getTraineeByStudentAndCompany(String studentId, String companyId) async {
+  Future<TraineeRecord?> getTraineeByStudentAndCompany(
+    String studentId,
+    String companyId,
+  ) async {
     try {
       final query = await _traineesRef
           .where('studentId', isEqualTo: studentId)
@@ -1208,21 +1317,38 @@ class TraineeService {
       final trainees = await getCompanyTrainees(companyId);
 
       int total = trainees.length;
-      int pending = trainees.where((t) => t.status == TraineeStatus.pending).length;
-      int accepted = trainees.where((t) => t.status == TraineeStatus.accepted).length;
-      int active = trainees.where((t) => t.status == TraineeStatus.active).length;
-      int completed = trainees.where((t) => t.status == TraineeStatus.completed).length;
-      int terminated = trainees.where((t) => t.status == TraineeStatus.terminated).length;
-      int withdrawn = trainees.where((t) => t.status == TraineeStatus.withdrawn).length;
+      int pending = trainees
+          .where((t) => t.status == TraineeStatus.pending)
+          .length;
+      int accepted = trainees
+          .where((t) => t.status == TraineeStatus.accepted)
+          .length;
+      int active = trainees
+          .where((t) => t.status == TraineeStatus.active)
+          .length;
+      int completed = trainees
+          .where((t) => t.status == TraineeStatus.completed)
+          .length;
+      int terminated = trainees
+          .where((t) => t.status == TraineeStatus.terminated)
+          .length;
+      int withdrawn = trainees
+          .where((t) => t.status == TraineeStatus.withdrawn)
+          .length;
 
       // Calculate average progress for active trainees
-      final activeTrainees = trainees.where((t) => t.status == TraineeStatus.active);
+      final activeTrainees = trainees.where(
+        (t) => t.status == TraineeStatus.active,
+      );
       final avgProgress = activeTrainees.isNotEmpty
-          ? activeTrainees.map((t) => t.progress).reduce((a, b) => a + b) / activeTrainees.length
+          ? activeTrainees.map((t) => t.progress).reduce((a, b) => a + b) /
+                activeTrainees.length
           : 0.0;
 
       // Count trainees with supervisors
-      final supervisedCount = trainees.where((t) => t.supervisorIds.isNotEmpty).length;
+      final supervisedCount = trainees
+          .where((t) => t.supervisorIds.isNotEmpty)
+          .length;
 
       // Count overdue trainees (past end date but not completed)
       final now = DateTime.now();
@@ -1246,8 +1372,12 @@ class TraineeService {
         'supervisedCount': supervisedCount,
         'unsupervisedCount': total - supervisedCount,
         'overdueCount': overdueCount,
-        'completionRate': total > 0 ? (completed / total * 100).toStringAsFixed(1) : '0.0',
-        'activeRate': total > 0 ? (active / total * 100).toStringAsFixed(1) : '0.0',
+        'completionRate': total > 0
+            ? (completed / total * 100).toStringAsFixed(1)
+            : '0.0',
+        'activeRate': total > 0
+            ? (active / total * 100).toStringAsFixed(1)
+            : '0.0',
       };
     } catch (e) {
       debugPrint('Error getting trainee statistics: $e');
@@ -1277,15 +1407,26 @@ class TraineeService {
 
       final query = await _traineesRef
           .where('companyId', isEqualTo: companyId)
-          .where('status', whereIn: [TraineeStatus.active.name, TraineeStatus.accepted.name])
+          .where(
+            'status',
+            whereIn: [TraineeStatus.active.name, TraineeStatus.accepted.name],
+          )
           .orderBy('endDate', descending: false)
           .get();
 
       return query.docs
-          .map((doc) => TraineeRecord.fromFirestore(doc.data() as Map<String, dynamic>, doc.id))
-          .where((trainee) => trainee.endDate != null &&
-          trainee.endDate!.isAfter(now) &&
-          trainee.endDate!.isBefore(weekFromNow))
+          .map(
+            (doc) => TraineeRecord.fromFirestore(
+              doc.data() as Map<String, dynamic>,
+              doc.id,
+            ),
+          )
+          .where(
+            (trainee) =>
+                trainee.endDate != null &&
+                trainee.endDate!.isAfter(now) &&
+                trainee.endDate!.isBefore(weekFromNow),
+          )
           .toList();
     } catch (e) {
       debugPrint('Error getting trainees ending soon: $e');
@@ -1306,10 +1447,18 @@ class TraineeService {
           .get();
 
       return query.docs
-          .map((doc) => TraineeRecord.fromFirestore(doc.data() as Map<String, dynamic>, doc.id))
-          .where((trainee) => trainee.startDate != null &&
-          trainee.startDate!.isAfter(now) &&
-          trainee.startDate!.isBefore(weekFromNow))
+          .map(
+            (doc) => TraineeRecord.fromFirestore(
+              doc.data() as Map<String, dynamic>,
+              doc.id,
+            ),
+          )
+          .where(
+            (trainee) =>
+                trainee.startDate != null &&
+                trainee.startDate!.isAfter(now) &&
+                trainee.startDate!.isBefore(weekFromNow),
+          )
           .toList();
     } catch (e) {
       debugPrint('Error getting trainees starting soon: $e');
@@ -1348,7 +1497,10 @@ class TraineeService {
   }
 
   // Bulk update trainee statuses
-  Future<bool> bulkUpdateTraineeStatuses(List<String> traineeIds, TraineeStatus newStatus) async {
+  Future<bool> bulkUpdateTraineeStatuses(
+    List<String> traineeIds,
+    TraineeStatus newStatus,
+  ) async {
     try {
       final batch = _firestore.batch();
 
@@ -1422,10 +1574,10 @@ class TraineeService {
       final query = await _traineesRef
           .where('studentId', isEqualTo: studentId)
           .where('companyId', isEqualTo: companyId)
-          .where('status', whereIn: [
-        TraineeStatus.accepted.name,
-        TraineeStatus.active.name,
-      ])
+          .where(
+            'status',
+            whereIn: [TraineeStatus.accepted.name, TraineeStatus.active.name],
+          )
           .limit(1)
           .get();
 
@@ -1436,9 +1588,10 @@ class TraineeService {
     }
   }
 
-
   // Get trainee timeline/activity log
-  Future<List<Map<String, dynamic>>> getTraineeTimeline(String traineeId) async {
+  Future<List<Map<String, dynamic>>> getTraineeTimeline(
+    String traineeId,
+  ) async {
     try {
       final traineeDoc = await _traineesRef.doc(traineeId).get();
       if (!traineeDoc.exists) return [];
@@ -1486,7 +1639,8 @@ class TraineeService {
           'title': milestone['title'] ?? 'Milestone',
           'description': milestone['description'] ?? '',
           'date': milestone['date'] != null
-              ? DateTime.tryParse(milestone['date'].toString()) ?? DateTime.now()
+              ? DateTime.tryParse(milestone['date'].toString()) ??
+                    DateTime.now()
               : DateTime.now(),
           'status': 'milestone',
         });
@@ -1511,7 +1665,6 @@ class TraineeService {
       return [];
     }
   }
-
 
   Future<bool> updateTraineeStatus({
     required String traineeId,
@@ -1543,8 +1696,7 @@ class TraineeService {
           updateData['holdReason'] = FieldValue.delete();
           updateData['holdStartDate'] = FieldValue.delete();
         }
-      }
-      else if (newStatus == TraineeStatus.onHold) {
+      } else if (newStatus == TraineeStatus.onHold) {
         debugPrint("Setting trainee to onHold");
         // Set hold information
         updateData['holdStartDate'] = DateTime.now();
@@ -1552,8 +1704,7 @@ class TraineeService {
         if (reason != null && reason.isNotEmpty) {
           updateData['holdReason'] = reason;
         }
-      }
-      else if (newStatus == TraineeStatus.completed ||
+      } else if (newStatus == TraineeStatus.completed ||
           newStatus == TraineeStatus.terminated ||
           newStatus == TraineeStatus.withdrawn) {
         updateData['actualEndDate'] = DateTime.now();
@@ -1568,16 +1719,14 @@ class TraineeService {
           updateData['holdStartDate'] = FieldValue.delete();
           updateData['previousStatus'] = FieldValue.delete();
         }
-      }
-      else if (newStatus == TraineeStatus.pending) {
+      } else if (newStatus == TraineeStatus.pending) {
         // Clear any hold data when going back to pending
         updateData['holdReason'] = FieldValue.delete();
         updateData['holdStartDate'] = FieldValue.delete();
         updateData['previousStatus'] = FieldValue.delete();
         updateData['actualStartDate'] = FieldValue.delete();
         updateData['actualEndDate'] = FieldValue.delete();
-      }
-      else if (newStatus == TraineeStatus.accepted) {
+      } else if (newStatus == TraineeStatus.accepted) {
         // Clear any hold data when accepted
         updateData['holdReason'] = FieldValue.delete();
         updateData['holdStartDate'] = FieldValue.delete();
@@ -1605,7 +1754,7 @@ class TraineeService {
           'from': trainee.status.name,
           'to': newStatus.name,
           'note': reason,
-          'userId': globalUserId?? 'system',
+          'userId': globalUserId ?? 'system',
         });
         updateData['notes'] = notes;
       }
@@ -1621,9 +1770,9 @@ class TraineeService {
       // Update company lists if requested
       if (updateCompanyLists) {
         await _updateCompanyTraineeLists(
-            trainee.companyId,
-            trainee.studentId,
-            newStatus.name.toLowerCase()
+          trainee.companyId,
+          trainee.studentId,
+          newStatus.name.toLowerCase(),
         );
       }
 
@@ -1644,7 +1793,7 @@ class TraineeService {
     }
   }
 
-// Add helper method for audit logging
+  // Add helper method for audit logging
   Future<void> _logStatusChange({
     required String traineeId,
     required String studentId,
@@ -1659,7 +1808,7 @@ class TraineeService {
         'oldStatus': oldStatus,
         'newStatus': newStatus,
         'reason': reason,
-        'changedBy':globalUserId ?? 'system',
+        'changedBy': globalUserId ?? 'system',
         'changedAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
@@ -1668,27 +1817,26 @@ class TraineeService {
     }
   }
 
-
   // Comprehensive method to update application status AND trainee collection
   Future<bool> updateApplicationStatusWithTraineeSync({
     required String companyId,
     required String internshipId,
     required String studentId,
     required String applicationId,
-    required String status, // 'pending', 'accepted', 'rejected', 'reviewed', 'shortlisted', etc.
+    required String
+    status, // 'pending', 'accepted', 'rejected', 'reviewed', 'shortlisted', etc.
     String? reason,
     Map<String, dynamic>? traineeUpdateData,
-  required bool isAuthority
+    required bool isAuthority,
   }) async {
     try {
-      debugPrint('Updating application status with trainee sync: $applicationId');
+      debugPrint(
+        'Updating application status with trainee sync: $applicationId',
+      );
 
       // 1. First, try to get the application to get full details
-      final StudentApplication? application = await _companyCloud.getApplicationById(
-          companyId,
-          internshipId,
-          applicationId
-      );
+      final StudentApplication? application = await _companyCloud
+          .getApplicationById(companyId, internshipId, applicationId);
 
       if (application == null) {
         debugPrint('Application not found: $applicationId');
@@ -1707,7 +1855,7 @@ class TraineeService {
 
       // 3. Handle trainee collection based on status
       return await _syncTraineeWithApplicationStatus(
-        isAuthority:isAuthority,
+        isAuthority: isAuthority,
         companyId: companyId,
         internshipId: internshipId,
         studentId: studentId,
@@ -1717,7 +1865,6 @@ class TraineeService {
         reason: reason,
         additionalData: traineeUpdateData,
       );
-
     } catch (e, stackTrace) {
       debugPrint('Error updating application status with trainee sync: $e');
       debugPrint('Stack trace: $stackTrace');
@@ -1725,7 +1872,7 @@ class TraineeService {
     }
   }
 
-// Helper method to sync trainee record with application status
+  // Helper method to sync trainee record with application status
   Future<bool> _syncTraineeWithApplicationStatus({
     required String companyId,
     required String internshipId,
@@ -1735,20 +1882,20 @@ class TraineeService {
     required String status,
     String? reason,
     Map<String, dynamic>? additionalData,
-    required bool isAuthority
+    required bool isAuthority,
   }) async {
     try {
       final normalizedStatus = status.toLowerCase();
 
       // Check if trainee already exists
       TraineeRecord? existingTrainee = await getTraineeByStudentAndCompany(
-          studentId,
-          companyId
+        studentId,
+        companyId,
       );
 
       switch (normalizedStatus) {
         case 'accepted':
-        // If accepted, create or update trainee record
+          // If accepted, create or update trainee record
           if (existingTrainee == null) {
             // Create new trainee record
             final newTrainee = await createTraineeFromApplication(
@@ -1773,7 +1920,7 @@ class TraineeService {
           }
 
         case 'rejected':
-        // If rejected, update or create terminated trainee record
+          // If rejected, update or create terminated trainee record
           if (existingTrainee == null) {
             // Create a terminated trainee record for tracking
             final terminatedTrainee = await _createTerminatedTraineeRecord(
@@ -1793,7 +1940,7 @@ class TraineeService {
           }
 
         case 'pending':
-        // If pending, create or update pending trainee record
+          // If pending, create or update pending trainee record
           if (existingTrainee == null) {
             // Create pending trainee record
             final pendingTrainee = await createPendingTraineeFromApplication(
@@ -1815,7 +1962,7 @@ class TraineeService {
         case 'shortlisted':
         case 'reviewed':
         case 'interview_scheduled':
-        // For intermediate statuses, update trainee with status note
+          // For intermediate statuses, update trainee with status note
           if (existingTrainee == null) {
             // Create trainee record with intermediate status
             final intermediateTrainee = await _createTraineeWithCustomStatus(
@@ -1831,7 +1978,9 @@ class TraineeService {
             final traineeDoc = await _traineesRef.doc(existingTrainee.id).get();
             final data = traineeDoc.data() as Map<String, dynamic>;
             final currentNotes = data['notes'];
-            final notes = currentNotes is List ? List<Map<String, dynamic>>.from(currentNotes) : <Map<String, dynamic>>[];
+            final notes = currentNotes is List
+                ? List<Map<String, dynamic>>.from(currentNotes)
+                : <Map<String, dynamic>>[];
 
             notes.add({
               'date': DateTime.now(),
@@ -1849,7 +1998,7 @@ class TraineeService {
           }
 
         case 'withdrawn':
-        // If student withdrew application
+          // If student withdrew application
           if (existingTrainee != null) {
             return await updateTraineeStatus(
               traineeId: existingTrainee.id,
@@ -1861,12 +2010,14 @@ class TraineeService {
           return true; // No trainee record to update
 
         default:
-        // For other statuses, just update notes if trainee exists
+          // For other statuses, just update notes if trainee exists
           if (existingTrainee != null) {
             final traineeDoc = await _traineesRef.doc(existingTrainee.id).get();
             final data = traineeDoc.data() as Map<String, dynamic>;
             final currentNotes = data['notes'];
-            final notes = currentNotes is List ? List<Map<String, dynamic>>.from(currentNotes) : <Map<String, dynamic>>[];
+            final notes = currentNotes is List
+                ? List<Map<String, dynamic>>.from(currentNotes)
+                : <Map<String, dynamic>>[];
 
             notes.add({
               'date': DateTime.now(),
@@ -1888,18 +2039,19 @@ class TraineeService {
       return false;
     }
   }
-// Helper to create terminated trainee record
+
+  // Helper to create terminated trainee record
   Future<TraineeRecord?> _createTerminatedTraineeRecord({
     required StudentApplication application,
     required String companyId,
     required String reason,
   }) async {
     try {
-      final traineeId = '${application.student.uid}_${companyId}_${DateTime.now().millisecondsSinceEpoch}';
+      final traineeId = '${companyId}_${application.student.uid}';
 
       final traineeRecord = TraineeRecord(
         imageUrl: application.student.imageUrl,
-        notes: {"reason":reason},
+        notes: {"reason": reason},
         id: traineeId,
         studentId: application.student.uid,
         studentName: application.student.fullName,
@@ -1933,7 +2085,7 @@ class TraineeService {
     }
   }
 
-// Helper to create trainee with custom status
+  // Helper to create trainee with custom status
   Future<TraineeRecord?> _createTraineeWithCustomStatus({
     required StudentApplication application,
     required String companyId,
@@ -1942,11 +2094,11 @@ class TraineeService {
     Map<String, dynamic>? additionalData,
   }) async {
     try {
-      final traineeId = '${application.student.uid}_${companyId}_${DateTime.now().millisecondsSinceEpoch}';
+      final traineeId = '${companyId}_${application.student.uid}';
 
       final traineeRecord = TraineeRecord(
         imageUrl: application.student.imageUrl,
-        notes: {"statusNote":statusNote},
+        notes: {"statusNote": statusNote},
         id: traineeId,
         studentId: application.student.uid,
         studentName: application.student.fullName,
@@ -1969,11 +2121,7 @@ class TraineeService {
       // Add custom notes if provided
       if (statusNote != null) {
         traineeData['notes'] = [
-          {
-            'date': DateTime.now(),
-            'note': statusNote,
-            'type': 'status_update',
-          }
+          {'date': DateTime.now(), 'note': statusNote, 'type': 'status_update'},
         ];
       }
 
@@ -1998,7 +2146,6 @@ class TraineeService {
     }
   }
 
-
   /// Delete trainee records where the document ID contains studentId_companyId pattern
   /// Returns the number of deleted records
   Future<Map<String, dynamic>> deleteTraineesByStudentAndCompany({
@@ -2006,17 +2153,23 @@ class TraineeService {
     required String companyId,
     required String applicationId,
     required String status,
-    StudentApplication? application, // Add optional application for creating new record
+    StudentApplication?
+    application, // Add optional application for creating new record
     bool isAuthority = false, // Add isAuthority parameter
   }) async {
     try {
-      debugPrint('Attempting to delete trainee records for student: $studentId, company: $companyId, applicationId: $applicationId, status: $status');
+      debugPrint(
+        'Attempting to delete trainee records for student: $studentId, company: $companyId, applicationId: $applicationId, status: $status',
+      );
 
-      ITTraineeRecord? traineeRecord = await  TraineeRecordService(isAuthority: isAuthority).getTraineeRecord(studentId);
-        //if()
+      ITTraineeRecord? traineeRecord = await TraineeRecordService(
+        isAuthority: isAuthority,
+      ).getTraineeRecord(studentId);
+      //if()
 
       // Create the pattern to search for in document IDs
-      final searchPattern = '${studentId}_${companyId}';
+
+      final searchPattern = '$companyId/$studentId';
 
       // Get all documents that might match (using start/end range for efficiency)
       final querySnapshot = await _traineesRef
@@ -2043,7 +2196,7 @@ class TraineeService {
             return {
               'action': 'created',
               'trainee': newTrainee,
-              'message': 'New trainee record created'
+              'message': 'New trainee record created',
             };
           }
         }
@@ -2051,11 +2204,14 @@ class TraineeService {
         return {
           'action': 'none',
           'trainee': null,
-          'message': 'No records found and no application provided for creation'
+          'message':
+              'No records found and no application provided for creation',
         };
       }
 
-      debugPrint('Found ${querySnapshot.docs.length} potential trainee records');
+      debugPrint(
+        'Found ${querySnapshot.docs.length} potential trainee records',
+      );
 
       // Further filter to ensure exact match (since the range query might return more)
       final matchingDocs = querySnapshot.docs.where((doc) {
@@ -2080,7 +2236,7 @@ class TraineeService {
             return {
               'action': 'created',
               'trainee': newTrainee,
-              'message': 'New trainee record created'
+              'message': 'New trainee record created',
             };
           }
         }
@@ -2088,7 +2244,8 @@ class TraineeService {
         return {
           'action': 'none',
           'trainee': null,
-          'message': 'No exact matches found and no application provided for creation'
+          'message':
+              'No exact matches found and no application provided for creation',
         };
       }
 
@@ -2096,7 +2253,9 @@ class TraineeService {
 
       // CASE 1: More than one match - delete ALL matching documents
       if (matchingDocs.length > 1) {
-        debugPrint('More than one match found (${matchingDocs.length}). Deleting ALL matching records.');
+        debugPrint(
+          'More than one match found (${matchingDocs.length}). Deleting ALL matching records.',
+        );
 
         // Delete all matching documents
         final batch = _firestore.batch();
@@ -2106,13 +2265,17 @@ class TraineeService {
           final data = doc.data() as Map<String, dynamic>;
           final trainee = TraineeRecord.fromFirestore(data, doc.id);
 
-          debugPrint('Deleting trainee record - ID: ${doc.id}, ApplicationID: ${trainee.applicationId}, Status: ${trainee.status}');
+          debugPrint(
+            'Deleting trainee record - ID: ${doc.id}, ApplicationID: ${trainee.applicationId}, Status: ${trainee.status}',
+          );
           batch.delete(doc.reference);
           deletedIds.add(doc.id);
         }
 
         await batch.commit();
-        debugPrint('Successfully deleted ${matchingDocs.length} trainee records');
+        debugPrint(
+          'Successfully deleted ${matchingDocs.length} trainee records',
+        );
 
         // Clean up company lists
         await _removeFromCompanyLists(
@@ -2137,7 +2300,8 @@ class TraineeService {
               'action': 'deleted_and_created',
               'deletedCount': matchingDocs.length,
               'trainee': newTrainee,
-              'message': 'Deleted ${matchingDocs.length} duplicate records and created new one'
+              'message':
+                  'Deleted ${matchingDocs.length} duplicate records and created new one',
             };
           }
         }
@@ -2146,7 +2310,7 @@ class TraineeService {
           'action': 'deleted',
           'deletedCount': matchingDocs.length,
           'trainee': null,
-          'message': 'Deleted ${matchingDocs.length} duplicate records'
+          'message': 'Deleted ${matchingDocs.length} duplicate records',
         };
       }
 
@@ -2155,18 +2319,24 @@ class TraineeService {
       final data = doc.data() as Map<String, dynamic>;
       final trainee = TraineeRecord.fromFirestore(data, doc.id);
 
-      debugPrint('Single trainee record found - ApplicationID: ${trainee.applicationId}, Current Status: ${trainee.status}, Provided Status: $status');
+      debugPrint(
+        'Single trainee record found - ApplicationID: ${trainee.applicationId}, Current Status: ${trainee.status}, Provided Status: $status',
+      );
 
       // Check if the applicationId matches
       if (trainee.applicationId != applicationId) {
-        debugPrint('Application ID mismatch. Trainee applicationId: ${trainee.applicationId}, Given applicationId: $applicationId. DELETING record due to mismatch.');
+        debugPrint(
+          'Application ID mismatch. Trainee applicationId: ${trainee.applicationId}, Given applicationId: $applicationId. DELETING record due to mismatch.',
+        );
 
         // Delete the document since applicationId doesn't match
         final batch = _firestore.batch();
         batch.delete(doc.reference);
         await batch.commit();
 
-        debugPrint('Successfully deleted trainee record due to applicationId mismatch: ${doc.id}');
+        debugPrint(
+          'Successfully deleted trainee record due to applicationId mismatch: ${doc.id}',
+        );
 
         // Clean up company lists
         await _removeFromCompanyLists(
@@ -2191,7 +2361,8 @@ class TraineeService {
               'action': 'deleted_and_created',
               'deletedCount': 1,
               'trainee': newTrainee,
-              'message': 'Deleted record with wrong applicationId and created new one'
+              'message':
+                  'Deleted record with wrong applicationId and created new one',
             };
           }
         }
@@ -2200,25 +2371,30 @@ class TraineeService {
           'action': 'deleted',
           'deletedCount': 1,
           'trainee': null,
-          'message': 'Deleted record with wrong applicationId'
+          'message': 'Deleted record with wrong applicationId',
         };
       }
 
       // ApplicationId matches, now check if status is the same
       final currentStatus = trainee.status?.name ?? '';
       if (currentStatus.toLowerCase() == status.toLowerCase()) {
-        debugPrint('ApplicationId matches and status is the same ($status). No changes needed.');
+        debugPrint(
+          'ApplicationId matches and status is the same ($status). No changes needed.',
+        );
 
         // Return the existing trainee record
         return {
           'action': 'none',
           'trainee': trainee,
-          'message': 'Record already exists with correct applicationId and status'
+          'message':
+              'Record already exists with correct applicationId and status',
         };
       }
 
       // ApplicationId matches but status is different - update the status instead of deleting
-      debugPrint('ApplicationId matches but status is different (Current: $currentStatus, Provided: $status). Updating status.');
+      debugPrint(
+        'ApplicationId matches but status is different (Current: $currentStatus, Provided: $status). Updating status.',
+      );
 
       // Update the trainee status
       final updated = await updateTraineeStatus(
@@ -2241,7 +2417,7 @@ class TraineeService {
           return {
             'action': 'updated',
             'trainee': updatedTrainee,
-            'message': 'Updated status from $currentStatus to $status'
+            'message': 'Updated status from $currentStatus to $status',
           };
         }
       }
@@ -2250,20 +2426,18 @@ class TraineeService {
       return {
         'action': 'none',
         'trainee': trainee,
-        'message': 'Failed to update status'
+        'message': 'Failed to update status',
       };
-
     } catch (e, stackTrace) {
       debugPrint('Error in deleteTraineesByStudentAndCompany: $e');
       debugPrintStack(stackTrace: stackTrace);
       return {
         'action': 'error',
         'trainee': null,
-        'message': 'Error occurred: $e'
+        'message': 'Error occurred: $e',
       };
     }
   }
-
 
   /// Alternative version that uses a more flexible pattern matching
   Future<int> deleteTraineesByStudentAndCompanyFlexible({
@@ -2272,9 +2446,11 @@ class TraineeService {
     bool patternAtStart = true, // Whether studentId_companyId is at the start
   }) async {
     try {
-      debugPrint('Flexible delete for student: $studentId, company: $companyId');
+      debugPrint(
+        'Flexible delete for student: $studentId, company: $companyId',
+      );
 
-      final searchPattern = '${studentId}_${companyId}';
+      final searchPattern = '$companyId/$studentId';
       List<DocumentSnapshot> docsToDelete = [];
 
       if (patternAtStart) {
@@ -2315,8 +2491,8 @@ class TraineeService {
         // Delete in chunks of 500 (Firestore batch limit)
         for (int i = 0; i < docsToDelete.length; i += 500) {
           final chunk = docsToDelete.sublist(
-              i,
-              (i + 500).clamp(0, docsToDelete.length)
+            i,
+            (i + 500).clamp(0, docsToDelete.length),
           );
 
           final batch = _firestore.batch();
@@ -2371,9 +2547,9 @@ class TraineeService {
 
       for (final field in listFields) {
         final currentList = List<String>.from(data[field] ?? []);
-        final updatedList = currentList.where((id) =>
-        !deletedDocIds.contains(id)
-        ).toList();
+        final updatedList = currentList
+            .where((id) => !deletedDocIds.contains(id))
+            .toList();
 
         if (currentList.length != updatedList.length) {
           updates[field] = updatedList;
@@ -2382,7 +2558,9 @@ class TraineeService {
 
       // Also remove from student-specific lists if they exist
       if (data.containsKey('studentTrainees')) {
-        final studentTrainees = Map<String, dynamic>.from(data['studentTrainees'] ?? {});
+        final studentTrainees = Map<String, dynamic>.from(
+          data['studentTrainees'] ?? {},
+        );
         studentTrainees.remove(studentId);
         updates['studentTrainees'] = studentTrainees;
       }
@@ -2425,12 +2603,13 @@ class TraineeService {
       }
       await batch.commit();
 
-      debugPrint('Deleted all ${snapshot.docs.length} trainees for company: $companyId');
+      debugPrint(
+        'Deleted all ${snapshot.docs.length} trainees for company: $companyId',
+      );
       return snapshot.docs.length;
     } catch (e) {
       debugPrint('Error deleting all company trainees: $e');
       return 0;
     }
   }
-
 }

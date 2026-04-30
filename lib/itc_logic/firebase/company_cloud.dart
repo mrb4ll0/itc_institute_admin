@@ -3425,8 +3425,8 @@ debugPrint("targetCompanyIds ${targetCompanyIds.toString()}");
       // Use your existing StudentApplication.fromMap method
       final application = StudentApplication.fromMap(
         data,
-        doc.id,
         internshipId,
+        doc.id,
       );
 
       debugPrint('Successfully loaded application: ${application.id}');

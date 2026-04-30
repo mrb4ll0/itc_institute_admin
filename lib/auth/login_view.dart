@@ -112,7 +112,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
-
+    setState(() => _isLoading = true);
     await adminCloud.syncUserAccountLock(_emailController.text);
     adminCloud.syncAllAccountLocks();
 
@@ -125,6 +125,7 @@ class _LoginScreenState extends State<LoginScreen> {
         reason: "Failed Attempt max reached",
         remainingSeconds: GeneralMethods.getRemainingSecondsFromDateTime(lockDetails),
       );
+      setState(() => _isLoading = false);
       return;
     }
 
@@ -133,7 +134,7 @@ class _LoginScreenState extends State<LoginScreen> {
       GlobalIdService.firestoreId ?? "",
     );
 
-    setState(() => _isLoading = true);
+
 
     try {
       UserCredential userCredential = await FirebaseAuth.instance

@@ -365,9 +365,9 @@ class TraineeRecordService {
 
       if (studentDoc.exists) {
         final studentData = studentDoc.data();
-        debugPrint('Student data: $studentData');
+        //debugPrint('Student data: $studentData');
         final traineeRecordId = studentData?['traineeRecordId'];
-        debugPrint("traineeRecordId");
+        //debugPrint("traineeRecordId");
 
         if (traineeRecordId != null) {
           // Direct access using stored ID
