@@ -14,7 +14,8 @@ import '../ConnectedDeviceManagement/ConnectedDevicePage.dart';
 import '../twoFactorAuthentication/twoFactorEnrollmentScreen.dart';
 
 class PrivacyAndSecuritySettingsPage extends StatefulWidget {
-  const PrivacyAndSecuritySettingsPage({super.key});
+   final String companyEmail;
+  const PrivacyAndSecuritySettingsPage({super.key, required this.companyEmail});
 
   @override
   State<PrivacyAndSecuritySettingsPage> createState() => _PrivacyAndSecuritySettingsPageState();
@@ -279,7 +280,7 @@ class _PrivacyAndSecuritySettingsPageState extends State<PrivacyAndSecuritySetti
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => const ConnectedDevicesPage()),
+                          MaterialPageRoute(builder: (context) => DeviceManagementPage(userId: GlobalIdService.firestoreId, email: widget.companyEmail)),
                         );
                       },
                     ),

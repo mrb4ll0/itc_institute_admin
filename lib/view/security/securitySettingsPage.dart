@@ -12,7 +12,8 @@ import '../twoFactorAuthentication/twoFactorEnrollmentScreen.dart';
 
 
 class SecuritySettingsPage extends StatefulWidget {
-  const SecuritySettingsPage({super.key});
+  final String email;
+  const SecuritySettingsPage({super.key, required this.email});
 
   @override
   State<SecuritySettingsPage> createState() => _SecuritySettingsPageState();
@@ -1316,7 +1317,7 @@ class _SecuritySettingsPageState extends State<SecuritySettingsPage> {
         await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => const ConnectedDevicesPage(),
+            builder: (context) =>  DeviceManagementPage(userId: GlobalIdService.firestoreId, email: widget.email),
           ),
         );
         // No need to update the setting, just navigate

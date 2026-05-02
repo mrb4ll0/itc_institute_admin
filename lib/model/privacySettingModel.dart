@@ -394,6 +394,119 @@ class PrivacySettings {
     return shouldShowProfile(viewerId, profileOwnerId) ||
         shouldShowCompanyInfo(viewerId, profileOwnerId);
   }
+
+  // Add these methods to your PrivacySettings class
+
+  /// Convert to Map for SharedPreferences storage
+  Map<String, dynamic> toMap() {
+    return {
+      // Profile Privacy
+      'profileVisibility': profileVisibility,
+      'showEmail': showEmail,
+      'showPhoneNumber': showPhoneNumber,
+      'showLocation': showLocation,
+      'showCompanyInfo': showCompanyInfo,
+
+      // Data Sharing
+      'shareAnalytics': shareAnalytics,
+      'shareWithPartners': shareWithPartners,
+      'personalizedAds': personalizedAds,
+
+      // Account Security
+      'twoFactorAuth': twoFactorAuth,
+      'twoFactorMethod': twoFactorMethod.name, // Store enum as string
+      'loginAlerts': loginAlerts,
+      'deviceManagement': deviceManagement,
+      'sessionTimeout': sessionTimeout,
+      'sessionTimeoutMinutes': sessionTimeoutMinutes,
+
+      // Data Management
+      'dataBackup': dataBackup,
+      'autoDeleteData': autoDeleteData,
+      'autoDeleteDays': autoDeleteDays,
+
+      // Content Privacy
+      'hideFromSearch': hideFromSearch,
+      'blockUnknownUsers': blockUnknownUsers,
+      'messagePrivacy': messagePrivacy,
+
+      // Activity Privacy
+      'showOnlineStatus': showOnlineStatus,
+      'showLastSeen': showLastSeen,
+      'showActivityStatus': showActivityStatus,
+
+      // Metadata
+      'lastUpdated': lastUpdated?.toIso8601String(), // Convert DateTime to string
+      'updatedBy': updatedBy,
+
+      // 2FA Data
+      'twoFactorEnabledAt': twoFactorEnabledAt?.toIso8601String(),
+
+      // Enrolled Factors (convert list to JSON-friendly format)
+      'enrolledFactors': enrolledFactors?.map((factor) => factor.toJson()).toList(),
+    };
+  }
+
+  /// Create from Map (for SharedPreferences retrieval)
+  factory PrivacySettings.fromMap(Map<String, dynamic> map) {
+    // Parse enrolled factors if present
+    List<EnrolledFactor>? enrolledFactors;
+    if (map['enrolledFactors'] != null) {
+      enrolledFactors = (map['enrolledFactors'] as List)
+          .map((factor) => EnrolledFactor.fromJson(factor))
+          .toList();
+    }
+
+    // Parse two factor method
+    TwoFactorMethod twoFactorMethod = TwoFactorMethod.none;
+    if (map['twoFactorMethod'] != null) {
+      final methodValue = map['twoFactorMethod'];
+
+      if (methodValue is String) {
+        twoFactorMethod = TwoFactorMethod.values.firstWhere(
+              (e) => e.name == methodValue,
+          orElse: () => TwoFactorMethod.none,
+        );
+      } else if (methodValue is int) {
+        // For backward compatibility
+        twoFactorMethod = TwoFactorMethod.values[methodValue];
+      }
+    }
+
+    return PrivacySettings(
+      profileVisibility: map['profileVisibility'] ?? true,
+      showEmail: map['showEmail'] ?? true,
+      showPhoneNumber: map['showPhoneNumber'] ?? false,
+      showLocation: map['showLocation'] ?? false,
+      showCompanyInfo: map['showCompanyInfo'] ?? true,
+      shareAnalytics: map['shareAnalytics'] ?? true,
+      shareWithPartners: map['shareWithPartners'] ?? false,
+      personalizedAds: map['personalizedAds'] ?? true,
+      twoFactorAuth: map['twoFactorAuth'] ?? false,
+      loginAlerts: map['loginAlerts'] ?? true,
+      deviceManagement: map['deviceManagement'] ?? true,
+      sessionTimeout: map['sessionTimeout'] ?? false,
+      sessionTimeoutMinutes: map['sessionTimeoutMinutes'] ?? 30,
+      dataBackup: map['dataBackup'] ?? true,
+      autoDeleteData: map['autoDeleteData'] ?? false,
+      autoDeleteDays: map['autoDeleteDays'] ?? 90,
+      hideFromSearch: map['hideFromSearch'] ?? false,
+      blockUnknownUsers: map['blockUnknownUsers'] ?? true,
+      messagePrivacy: map['messagePrivacy'] ?? true,
+      showOnlineStatus: map['showOnlineStatus'] ?? true,
+      showLastSeen: map['showLastSeen'] ?? true,
+      showActivityStatus: map['showActivityStatus'] ?? true,
+      lastUpdated: map['lastUpdated'] != null
+          ? DateTime.parse(map['lastUpdated'])
+          : null,
+      updatedBy: map['updatedBy'],
+      enrolledFactors: enrolledFactors,
+      twoFactorEnabledAt: map['twoFactorEnabledAt'] != null
+          ? DateTime.parse(map['twoFactorEnabledAt'])
+          : null,
+      twoFactorMethod: twoFactorMethod,
+    );
+  }
 }
 
 class EnrolledFactor {
@@ -428,4 +541,5 @@ class EnrolledFactor {
     'enrollmentTime': enrollmentTime.toIso8601String(),
     'factorId': factorId,
   };
+
 }

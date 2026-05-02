@@ -1,101 +1,179 @@
+// models/device_model.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
+
+enum DeviceStatus {
+  active,      // Currently using the account
+  blocked,     // Blocked from accessing account
+  removed,     // Removed by admin
+}
+
+enum DeviceType {
+  mobile,
+  tablet,
+  desktop,
+  web,
+  unknown,
+}
 
 class ConnectedDevice {
-  final String id;
+  final String deviceId;
+  final String userId;
   final String deviceName;
   final String deviceType;
-  final String osVersion;
-  final String? browserName;
   final String ipAddress;
   final String location;
-  final DateTime lastActive;
-  final DateTime firstSeen;
-  final bool isCurrentDevice;
   final String? fcmToken;
-  final String? deviceModel;
-  final String? manufacturer;
+  final DateTime firstLoginAt;
+  final DateTime lastActiveAt;
+  final DeviceStatus status;
+   bool isAdminDevice;
+  final String? osVersion;
+  final String? appVersion;
 
   ConnectedDevice({
-    required this.id,
+    required this.deviceId,
+    required this.userId,
     required this.deviceName,
     required this.deviceType,
-    required this.osVersion,
-    this.browserName,
     required this.ipAddress,
     required this.location,
-    required this.lastActive,
-    required this.firstSeen,
-    required this.isCurrentDevice,
     this.fcmToken,
-    this.deviceModel,
-    this.manufacturer,
+    required this.firstLoginAt,
+    required this.lastActiveAt,
+    required this.status,
+    required this.isAdminDevice,
+    this.osVersion,
+    this.appVersion,
   });
 
-  factory ConnectedDevice.fromFirestore(DocumentSnapshot doc, String docId) {
-    final data = doc.data() as Map<String, dynamic>;
+  Map<String, dynamic> toMap() {
+    return {
+      'deviceId': deviceId,
+      'userId': userId,
+      'deviceName': deviceName,
+      'deviceType': deviceType,
+      'ipAddress': ipAddress,
+      'location': location,
+      'fcmToken': fcmToken,
+      'firstLoginAt': firstLoginAt.toIso8601String(),
+      'lastActiveAt': lastActiveAt.toIso8601String(),
+      'status': status.name,
+      'isAdminDevice': isAdminDevice,
+      'osVersion': osVersion,
+      'appVersion': appVersion,
+    };
+  }
+
+  factory ConnectedDevice.fromMap(Map<String, dynamic> map) {
     return ConnectedDevice(
-      id: docId,
-      deviceName: data['deviceName'] ?? 'Unknown Device',
-      deviceType: data['deviceType'] ?? 'Unknown',
-      osVersion: data['osVersion'] ?? 'Unknown',
-      browserName: data['browserName'],
-      ipAddress: data['ipAddress'] ?? 'Unknown',
-      location: data['location'] ?? 'Unknown',
-      lastActive: (data['lastActive'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      firstSeen: (data['firstSeen'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      isCurrentDevice: data['isCurrentDevice'] ?? false,
-      fcmToken: data['fcmToken'],
-      deviceModel: data['deviceModel'],
-      manufacturer: data['manufacturer'],
+      deviceId: map['deviceId'],
+      userId: map['userId'],
+      deviceName: map['deviceName'],
+      deviceType: map['deviceType'],
+      ipAddress: map['ipAddress'],
+      location: map['location'],
+      fcmToken: map['fcmToken'],
+      firstLoginAt: DateTime.parse(map['firstLoginAt']),
+      lastActiveAt: DateTime.parse(map['lastActiveAt']),
+      status: DeviceStatus.values.firstWhere(
+            (e) => e.name == map['status'],
+        orElse: () => DeviceStatus.active,
+      ),
+      isAdminDevice: map['isAdminDevice'] ?? false,
+      osVersion: map['osVersion'],
+      appVersion: map['appVersion'],
     );
   }
 
   Map<String, dynamic> toFirestore() {
     return {
+      'deviceId': deviceId,
+      'userId': userId,
       'deviceName': deviceName,
       'deviceType': deviceType,
-      'osVersion': osVersion,
-      'browserName': browserName,
       'ipAddress': ipAddress,
       'location': location,
-      'lastActive': Timestamp.fromDate(lastActive),
-      'firstSeen': Timestamp.fromDate(firstSeen),
-      'isCurrentDevice': isCurrentDevice,
       'fcmToken': fcmToken,
-      'deviceModel': deviceModel,
-      'manufacturer': manufacturer,
+      'firstLoginAt': firstLoginAt.toIso8601String(),
+      'lastActiveAt': lastActiveAt.toIso8601String(),
+      'status': status.name,
+      'isAdminDevice': isAdminDevice,
+      'osVersion': osVersion,
+      'appVersion': appVersion,
     };
   }
 
+  // device_model.dart
+  factory ConnectedDevice.fromFirestore(Map<String, dynamic> data) {
+    return ConnectedDevice(
+      deviceId: data['deviceId'],
+      userId: data['userId'],
+      deviceName: data['deviceName'],
+      deviceType: data['deviceType'],
+      ipAddress: data['ipAddress'],
+      location: data['location'],
+      fcmToken: data['fcmToken'],
+      firstLoginAt: DateTime.parse(data['firstLoginAt']),  // ✅ Parse ISO string
+      lastActiveAt: DateTime.parse(data['lastActiveAt']),  // ✅ Parse ISO string
+      status: DeviceStatus.values.firstWhere(
+            (e) => e.name == data['status'],
+        orElse: () => DeviceStatus.active,
+      ),
+      isAdminDevice: data['isAdminDevice'] ?? false,
+      osVersion: data['osVersion'],
+      appVersion: data['appVersion'],
+    );
+  }
+
   ConnectedDevice copyWith({
-    String? id,
+    String? deviceId,
+    String? userId,
     String? deviceName,
     String? deviceType,
-    String? osVersion,
-    String? browserName,
     String? ipAddress,
     String? location,
-    DateTime? lastActive,
-    DateTime? firstSeen,
-    bool? isCurrentDevice,
     String? fcmToken,
-    String? deviceModel,
-    String? manufacturer,
+    DateTime? lastActiveAt,
+    DeviceStatus? status,
+    bool? isAdminDevice,
   }) {
     return ConnectedDevice(
-      id: id ?? this.id,
+      deviceId: deviceId ?? this.deviceId,
+      userId: userId ?? this.userId,
       deviceName: deviceName ?? this.deviceName,
       deviceType: deviceType ?? this.deviceType,
-      osVersion: osVersion ?? this.osVersion,
-      browserName: browserName ?? this.browserName,
       ipAddress: ipAddress ?? this.ipAddress,
       location: location ?? this.location,
-      lastActive: lastActive ?? this.lastActive,
-      firstSeen: firstSeen ?? this.firstSeen,
-      isCurrentDevice: isCurrentDevice ?? this.isCurrentDevice,
       fcmToken: fcmToken ?? this.fcmToken,
-      deviceModel: deviceModel ?? this.deviceModel,
-      manufacturer: manufacturer ?? this.manufacturer,
+      firstLoginAt: firstLoginAt,
+      lastActiveAt: lastActiveAt ?? this.lastActiveAt,
+      status: status ?? this.status,
+      isAdminDevice: isAdminDevice ?? this.isAdminDevice,
+      osVersion: osVersion,
+      appVersion: appVersion,
     );
+  }
+
+  String getStatusIcon() {
+    switch (status) {
+      case DeviceStatus.active:
+        return '✅';
+      case DeviceStatus.blocked:
+        return '🚫';
+      case DeviceStatus.removed:
+        return '🗑️';
+    }
+  }
+
+  Color getStatusColor() {
+    switch (status) {
+      case DeviceStatus.active:
+        return Colors.green;
+      case DeviceStatus.blocked:
+        return Colors.red;
+      case DeviceStatus.removed:
+        return Colors.grey;
+    }
   }
 }

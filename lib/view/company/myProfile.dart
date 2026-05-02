@@ -1085,7 +1085,7 @@ class _CompanyMyProfilePageState extends State<CompanyMyProfilePage>
                   title: const Text('Privacy & Security Settings'),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                   onTap: () {
-                    GeneralMethods.navigateTo(context, const PrivacyAndSecuritySettingsPage());
+                    GeneralMethods.navigateTo(context,  PrivacyAndSecuritySettingsPage(companyEmail: widget.company.email,));
                   },
                 ),
               ],

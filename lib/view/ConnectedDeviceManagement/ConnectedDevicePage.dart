@@ -1,26 +1,29 @@
-// pages/connected_devices_page.dart
-import 'package:firebase_auth/firebase_auth.dart';
+// pages/device_management_page.dart
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:itc_institute_admin/itc_logic/service/ConnectedDeviceService.dart';
 
-import '../../itc_logic/service/ConnectedDeviceService.dart';
+import '../../itc_logic/localDB/sharedPreference.dart';
 import '../../model/ConnectedDevice.dart';
 
+class DeviceManagementPage extends StatefulWidget {
+  final String userId;
+  final String email;
 
-class ConnectedDevicesPage extends StatefulWidget {
-  const ConnectedDevicesPage({Key? key}) : super(key: key);
+  const DeviceManagementPage({
+    Key? key,
+    required this.userId,
+    required this.email,
+  }) : super(key: key);
 
   @override
-  State<ConnectedDevicesPage> createState() => _ConnectedDevicesPageState();
+  State<DeviceManagementPage> createState() => _DeviceManagementPageState();
 }
 
-class _ConnectedDevicesPageState extends State<ConnectedDevicesPage> {
-  final ConnectedDeviceService _deviceService = ConnectedDeviceService();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-
+class _DeviceManagementPageState extends State<DeviceManagementPage> {
   List<ConnectedDevice> _devices = [];
   bool _isLoading = true;
-  String? _error;
+  String? _currentDeviceId;
 
   @override
   void initState() {
@@ -29,480 +32,241 @@ class _ConnectedDevicesPageState extends State<ConnectedDevicesPage> {
   }
 
   Future<void> _loadDevices() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+    setState(() => _isLoading = true);
 
     try {
-      final devices = await _deviceService.getConnectedDevicesFuture();
+      // Load from Firestore
+      final devices = await ConnectedDeviceService.getUserDevicesFromFirestore(widget.userId);
+      _currentDeviceId = await UserPreferences.getCurrentDeviceId();
+
       setState(() {
         _devices = devices;
         _isLoading = false;
       });
     } catch (e) {
-      setState(() {
-        _error = 'Failed to load devices: $e';
-        _isLoading = false;
-      });
+      debugPrint('Error loading devices: $e');
+      setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _revokeDevice(ConnectedDevice device) async {
-    final confirmed = await showDialog<bool>(
+  Future<void> _blockDevice(String deviceId) async {
+    final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Revoke Device Access'),
-        content: Text(
-          'Are you sure you want to revoke access for ${device.deviceName}? '
-              'This will log out the device and require re-authentication.',
-        ),
+        title: const Text('Block Device'),
+        content: const Text('Are you sure you want to block this device?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
-          ElevatedButton(
+          TextButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-            ),
-            child: const Text('Revoke'),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Block'),
           ),
         ],
       ),
     );
 
-    if (confirmed != true) return;
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      await _deviceService.revokeDevice(device.id);
-
-      // If revoking current device, sign out
-      if (device.isCurrentDevice) {
-        await _auth.signOut();
-        if (mounted) {
-          Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
-        }
-        return;
-      }
-
+    if (confirm == true) {
+      await ConnectedDeviceService.blockDevice(widget.userId, deviceId, widget.email);
       await _loadDevices();
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Device access revoked successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to revoke device: $e'),
-          backgroundColor: Colors.red,
-        ),
+        const SnackBar(content: Text('Device blocked successfully')),
       );
     }
   }
 
-  Future<void> _revokeAllOtherDevices() async {
-    final currentDevice = _devices.firstWhere(
-          (d) => d.isCurrentDevice,
-      orElse: () => _devices.first,
-    );
-
-    final confirmed = await showDialog<bool>(
+  Future<void> _removeDevice(String deviceId) async {
+    final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Revoke All Other Devices'),
-        content: const Text(
-          'Are you sure you want to revoke access for all other devices? '
-              'This will log out all devices except this one.',
-        ),
+        title: const Text('Remove Device'),
+        content: const Text('Are you sure you want to remove this device?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
-          ElevatedButton(
+          TextButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-            ),
-            child: const Text('Revoke All'),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Remove'),
           ),
         ],
       ),
     );
 
-    if (confirmed != true) return;
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      await _deviceService.revokeAllOtherDevices(currentDevice.id);
+    if (confirm == true) {
+      await ConnectedDeviceService.removeDevice(widget.userId, deviceId, widget.email);
       await _loadDevices();
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('All other devices have been revoked'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to revoke devices: $e'),
-          backgroundColor: Colors.red,
-        ),
+        const SnackBar(content: Text('Device removed successfully')),
       );
     }
+  }
+
+  Future<void> _setAdminDevice(String deviceId) async {
+    await ConnectedDeviceService.setAdminDevice(widget.userId, deviceId, widget.email);
+    await _loadDevices();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Admin device updated successfully')),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Connected Devices'),
-        centerTitle: false,
-        actions: [
-          if (_devices.length > 1)
-            IconButton(
-              icon: const Icon(Icons.delete_sweep),
-              onPressed: _revokeAllOtherDevices,
-              tooltip: 'Revoke all other devices',
-            ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadDevices,
-            tooltip: 'Refresh',
-          ),
-        ],
+        title: const Text('Device Management'),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 1,
       ),
-      body: _buildBody(),
-    );
-  }
-
-  Widget _buildBody() {
-    if (_isLoading) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Loading connected devices...'),
-          ],
-        ),
-      );
-    }
-
-    if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline, size: 64, color: Colors.red),
-            const SizedBox(height: 16),
-            Text(_error!),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _loadDevices,
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (_devices.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.phonelink_off, size: 64, color: Colors.grey),
-            const SizedBox(height: 16),
-            const Text('No connected devices found'),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _loadDevices,
-              child: const Text('Refresh'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return RefreshIndicator(
-      onRefresh: _loadDevices,
-      child: ListView.builder(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _devices.isEmpty
+          ? const Center(child: Text('No devices found'))
+          : ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: _devices.length,
         itemBuilder: (context, index) {
           final device = _devices[index];
-          return _buildDeviceCard(device);
-        },
-      ),
-    );
-  }
+          final isCurrentDevice = device.deviceId == _currentDeviceId;
 
-  Widget _buildDeviceCard(ConnectedDevice device) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final isCurrent = device.isCurrentDevice;
-    final isMobile = device.deviceType.contains('Phone') || device.deviceType.contains('iOS') || device.deviceType.contains('Android');
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: isCurrent
-            ? colorScheme.primary.withOpacity(0.05)
-            : colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isCurrent
-              ? colorScheme.primary
-              : colorScheme.outline.withOpacity(0.2),
-          width: isCurrent ? 2 : 1,
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+          return Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: Column(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: isCurrent
-                        ? colorScheme.primary.withOpacity(0.1)
-                        : colorScheme.secondaryContainer,
-                    borderRadius: BorderRadius.circular(12),
+                ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: device.getStatusColor().withOpacity(0.1),
+                    child: Text(
+                      device.getStatusIcon(),
+                      style: const TextStyle(fontSize: 24),
+                    ),
                   ),
-                  child: Icon(
-                    isMobile ? Icons.phone_android : Icons.computer,
-                    color: isCurrent ? colorScheme.primary : colorScheme.secondary,
-                    size: 28,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  title: Row(
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              device.deviceName,
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                      Expanded(
+                        child: Text(
+                          device.deviceName,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
                           ),
-                          if (isCurrent) ...[
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: colorScheme.primary,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                'Current',
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        device.deviceType,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
                         ),
                       ),
-                      if (device.osVersion != 'Unknown')
-                        Text(
-                          device.osVersion,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
+                      if (device.isAdminDevice)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.blue,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Text(
+                            'ADMIN',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      if (isCurrentDevice)
+                        Container(
+                          margin: const EdgeInsets.only(left: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.green,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Text(
+                            'CURRENT',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                     ],
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            const Divider(),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Icon(Icons.location_on_outlined, size: 16, color: colorScheme.onSurfaceVariant),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    device.location,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Icon(Icons.public_outlined, size: 16, color: colorScheme.onSurfaceVariant),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    device.ipAddress,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Icon(Icons.access_time, size: 16, color: colorScheme.onSurfaceVariant),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Last active: ${DateFormat('MMM dd, yyyy - hh:mm a').format(device.lastActive)}',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                if (!isCurrent)
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => _revokeDevice(device),
-                      icon: const Icon(Icons.block, size: 18),
-                      label: const Text('Revoke Access'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.red,
-                        side: const BorderSide(color: Colors.red),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 4),
+                      Text('📍 ${device.location}'),
+                      Text('🌐 ${device.ipAddress}'),
+                      Text('📱 ${device.deviceType.toUpperCase()}'),
+                      Text(
+                        'Last active: ${DateFormat('MMM dd, yyyy hh:mm a').format(device.lastActiveAt)}',
+                        style: const TextStyle(fontSize: 12),
                       ),
-                    ),
+                      if (device.status == DeviceStatus.blocked)
+                        Container(
+                          margin: const EdgeInsets.only(top: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'BLOCKED',
+                            style: TextStyle(
+                              color: Colors.red,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
-                if (!isCurrent) const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _showDeviceDetails(device),
-                    icon: const Icon(Icons.info_outline, size: 18),
-                    label: const Text('Details'),
-                  ),
+                  isThreeLine: true,
                 ),
+                if (device.status != DeviceStatus.blocked && !isCurrentDevice)
+                  ButtonBar(
+                    children: [
+                      if (!device.isAdminDevice)
+                        TextButton.icon(
+                          onPressed: () => _setAdminDevice(device.deviceId),
+                          icon: const Icon(Icons.admin_panel_settings, size: 18),
+                          label: const Text('Set as Admin'),
+                        ),
+                      TextButton.icon(
+                        onPressed: () => _blockDevice(device.deviceId),
+                        icon: const Icon(Icons.block, size: 18),
+                        label: const Text('Block'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.orange,
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: () => _removeDevice(device.deviceId),
+                        icon: const Icon(Icons.delete, size: 18),
+                        label: const Text('Remove'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.red,
+                        ),
+                      ),
+                    ],
+                  ),
               ],
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showDeviceDetails(ConnectedDevice device) {
-    showModalBottomSheet(
-      isScrollControlled: true,
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 16),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 24),
-            ListTile(
-              leading: const Icon(Icons.devices),
-              title: const Text('Device Name'),
-              subtitle: Text(device.deviceName),
-            ),
-            ListTile(
-              leading: const Icon(Icons.computer),
-              title: const Text('Device Type'),
-              subtitle: Text(device.deviceType),
-            ),
-            if (device.manufacturer != null)
-              ListTile(
-                leading: const Icon(Icons.business),
-                title: const Text('Manufacturer'),
-                subtitle: Text(device.manufacturer!),
-              ),
-            if (device.deviceModel != null)
-              ListTile(
-                leading: const Icon(Icons.smartphone),
-                title: const Text('Model'),
-                subtitle: Text(device.deviceModel!),
-              ),
-            if (device.osVersion != 'Unknown')
-              ListTile(
-                leading: const Icon(Icons.settings),
-                title: const Text('OS Version'),
-                subtitle: Text(device.osVersion),
-              ),
-            ListTile(
-              leading: const Icon(Icons.calendar_today),
-              title: const Text('First Seen'),
-              subtitle: Text(DateFormat('MMM dd, yyyy - hh:mm a').format(device.firstSeen)),
-            ),
-            ListTile(
-              leading: const Icon(Icons.access_time),
-              title: const Text('Last Active'),
-              subtitle: Text(DateFormat('MMM dd, yyyy - hh:mm a').format(device.lastActive)),
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

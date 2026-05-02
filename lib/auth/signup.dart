@@ -2,11 +2,15 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:itc_institute_admin/auth/login_view.dart';
 import 'package:itc_institute_admin/generalmethods/GeneralMethods.dart';
@@ -14,6 +18,7 @@ import 'package:itc_institute_admin/itc_logic/admin_task.dart';
 import 'package:itc_institute_admin/itc_logic/firebase/general_cloud.dart';
 import 'package:itc_institute_admin/model/company.dart';
 import 'package:itc_institute_admin/view/home/companyDashBoard.dart';
+import 'package:network_info_plus/network_info_plus.dart';
 
 import '../firebase_cloud_storage/firebase_cloud.dart';
 import '../itc_logic/idservice/globalIdService.dart';
@@ -1131,6 +1136,80 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
       return false;
     }
   }
+
+
+   saveUserDevice()async
+  {
+    final deviceName = await _getDeviceName();
+    final ipAddress = await _getIpAddress();
+    final location = await _getLocation();
+    final fcmToken = await FirebaseMessaging.instance.getToken();
+  }
+
+  Future<String> _getLocation() async {
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.always ||
+          permission == LocationPermission.whileInUse) {
+        Position position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.low,
+        );
+
+        final placemarks = await placemarkFromCoordinates(
+          position.latitude,
+          position.longitude,
+        );
+
+        if (placemarks.isNotEmpty) {
+          final place = placemarks.first;
+          String location = '';
+          if (place.locality != null) location += place.locality!;
+          if (place.country != null) {
+            if (location.isNotEmpty) location += ', ';
+            location += place.country!;
+          }
+          return location.isEmpty ? 'Unknown Location' : location;
+        }
+      }
+    } catch (e) {
+      print('Error getting location: $e');
+    }
+    return 'Unknown Location';
+  }
+
+
+  Future<String> _getDeviceName() async {
+    final deviceInfo = DeviceInfoPlugin();
+
+    if (Platform.isAndroid) {
+      final androidInfo = await deviceInfo.androidInfo;
+      return "${androidInfo.model} (Android ${androidInfo.version.release})";
+    } else if (Platform.isIOS) {
+      final iosInfo = await deviceInfo.iosInfo;
+      return "${iosInfo.model} (iOS ${iosInfo.systemVersion})";
+    } else {
+      return "Unknown Device";
+    }
+  }
+
+  Future<String> _getIpAddress() async {
+    try {
+      final info = NetworkInfo();
+      final localIp = await info.getWifiIP();
+      final response = await http.get(Uri.parse('https://api.ipify.org'));
+      if (response.statusCode == 200) {
+        return response.body;
+      }
+      return localIp ?? "Unknown IP";
+    } catch (e) {
+      return "Unknown IP";
+    }
+  }
+
   String _getErrorMessage(String errorCode) {
     switch (errorCode) {
       case 'invalid-email':

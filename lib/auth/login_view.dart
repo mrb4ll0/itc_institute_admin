@@ -26,7 +26,6 @@ import 'package:itc_institute_admin/migrationService/migrationManager.dart';
 import 'package:itc_institute_admin/migrationService/migrationService.dart';
 import 'package:itc_institute_admin/migrationService/ui/migrationSettingsPage.dart';
 import 'package:itc_institute_admin/model/authorityCompanyMapper.dart';
-import 'package:itc_institute_admin/model/localNotification.dart';
 import 'package:itc_institute_admin/model/notificationModel.dart';
 import 'package:itc_institute_admin/model/privacySettingModel.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -37,8 +36,10 @@ import '../itc_logic/firebase/general_cloud.dart';
 import '../itc_logic/idservice/globalIdService.dart';
 import '../itc_logic/service/ConnectedDeviceService.dart';
 import '../migrationService/migrationSettingsStrorage.dart';
+import '../model/ConnectedDevice.dart';
 import '../model/authority.dart';
 import '../model/company.dart';
+import '../model/notificationSettingModel.dart';
 import '../model/securitySettingsModel.dart';
 import '../view/home/companyDashboardController.dart';
 import '../view/twoFactorAuthentication/TwoFactorVerificationScreen.dart';
@@ -85,7 +86,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
       setState(() => _isLoading = true);
       PrivacySettings privacySettings =
-      await PrivacySettingsService.getUserPrivacySettings(GlobalIdService.firestoreId);
+          await PrivacySettingsService.getUserPrivacySettings(
+            GlobalIdService.firestoreId,
+          );
 
       if (privacySettings.twoFactorAuth) {
         GeneralMethods.navigateTo(
@@ -116,32 +119,36 @@ class _LoginScreenState extends State<LoginScreen> {
     await adminCloud.syncUserAccountLock(_emailController.text);
     adminCloud.syncAllAccountLocks();
 
-    final isLocked = await UserPreferences.isAccountLocked(_emailController.text);
-    final lockDetails = await UserPreferences.getLockExpiryTime(_emailController.text);
+    final isLocked = await UserPreferences.isAccountLocked(
+      _emailController.text,
+    );
+    final lockDetails = await UserPreferences.getLockExpiryTime(
+      _emailController.text,
+    );
 
     if (isLocked) {
       GeneralMethods.showTemporaryLockDialog(
         context: context,
         reason: "Failed Attempt max reached",
-        remainingSeconds: GeneralMethods.getRemainingSecondsFromDateTime(lockDetails),
+        remainingSeconds: GeneralMethods.getRemainingSecondsFromDateTime(
+          lockDetails,
+        ),
       );
       setState(() => _isLoading = false);
       return;
     }
 
     SecuritySettings securitySettings =
-    await SecuritySettingsService.getUserSecuritySettings(
-      GlobalIdService.firestoreId ?? "",
-    );
-
-
+        await SecuritySettingsService.getUserSecuritySettings(
+          GlobalIdService.firestoreId ?? "",
+        );
 
     try {
       UserCredential userCredential = await FirebaseAuth.instance
           .signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-      );
+            email: _emailController.text.trim(),
+            password: _passwordController.text.trim(),
+          );
 
       if (userCredential.user == null) {
         _showError("User is null");
@@ -150,9 +157,9 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       PrivacySettings privacy =
-      await PrivacySettingsService.getUserPrivacySettings(
-        userCredential.user!.uid,
-      );
+          await PrivacySettingsService.getUserPrivacySettings(
+            userCredential.user!.uid,
+          );
 
       if (privacy.twoFactorAuth) {
         setState(() => _isLoading = false);
@@ -276,15 +283,51 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleSuccessfulLogin(
-      UserCredential? userCredential,
-      PrivacySettings? privacySettings,
-      ) async {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    SecuritySettings securitySettings =
-    await SecuritySettingsService.getUserSecuritySettings(
-      GlobalIdService.firestoreId,
-    );
+    UserCredential? userCredential,
+    PrivacySettings? privacySettings,
+  ) async {
     await GlobalIdService.initialize();
+
+    // Track if this is a new device
+    bool isNewDevice = false;
+    bool isExistingDevice = false;
+
+    /// Get or create device (cached)
+    final currentDevice = await ConnectedDeviceService.getOrCreateDevice(
+      userId: GlobalIdService.firestoreId,
+      email: _emailController.text.trim(),
+    );
+
+    // Check if device is new (first login time is within last 10 seconds)
+    final isRecentlyCreated = DateTime.now().difference(currentDevice.firstLoginAt).inSeconds < 10;
+
+    if (isRecentlyCreated) {
+      isNewDevice = true;
+      debugPrint('🆕 New device detected, will send notification');
+    } else {
+      isExistingDevice = true;
+      debugPrint('📱 Existing device, skipping notification');
+    }
+
+    // Check if device is allowed
+    final isAllowed = await ConnectedDeviceService.isDeviceAllowed(
+      GlobalIdService.firestoreId,
+      currentDevice.deviceId,
+      _emailController.text.trim(),
+    );
+
+    if (!isAllowed) {
+      _showError("This device is blocked from accessing this account.");
+      await FirebaseAuth.instance.signOut();
+      setState(() => _isLoading = false);
+      return;
+    }
+
+    SecuritySettings securitySettings =
+        await SecuritySettingsService.getUserSecuritySettings(
+          GlobalIdService.firestoreId,
+        );
+
     Company? company;
     company = await ITCFirebaseLogic(
       GlobalIdService.firestoreId,
@@ -302,19 +345,28 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     if (company == null) {
-      _showError("Company or Authority profile not found. Please contact support.");
+      _showError(
+        "Company or Authority profile not found. Please contact support.",
+      );
       setState(() => _isLoading = false);
       return;
     }
 
-    await notificationService.saveTokenToFirestore();
-    if (securitySettings != null && securitySettings.loginAlerts) {
-      final deviceName = await _getDeviceName();
-      final ipAddress = await _getIpAddress();
-      final location = await _getLocation();
-      notifyUser(deviceName, ipAddress, null);
+    // Non-blocking background tasks
+    unawaited(notificationService.saveTokenToFirestore());
+
+    // ✅ ONLY send login alert if:
+    // 1. Login alerts are enabled in security settings
+    // 2. AND it's a NEW device (first time seeing this device)
+    if (securitySettings != null &&
+        securitySettings.loginAlerts &&
+        isNewDevice) {  // Only for new devices!
+      unawaited(_sendLoginAlertForNewDevice(currentDevice));
+    } else if (securitySettings != null &&
+        securitySettings.loginAlerts &&
+        isExistingDevice) {
+      debugPrint('🔇 Skipping login alert for existing device');
     }
-    await ConnectedDeviceService().saveCurrentDevice();
     final settings = await MigrationSettingsStorage.loadSettings();
     MigrationTrigger trigger = settings["trigger"];
     MigrationManager().doMigration(trigger);
@@ -355,7 +407,83 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  // ✅ NEW: Send login alert only for new devices
+  Future<void> _sendLoginAlertForNewDevice(ConnectedDevice device) async {
+    try {
+      // Get fresh device details (IP and location might still be updating)
+      String ipAddress = device.ipAddress;
+      String location = device.location;
+
+      // If details are still placeholder, wait a bit or use defaults
+      if (ipAddress == "Updating..." || ipAddress == "Pending...") {
+        await Future.delayed(const Duration(seconds: 2));
+        // Try to get fresh device from cache
+        final updatedDevice = await ConnectedDeviceService.getOrCreateDevice(
+          userId: GlobalIdService.firestoreId,
+          email: _emailController.text.trim(),
+          forceRefresh: true,
+        );
+        ipAddress = updatedDevice.ipAddress;
+        location = updatedDevice.location;
+      }
+
+      final deviceName = device.deviceName;
+
+      notifyUserForNewDevice(
+        deviceName: deviceName,
+        ipAddress: ipAddress,
+        location: location,
+        firstLoginAt: device.firstLoginAt,
+      );
+    } catch (e) {
+      debugPrint('Error sending new device alert: $e');
+    }
+  }
+
+// ✅ NEW: Specific notification for new device login
+  void notifyUserForNewDevice({
+    required String deviceName,
+    required String ipAddress,
+    required String location,
+    required DateTime firstLoginAt,
+  }) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+
+    final fcmToken = await FirebaseMessaging.instance.getToken();
+    final timestamp = firstLoginAt;
+    final formattedTime = DateFormat('MMM dd, yyyy hh:mm a').format(timestamp);
+    final formattedDate = DateFormat('MMM dd, yyyy').format(timestamp);
+
+    NotificationModel notification = NotificationModel(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      title: "🔐 New Device Login Detected",
+      body:
+      "A new device has been added to your account.\n\n"
+          "📱 Device: $deviceName\n"
+          "📍 Location: ${location.isNotEmpty ? location : 'Unknown'}\n"
+          "🌐 IP Address: $ipAddress\n"
+          "📅 Date: $formattedDate\n"
+          "🕐 Time: $formattedTime\n\n"
+          "If this wasn't you, go to Device Management to block this device.",
+      timestamp: timestamp,
+      read: false,
+      targetAudience: currentUser.email ?? '',
+      targetStudentId: GlobalIdService.firestoreId,
+      fcmToken: fcmToken ?? "",
+      type: NotificationType.securityAlerts.name,
+    );
+
+    await NotificationPanelService.sendNotificationToAllEnabledChannelsWithSummary(
+      notification,
+    );
+
+    debugPrint('📱 New device notification sent for: $deviceName');
+  }
+
+// Optional: Keep original notifyUser for backward compatibility
   notifyUser(String deviceName, String ipAddress, String? fcmToken) async {
+    // This is kept for failed login attempts and other use cases
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return;
 
@@ -365,9 +493,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
     NotificationModel notification = NotificationModel(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
-      title: "⚠️ New Login Detected",
+      title: "⚠️ Login Alert",
       body:
-      "Your account was accessed from a new device.\n\n"
+      "Your account was accessed.\n\n"
           "📱 Device: $deviceName\n"
           "🌐 IP Address: $ipAddress\n"
           "🕐 Time: $formattedTime\n\n"
@@ -377,21 +505,21 @@ class _LoginScreenState extends State<LoginScreen> {
       targetAudience: currentUser.email ?? '',
       targetStudentId: GlobalIdService.firestoreId,
       fcmToken: fcmToken ?? "",
-      type: NotificationType.systemAlert.name,
+      type: NotificationType.securityAlerts.name,
     );
 
-    NotificationPanelService.sendNotificationToAllEnabledChannelsWithSummary(
+    await NotificationPanelService.sendNotificationToAllEnabledChannelsWithSummary(
       notification,
     );
   }
 
   Future<void> notifyFailedAttempt(
-      String email,
-      String ipAddress,
-      String? deviceName,
-      String? fcmToken,
-      String location,
-      ) async {
+    String email,
+    String ipAddress,
+    String? deviceName,
+    String? fcmToken,
+    String location,
+  ) async {
     final timestamp = DateTime.now();
     final formattedTime = DateFormat('MMM dd, yyyy hh:mm a').format(timestamp);
 
@@ -399,7 +527,7 @@ class _LoginScreenState extends State<LoginScreen> {
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       title: "⚠️ Failed Login Attempt Detected",
       body:
-      "A failed login attempt was detected on your account.\n\n"
+          "A failed login attempt was detected on your account.\n\n"
           "📧 Email: $email\n"
           "📱 Device: $deviceName\n"
           "🌐 IP Address: $ipAddress\n"
@@ -411,7 +539,7 @@ class _LoginScreenState extends State<LoginScreen> {
       targetAudience: email,
       targetStudentId: '',
       fcmToken: fcmToken ?? "",
-      type: NotificationType.systemAlert.name,
+      type: NotificationType.securityAlerts.name,
     );
 
     NotificationPanelService.sendNotificationToAllEnabledChannelsWithSummary(
@@ -473,9 +601,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 vertical: 32,
               ),
               child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: 500,
-                ),
+                constraints: BoxConstraints(maxWidth: 500),
                 child: Form(
                   key: _formKey,
                   child: Column(
@@ -553,8 +679,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             onPressed: _isLoading
                                 ? null
                                 : () => setState(
-                                  () => _isPasswordVisible = !_isPasswordVisible,
-                            ),
+                                    () => _isPasswordVisible =
+                                        !_isPasswordVisible,
+                                  ),
                           ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -576,8 +703,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           fillColor: theme.colorScheme.surfaceContainerHighest
                               .withOpacity(0.3),
                         ),
-                        validator: (value) =>
-                        (value?.length ?? 0) < 6
+                        validator: (value) => (value?.length ?? 0) < 6
                             ? 'Password must be at least 6 characters'
                             : null,
                       ),
@@ -615,20 +741,20 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         child: _isLoading
                             ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
                             : const Text(
-                          'Sign In',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                                'Sign In',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                       ),
 
                       const SizedBox(height: 24),
@@ -646,8 +772,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             child: Text(
                               'or',
                               style: TextStyle(
-                                color: theme.colorScheme.onSurface
-                                    .withOpacity(0.6),
+                                color: theme.colorScheme.onSurface.withOpacity(
+                                  0.6,
+                                ),
                               ),
                             ),
                           ),
@@ -664,7 +791,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       // Sign Up Button
                       OutlinedButton(
                         onPressed: () {
-                          GeneralMethods.navigateTo(context, CompanySignupScreen());
+                          GeneralMethods.navigateTo(
+                            context,
+                            CompanySignupScreen(),
+                          );
                         },
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),

@@ -189,7 +189,7 @@ class NotificationService {
     final uid = GlobalIdService.firestoreId;
     if (uid == null || token == null) return;
 
-    final roles = ['students', 'companies','authorities'];
+    final roles = ['companies','authorities'];
     for (final role in roles) {
       final docRef = FirebaseFirestore.instance
           .collection('users')

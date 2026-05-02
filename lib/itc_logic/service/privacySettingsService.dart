@@ -2,6 +2,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:itc_institute_admin/itc_logic/localDB/sharedPreference.dart';
 
 import '../../model/privacySettingModel.dart';
 import '../idservice/globalIdService.dart';
@@ -14,11 +15,25 @@ class PrivacySettingsService {
   // Get user's privacy settings
   static Future<PrivacySettings> getUserPrivacySettings(String userId) async {
     try {
+
+
+             PrivacySettings? privacySettings = await UserPreferences.getPrivacySettings(userId);
+             if(privacySettings != null)
+               {
+                 debugPrint("privacy found");
+                 return privacySettings;
+               }
+
       final docRef = _firestore.collection(_collectionName).doc(userId);
       final doc = await docRef.get();
 
       if (doc.exists) {
-        return PrivacySettings.fromFirestore(doc);
+        PrivacySettings settings =  PrivacySettings.fromFirestore(doc);
+
+          await UserPreferences.savePrivacySettings(userId, settings);
+          debugPrint('💾 Updated cache for: $userId');
+
+        return settings;
       } else {
         // Create default settings for new user
         final defaultSettings = PrivacySettings.defaultSettings();
@@ -35,14 +50,17 @@ class PrivacySettingsService {
   // Save privacy settings
   static Future<void> savePrivacySettings(String userId, PrivacySettings settings) async {
     try {
+      // 1. Save to Firestore
       final docRef = _firestore.collection(_collectionName).doc(userId);
       await docRef.set(settings.toFirestore(), SetOptions(merge: true));
+        await UserPreferences.savePrivacySettings(userId, settings);
+
+      debugPrint('✅ Privacy settings saved to Firestore and cache for user: $userId');
     } catch (e) {
       print('Error saving privacy settings: $e');
       rethrow;
     }
   }
-
   // Update specific privacy setting
   static Future<void> updatePrivacySetting(
       String userId,
@@ -56,6 +74,7 @@ class PrivacySettingsService {
         'lastUpdated': FieldValue.serverTimestamp(),
         'updatedBy': GlobalIdService.firestoreId,
       });
+      await UserPreferences.updatePrivacySettingsField(id: userId,fieldName: field, value: value );
     } catch (e) {
       print('Error updating privacy setting: $e');
       rethrow;

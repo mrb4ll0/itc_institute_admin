@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/cupertino.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../model/ConnectedDevice.dart';
 import '../../model/notificationSettingModel.dart';
+import '../../model/privacySettingModel.dart';
 
 class UserPreferences {
   static const String _userPrefix = "user_";
@@ -15,6 +17,10 @@ class UserPreferences {
   static const String _lockDurationPrefix = "lock_duration_";
   static const String _lockExpiryPrefix = "lock_expiry_";
   static const String _lockReasonPrefix = "lock_reason_";
+  static const String _privacySettings = "privacySettings_";
+  static const String _devicesPrefix = "user_devices_";
+  static const String _currentDeviceIdKey = "current_device_id";
+
 
   /// Save user data after signup or login
   static Future<void> saveUser(Map<String, dynamic> userMap) async {
@@ -706,6 +712,268 @@ class UserPreferences {
       debugPrint('🗑️ All account locks cleared');
     } catch (e, stackTrace) {
       debugPrint('❌ Error clearing all locks: $e');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
+  static Future<void> savePrivacySettings(String id, PrivacySettings object) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = _privacySettings + id;
+      final jsonString = jsonEncode(object.toMap()); // Requires toMap() method
+      await prefs.setString(key, jsonString);
+    } catch (e, stackTrace) {
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
+  /// Retrieve your custom object
+  static Future<PrivacySettings?> getPrivacySettings(String id) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = _privacySettings + id;
+      final jsonString = prefs.getString(key);
+
+      if (jsonString == null) return null;
+
+      final Map<String, dynamic> map = jsonDecode(jsonString);
+      return PrivacySettings.fromMap(map); // Requires fromMap() constructor
+    } catch (e, stackTrace) {
+      debugPrintStack(stackTrace: stackTrace);
+      return null;
+    }
+  }
+
+  /// Update a specific field in privacy settings
+  /// [id] - User email or ID
+  /// [fieldName] - The field name to update (must match the key in toMap())
+  /// [value] - The new value for the field
+  static Future<void> updatePrivacySettingsField({
+    required String id,
+    required String fieldName,
+    required dynamic value,
+  }) async {
+    try {
+      // 1. Get current settings
+      PrivacySettings? currentSettings = await getPrivacySettings(id);
+
+      currentSettings ??= PrivacySettings.defaultSettings();
+
+      // 2. Create updated settings using copyWith
+      PrivacySettings updatedSettings = _updateField(currentSettings, fieldName, value);
+
+      // 3. Save back to SharedPreferences
+      await savePrivacySettings(id, updatedSettings);
+
+      debugPrint('✅ Updated privacy setting: $fieldName = $value for $id');
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error updating privacy settings field: $e');
+      debugPrintStack(stackTrace: stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Helper method to update a specific field using copyWith
+  static PrivacySettings _updateField(PrivacySettings settings, String fieldName, dynamic value) {
+    switch (fieldName) {
+    // Profile Privacy
+      case 'profileVisibility':
+        return settings.copyWith(profileVisibility: value as bool);
+      case 'showEmail':
+        return settings.copyWith(showEmail: value as bool);
+      case 'showPhoneNumber':
+        return settings.copyWith(showPhoneNumber: value as bool);
+      case 'showLocation':
+        return settings.copyWith(showLocation: value as bool);
+      case 'showCompanyInfo':
+        return settings.copyWith(showCompanyInfo: value as bool);
+
+    // Data Sharing
+      case 'shareAnalytics':
+        return settings.copyWith(shareAnalytics: value as bool);
+      case 'shareWithPartners':
+        return settings.copyWith(shareWithPartners: value as bool);
+      case 'personalizedAds':
+        return settings.copyWith(personalizedAds: value as bool);
+
+    // Account Security
+      case 'twoFactorAuth':
+        return settings.copyWith(twoFactorAuth: value as bool);
+      case 'twoFactorMethod':
+        return settings.copyWith(twoFactorMethod: value as TwoFactorMethod);
+      case 'loginAlerts':
+        return settings.copyWith(loginAlerts: value as bool);
+      case 'deviceManagement':
+        return settings.copyWith(deviceManagement: value as bool);
+      case 'sessionTimeout':
+        return settings.copyWith(sessionTimeout: value as bool);
+      case 'sessionTimeoutMinutes':
+        return settings.copyWith(sessionTimeoutMinutes: value as int);
+
+    // Data Management
+      case 'dataBackup':
+        return settings.copyWith(dataBackup: value as bool);
+      case 'autoDeleteData':
+        return settings.copyWith(autoDeleteData: value as bool);
+      case 'autoDeleteDays':
+        return settings.copyWith(autoDeleteDays: value as int);
+
+    // Content Privacy
+      case 'hideFromSearch':
+        return settings.copyWith(hideFromSearch: value as bool);
+      case 'blockUnknownUsers':
+        return settings.copyWith(blockUnknownUsers: value as bool);
+      case 'messagePrivacy':
+        return settings.copyWith(messagePrivacy: value as bool);
+
+    // Activity Privacy
+      case 'showOnlineStatus':
+        return settings.copyWith(showOnlineStatus: value as bool);
+      case 'showLastSeen':
+        return settings.copyWith(showLastSeen: value as bool);
+      case 'showActivityStatus':
+        return settings.copyWith(showActivityStatus: value as bool);
+
+    // Metadata (usually don't update these individually)
+      case 'lastUpdated':
+        return settings.copyWith(lastUpdated: value as DateTime?);
+      case 'updatedBy':
+        return settings.copyWith(updatedBy: value as String?);
+
+      default:
+        throw Exception('Unknown field name: $fieldName');
+    }
+  }
+
+  static Future<void> saveUserDevices(String email, List<ConnectedDevice> devices) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = _devicesPrefix + email;
+      final devicesJson = devices.map((device) => device.toMap()).toList();
+      final jsonString = jsonEncode(devicesJson);
+      await prefs.setString(key, jsonString);
+      debugPrint('✅ Saved ${devices.length} devices for user: $email');
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error saving devices: $e');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
+// Get all devices for a user
+  static Future<List<ConnectedDevice>> getUserDevices(String email) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = _devicesPrefix + email;
+      final jsonString = prefs.getString(key);
+
+      if (jsonString == null) return [];
+
+      final List<dynamic> devicesJson = jsonDecode(jsonString);
+      return devicesJson.map((json) => ConnectedDevice.fromMap(json)).toList();
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error getting devices: $e');
+      debugPrintStack(stackTrace: stackTrace);
+      return [];
+    }
+  }
+
+// Save current device ID
+  static Future<void> saveCurrentDeviceId(String deviceId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_currentDeviceIdKey, deviceId);
+      debugPrint('✅ Current device ID saved: $deviceId');
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error saving current device ID: $e');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
+// Get current device ID
+  static Future<String?> getCurrentDeviceId() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_currentDeviceIdKey);
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error getting current device ID: $e');
+      debugPrintStack(stackTrace: stackTrace);
+      return null;
+    }
+  }
+
+// Add or update a device
+  static Future<void> addOrUpdateDevice(String email, ConnectedDevice device) async {
+    try {
+      List<ConnectedDevice> devices = await getUserDevices(email);
+      final existingIndex = devices.indexWhere((d) => d.deviceId == device.deviceId);
+
+      if (existingIndex != -1) {
+        devices[existingIndex] = device;
+      } else {
+        devices.add(device);
+      }
+
+      await saveUserDevices(email, devices);
+      debugPrint('✅ Device added/updated: ${device.deviceName}');
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error adding/updating device: $e');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
+// Remove a device
+  static Future<void> removeDevice(String email, String deviceId) async {
+    try {
+      List<ConnectedDevice> devices = await getUserDevices(email);
+      devices.removeWhere((device) => device.deviceId == deviceId);
+      await saveUserDevices(email, devices);
+      debugPrint('✅ Device removed: $deviceId');
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error removing device: $e');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
+// Update device status
+  static Future<void> updateDeviceStatus(
+      String email,
+      String deviceId,
+      DeviceStatus status
+      ) async {
+    try {
+      List<ConnectedDevice> devices = await getUserDevices(email);
+      final index = devices.indexWhere((d) => d.deviceId == deviceId);
+
+      if (index != -1) {
+        devices[index] = devices[index].copyWith(status: status);
+        await saveUserDevices(email, devices);
+        debugPrint('✅ Device status updated: $deviceId -> ${status.name}');
+      }
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error updating device status: $e');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
+// Set admin device
+  static Future<void> setAdminDevice(String email, String deviceId) async {
+    try {
+      List<ConnectedDevice> devices = await getUserDevices(email);
+
+      // Remove admin status from all devices
+      for (int i = 0; i < devices.length; i++) {
+        devices[i] = devices[i].copyWith(isAdminDevice: false);
+      }
+
+      // Set new admin device
+      final index = devices.indexWhere((d) => d.deviceId == deviceId);
+      if (index != -1) {
+        devices[index] = devices[index].copyWith(isAdminDevice: true);
+        await saveUserDevices(email, devices);
+        debugPrint('✅ Admin device set: $deviceId');
+      }
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error setting admin device: $e');
       debugPrintStack(stackTrace: stackTrace);
     }
   }
