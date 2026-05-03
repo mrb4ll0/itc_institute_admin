@@ -537,7 +537,7 @@ class _LoginScreenState extends State<LoginScreen> {
       timestamp: timestamp,
       read: false,
       targetAudience: email,
-      targetStudentId: '',
+      targetStudentId:'',
       fcmToken: fcmToken ?? "",
       type: NotificationType.securityAlerts.name,
     );
