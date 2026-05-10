@@ -1400,7 +1400,7 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
                       children: [
                         Expanded(
                           child: Text(
-                            widget.receiverId.startsWith("admin_")?"${widget.receiverName.split(" ").first} ITC Rep":widget.receiverName,
+                            widget.receiverName,
                             style: theme.textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.bold,
                             ),

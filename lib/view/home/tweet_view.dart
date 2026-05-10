@@ -1,988 +1,709 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:itc_institute_admin/model/userProfile.dart';
-import 'package:itc_institute_admin/view/company/companyDetailPage.dart';
-import 'package:itc_institute_admin/view/home/savedPost.dart';
-import 'package:itc_institute_admin/view/home/student/studentDetails.dart';
-import 'package:itc_institute_admin/view/home/tweet/expandable_text.dart';
-import 'package:itc_institute_admin/view/home/tweet/tweet_details_page.dart';
-import 'package:itc_institute_admin/view/home/tweet/user_selection_dialog.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../itc_logic/firebase/tweet/tweet_cloud.dart';
 import '../../auth/tweet_provider.dart';
 import '../../generalmethods/GeneralMethods.dart';
 import '../../itc_logic/idservice/globalIdService.dart';
+import '../../itc_logic/service/followService.dart';
 import '../../model/admin.dart';
 import '../../model/comments_model.dart';
 import '../../model/company.dart';
 import '../../model/student.dart';
 import '../../model/tweetModel.dart';
+import '../../model/userProfile.dart';
 import '../adminProfilePage.dart';
+import '../company/companyDetailPage.dart';
+import '../home/savedPost.dart';
+import '../home/student/studentDetails.dart';
+import '../home/tweet/expandable_text.dart';
+import '../home/tweet/tweet_details_page.dart';
+import '../home/tweet/user_selection_dialog.dart';
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TweetView  (the feed screen)
+// ─────────────────────────────────────────────────────────────────────────────
 
 class TweetView extends StatefulWidget {
   final Company company;
   const TweetView({Key? key, required this.company}) : super(key: key);
+
   @override
   _TweetViewState createState() => _TweetViewState();
 }
 
 class _TweetViewState extends State<TweetView> {
-  final TextEditingController _tweetController = TextEditingController();
-  final TweetService _tweetService = TweetService();
+  final TextEditingController _composeController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  bool _isComposing = false;
-  bool _isRefreshing = false;
+  final TweetService _tweetService = TweetService();
+
   bool _showScrollToTop = false;
-  final tweetService = TweetService();
+  bool _isRefreshing = false;
+
+  // Facebook blue that we use throughout
+  static const _fbBlue = Color(0xFF1877F2);
 
   @override
   void initState() {
     super.initState();
-
-    // Add listener for scroll controller to show/hide scroll-to-top button
-    _scrollController.addListener(() {
-      if (_scrollController.offset > 400 && !_showScrollToTop) {
-        setState(() => _showScrollToTop = true);
-      } else if (_scrollController.offset <= 400 && _showScrollToTop) {
-        setState(() => _showScrollToTop = false);
-      }
-    });
-
-    // Add listener for text controller (remove debug prints)
+    _scrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
-    _tweetController.dispose();
+    _composeController.dispose();
     super.dispose();
   }
 
-  Future<void> _refreshTweets() async {
+  void _onScroll() {
+    final show = _scrollController.offset > 500;
+    if (show != _showScrollToTop) setState(() => _showScrollToTop = show);
+  }
+
+  Future<void> _refresh() async {
+    if (_isRefreshing) return;
     setState(() => _isRefreshing = true);
-
     try {
-      final provider = Provider.of<TweetProvider>(context, listen: false);
-      await provider.refreshTweets();
-
-      // Show success feedback
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Feed updated'),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 1),
-        ),
-      );
+      await Provider.of<TweetProvider>(context, listen: false).refreshTweets();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error refreshing: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _snack('Failed to refresh: $e', isError: true);
     } finally {
-      setState(() => _isRefreshing = false);
+      if (mounted) setState(() => _isRefreshing = false);
     }
   }
 
   void _scrollToTop() {
     _scrollController.animateTo(
       0,
-      duration: const Duration(milliseconds: 500),
-      curve: Curves.easeInOut,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  void _snack(String msg, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: isError ? Colors.red : Colors.green,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        duration: const Duration(seconds: 2),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final colors = Theme.of(context).colorScheme;
-    _tweetController.addListener(() {
-      // print('Text field content: "${_tweetController.text}"');
-      // print('Trimmed content: "${_tweetController.text.trim()}"');
-      // print('Is empty: ${_tweetController.text.trim().isEmpty}');
-      TweetProvider provider = Provider.of<TweetProvider>(
-        context,
-        listen: false,
-      );
-      provider.tweetControllerTextChanged();
-    });
+    final bg = isDark ? const Color(0xFF18191A) : const Color(0xFFf0f2f5);
+
     return Scaffold(
-      backgroundColor: isDark ? Colors.black : const Color(0xFFf0f2f5),
-      appBar: _buildAppBar(isDark, colors),
-      floatingActionButton: _buildFloatingActionButtons(isDark),
-      body: Stack(
-        children: [
-          // Main Content with RefreshIndicator
-          RefreshIndicator(
-            onRefresh: _refreshTweets,
-            color: const Color(0xFF1DA1F2),
-            backgroundColor: isDark ? Colors.grey[900] : Colors.white,
-            displacement: 40,
-            strokeWidth: 3,
-            child: CustomScrollView(
-              controller: _scrollController,
-              physics: const AlwaysScrollableScrollPhysics(),
-              slivers: [
-                SliverToBoxAdapter(child: _buildWelcomeHeader(context, isDark)),
-                SliverToBoxAdapter(child: _buildQuickActionBar(isDark)),
-                SliverToBoxAdapter(child: _buildRefreshHeader(isDark)),
-                _buildTweetList(isDark),
-                const SliverToBoxAdapter(
-                  child: SizedBox(height: 80), // Extra padding at bottom
-                ),
-              ],
-            ),
-          ),
-
-          // Compose Modal Overlay
-          if (_isComposing)
-            Positioned.fill(child: _buildComposeModal(context, isDark, colors)),
-
-          // Scroll to top button
-          if (_showScrollToTop)
-            Positioned(
-              bottom: 100,
-              right: 20,
-              child: _buildScrollToTopButton(isDark),
-            ),
-        ],
+      backgroundColor: bg,
+      appBar: _buildAppBar(isDark),
+      body: RefreshIndicator(
+        onRefresh: _refresh,
+        color: _fbBlue,
+        backgroundColor: isDark ? const Color(0xFF242526) : Colors.white,
+        child: CustomScrollView(
+          controller: _scrollController,
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            // compose box (always visible at top)
+            SliverToBoxAdapter(child: _buildComposeBox(isDark)),
+            // feed
+            _buildFeed(isDark),
+            // bottom padding so FAB doesn't cover last card
+            const SliverToBoxAdapter(child: SizedBox(height: 88)),
+          ],
+        ),
+      ),
+      floatingActionButton: _showScrollToTop
+          ? FloatingActionButton.small(
+        onPressed: _scrollToTop,
+        backgroundColor: isDark ? const Color(0xFF3A3B3C) : Colors.white,
+        elevation: 4,
+        child: Icon(
+          Icons.arrow_upward_rounded,
+          color: isDark ? Colors.white : Colors.black87,
+          size: 20,
+        ),
+      )
+          : FloatingActionButton(
+        heroTag: GeneralMethods.getUniqueHeroTag(),
+        onPressed: () => _showComposeSheet(context, isDark),
+        backgroundColor: _fbBlue,
+        elevation: 4,
+        child: const Icon(Icons.edit_rounded, color: Colors.white),
       ),
     );
   }
 
-  AppBar _buildAppBar(bool isDark, ColorScheme colors) {
+  // ── App bar ──────────────────────────────────────────────────────────────
+
+  PreferredSizeWidget _buildAppBar(bool isDark) {
+    final surface = isDark ? const Color(0xFF242526) : Colors.white;
     return AppBar(
       elevation: 0,
-      backgroundColor: isDark ? Colors.black : Colors.white,
+      backgroundColor: surface,
       surfaceTintColor: Colors.transparent,
+      titleSpacing: 12,
       leading: Padding(
-        padding: const EdgeInsets.only(left: 16),
+        padding: const EdgeInsets.only(left: 12),
         child: CircleAvatar(
-          radius: 18,
-          backgroundImage: NetworkImage(widget.company.logoURL),
-          backgroundColor: Colors.grey[300],
+          radius: 17,
+          backgroundColor: Colors.grey.shade300,
+          backgroundImage: widget.company.logoURL.isNotEmpty
+              ? NetworkImage(widget.company.logoURL)
+              : null,
+          child: widget.company.logoURL.isEmpty
+              ? Text(widget.company.name[0],
+              style: const TextStyle(fontWeight: FontWeight.bold))
+              : null,
         ),
       ),
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'IT Connect Feed',
+            'IT Connect',
             style: TextStyle(
               color: isDark ? Colors.white : Colors.black,
-              fontWeight: FontWeight.bold,
-              fontSize: 20,
-              letterSpacing: -0.5,
+              fontWeight: FontWeight.w800,
+              fontSize: 19,
+              letterSpacing: -0.3,
             ),
           ),
           Text(
-            'Latest from the community',
+            'Community feed',
             style: TextStyle(
               color: isDark ? Colors.grey[400] : Colors.grey[600],
-              fontSize: 12,
+              fontSize: 11,
+              fontWeight: FontWeight.w400,
             ),
           ),
         ],
       ),
       actions: [
-        // Refresh button
-        IconButton(
-          icon: Icon(Icons.favorite, color: Colors.green, size: 24),
-          onPressed: () {
-            GeneralMethods.navigateTo(
-              context,
-              SavedPostsPage(
-                company: UserConverter(widget.company),
-                tweetService: tweetService,
-              ),
-            );
-          },
-        ),
-        IconButton(
-          icon: Icon(
-            Icons.search,
-            color: isDark ? Colors.grey[400] : Colors.grey[600],
-            size: 24,
+        // saved posts
+        _appBarIconBtn(
+          icon: Icons.bookmark_rounded,
+          color: Colors.green,
+          isDark: isDark,
+          onTap: () => GeneralMethods.navigateTo(
+            context,
+            SavedPostsPage(
+              company: UserConverter(widget.company),
+              tweetService: _tweetService,
+            ),
           ),
-          onPressed: () {},
         ),
-        const SizedBox(width: 8),
+        // search
+        _appBarIconBtn(
+          icon: Icons.search_rounded,
+          isDark: isDark,
+          onTap: () {},
+        ),
+        const SizedBox(width: 4),
       ],
     );
   }
 
-  Widget _buildFloatingActionButtons(bool isDark) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Scroll to top button
-        if (_showScrollToTop)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: FloatingActionButton.small(
-              onPressed: _scrollToTop,
-              backgroundColor: isDark ? Colors.grey[800] : Colors.white,
-              child: Icon(
-                Icons.arrow_upward,
-                color: isDark ? Colors.white : Colors.black,
-                size: 20,
-              ),
-            ),
-          ),
-
-        // Compose button
-        if (!_isComposing)
-          FloatingActionButton(
-            heroTag: GeneralMethods.getUniqueHeroTag(),
-            onPressed: () => setState(() => _isComposing = true),
-            backgroundColor: const Color(0xFF1DA1F2),
-            child: const Icon(Icons.edit, color: Colors.white),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildRefreshHeader(bool isDark) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isDark ? Colors.grey[900] : Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            'Latest Posts',
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-              color: isDark ? Colors.white : Colors.black,
-            ),
-          ),
-          GestureDetector(
-            onTap: _refreshTweets,
-            child: Row(
-              children: [
-                Icon(Icons.refresh, size: 16, color: const Color(0xFF1DA1F2)),
-                const SizedBox(width: 6),
-                Text(
-                  'Refresh',
-                  style: TextStyle(
-                    color: const Color(0xFF1DA1F2),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildScrollToTopButton(bool isDark) {
-    return FloatingActionButton.small(
-      onPressed: _scrollToTop,
-      backgroundColor: isDark ? Colors.grey[800] : Colors.white,
-      elevation: 4,
-      child: Icon(
-        Icons.arrow_upward,
-        color: isDark ? Colors.white : Colors.black,
-        size: 20,
-      ),
-    );
-  }
-
-  Widget _buildWelcomeHeader(BuildContext context, bool isDark) {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: isDark
-              ? [const Color(0xFF1a237e), const Color(0xFF283593)]
-              : [const Color(0xFF667eea), const Color(0xFF764ba2)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF667eea).withOpacity(0.3),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Welcome back, ${widget.company.name.split(' ').first}!',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Share your thoughts, ask questions, or discuss industry trends.',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 14,
-                    height: 1.4,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        '${Provider.of<TweetProvider>(context).tweets.length} posts',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Text(
-                        'Live updates',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.rocket_launch,
-              color: Colors.white,
-              size: 32,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuickActionBar(bool isDark) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1a1a1a) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildQuickAction(
-            icon: Icons.trending_up,
-            label: 'Trending',
-            isDark: isDark,
-            onTap: () {},
-          ),
-          _buildQuickAction(
-            icon: Icons.question_answer,
-            label: 'Questions',
-            isDark: isDark,
-            onTap: () {},
-          ),
-          _buildQuickAction(
-            icon: Icons.work,
-            label: 'IT',
-            isDark: isDark,
-            onTap: () {},
-          ),
-          _buildQuickAction(
-            icon: Icons.lightbulb,
-            label: 'Tips',
-            isDark: isDark,
-            onTap: () {},
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuickAction({
+  Widget _appBarIconBtn({
     required IconData icon,
-    required String label,
     required bool isDark,
+    Color? color,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
       onTap: onTap,
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: isDark ? Colors.grey[900] : Colors.grey[100],
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: const Color(0xFF667eea), size: 20),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-              color: isDark ? Colors.grey[400] : Colors.grey[600],
-            ),
-          ),
-        ],
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF3A3B3C) : const Color(0xFFE4E6EB),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon,
+            size: 19,
+            color: color ?? (isDark ? Colors.white : Colors.black87)),
       ),
     );
   }
 
-  // Keep your existing _buildComposeModal method (it's already good)
-  // Keep your existing _buildComposeAction method
-  // Keep your existing _buildTweetList method
-  // Keep your existing _buildTweetSkeleton method
+  // ── Inline compose box ───────────────────────────────────────────────────
+  // A lightweight tap-to-compose row — mirrors Facebook's "What's on your mind?"
 
-  Widget _buildComposeModal(
-    BuildContext context,
-    bool isDark,
-    ColorScheme colors,
-  ) {
-    return Stack(
-      children: [
-        // Backdrop
-        Positioned.fill(
-          child: Container(
-            color: Colors.black.withOpacity(0.5),
-            child: GestureDetector(
-              onTap: () {
-                setState(() {
-                  _isComposing = false;
-                  _tweetController.clear();
-                });
-              },
-              child: Container(color: Colors.transparent),
-            ),
-          ),
-        ),
+  Widget _buildComposeBox(bool isDark) {
+    final surface = isDark ? const Color(0xFF242526) : Colors.white;
+    final divider = isDark ? const Color(0xFF3A3B3C) : const Color(0xFFE4E6EB);
 
-        // Compose Modal
-        Positioned(
-          bottom: 0,
-          left: 0,
-          right: 0,
-          child: Container(
-            decoration: BoxDecoration(
-              color: isDark ? Colors.grey[900] : Colors.white,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(24),
-                topRight: Radius.circular(24),
+    return Container(
+      color: surface,
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 19,
+                backgroundColor: Colors.grey.shade300,
+                backgroundImage: widget.company.logoURL.isNotEmpty
+                    ? NetworkImage(widget.company.logoURL)
+                    : null,
+                child: widget.company.logoURL.isEmpty
+                    ? Text(widget.company.name[0],
+                    style: const TextStyle(fontWeight: FontWeight.bold))
+                    : null,
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
-                  blurRadius: 20,
-                  offset: const Offset(0, -5),
-                ),
-              ],
-            ),
-            child: SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Header
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Create Post',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w700,
-                            color: isDark ? Colors.white : Colors.black,
-                          ),
-                        ),
-                        IconButton(
-                          icon: Icon(
-                            Icons.close,
-                            color: isDark ? Colors.grey[400] : Colors.grey[600],
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              _isComposing = false;
-                              _tweetController.clear();
-                            });
-                          },
-                        ),
-                      ],
+              const SizedBox(width: 10),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => _showComposeSheet(context, isDark),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: divider),
+                      borderRadius: BorderRadius.circular(22),
                     ),
-
-                    // User Info
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 20,
-                            backgroundImage: NetworkImage(
-                              widget.company.logoURL,
-                            ),
-                            backgroundColor: Colors.grey[300],
-                          ),
-                          const SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                widget.company.name,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  color: isDark ? Colors.white : Colors.black,
-                                ),
-                              ),
-                              Text(
-                                '@${widget.company.email.split('@').first}',
-                                style: TextStyle(
-                                  color: isDark
-                                      ? Colors.grey[400]
-                                      : Colors.grey[600],
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Text Input
-                    TextField(
-                      controller: _tweetController,
-                      maxLines: 5,
-                      minLines: 3,
+                    child: Text(
+                      "What's happening in IT?",
                       style: TextStyle(
-                        color: isDark ? Colors.white : Colors.black,
-                        fontSize: 16,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: "What's happening in the IT world?",
-                        hintStyle: TextStyle(
-                          color: isDark ? Colors.grey[500] : Colors.grey[400],
-                        ),
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.zero,
+                        color: isDark ? Colors.grey[400] : Colors.grey[500],
+                        fontSize: 15,
                       ),
                     ),
-
-                    // Action Bar
-                    Padding(
-                      padding: const EdgeInsets.only(top: 20),
-                      child: Row(
-                        children: [
-                          _buildComposeAction(
-                            icon: Icons.image,
-                            label: 'Photo',
-                            isDark: isDark,
-                          ),
-                          _buildComposeAction(
-                            icon: Icons.gif,
-                            label: 'GIF',
-                            isDark: isDark,
-                          ),
-                          _buildComposeAction(
-                            icon: Icons.poll,
-                            label: 'Poll',
-                            isDark: isDark,
-                          ),
-                          const Spacer(),
-                          Consumer<TweetProvider>(
-                            builder: (context, provider, child) {
-                              final isButtonDisabled = _tweetController.text
-                                  .trim()
-                                  .isEmpty;
-
-                              return ElevatedButton(
-                                onPressed: () {
-                                  provider.postTweet(
-                                    _tweetController.text.trim(),
-                                    widget.company.name,
-                                  );
-                                  _tweetController.clear();
-                                  setState(() {
-                                    _isComposing = false;
-                                  });
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: const Text(
-                                        'Post published successfully',
-                                      ),
-                                      backgroundColor: Colors.green,
-                                      behavior: SnackBarBehavior.floating,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                    ),
-                                  );
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: isButtonDisabled
-                                      ? Colors.grey[400]
-                                      : const Color(0xFF1DA1F2),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 24,
-                                    vertical: 12,
-                                  ),
-                                ),
-                                child: Text(
-                                  'Post',
-                                  style: TextStyle(
-                                    color: isButtonDisabled
-                                        ? Colors.grey[600]
-                                        : Colors.white,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
-        ),
-      ],
-    );
-  }
-
-  // @override
-  // void initState() {
-  //   // TODO: implement initState
-  //   super.initState();
-  //   _tweetController.addListener(() {
-  //     print('Text field content: "${_tweetController.text}"');
-  //     print('Trimmed content: "${_tweetController.text.trim()}"');
-  //     print('Is empty: ${_tweetController.text.trim().isEmpty}');
-  //   });
-  // }
-
-  Widget _buildComposeAction({
-    required IconData icon,
-    required String label,
-    required bool isDark,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 16),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: isDark ? Colors.grey[800] : Colors.grey[100],
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, size: 20, color: const Color(0xFF1DA1F2)),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 10,
-              color: isDark ? Colors.grey[400] : Colors.grey[600],
-            ),
+          const SizedBox(height: 8),
+          Divider(height: 1, color: divider),
+          // quick action pills below the input
+          Row(
+            children: [
+              _composePill(
+                  Icons.image_rounded, 'Photo', Colors.green, isDark, () {}),
+              _composePill(Icons.videocam_rounded, 'Video', Colors.red, isDark,
+                      () {}),
+              _composePill(Icons.emoji_emotions_outlined, 'Feeling',
+                  Colors.amber, isDark, () {}),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildTweetList(bool isDark) {
-    return Consumer<TweetProvider>(
-      builder: (context, provider, child) {
-        if (provider.isLoading) {
-          return SliverFillRemaining(
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const CircularProgressIndicator(
-                    color: Color(0xFF1DA1F2),
-                    strokeWidth: 2,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Loading community posts...',
-                    style: TextStyle(
-                      color: isDark ? Colors.grey[400] : Colors.grey[600],
-                    ),
-                  ),
-                ],
+  Widget _composePill(
+      IconData icon, String label, Color iconColor, bool isDark, VoidCallback onTap) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 18, color: iconColor),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.grey[300] : Colors.grey[700],
+                ),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Feed list ────────────────────────────────────────────────────────────
+
+  Widget _buildFeed(bool isDark) {
+    return Consumer<TweetProvider>(
+      builder: (context, provider, _) {
+        if (provider.isLoading) {
+          return SliverList(
+            delegate: SliverChildBuilderDelegate(
+                  (_, i) => _TweetSkeleton(isDark: isDark),
+              childCount: 4,
             ),
           );
         }
 
         if (provider.tweets.isEmpty) {
-          return SliverFillRemaining(
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(32),
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.grey[900] : Colors.grey[100],
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.forum_outlined,
-                      size: 64,
-                      color: isDark ? Colors.grey[700] : Colors.grey[400],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'No posts yet',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
-                      color: isDark ? Colors.white : Colors.black,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Be the first to start a conversation!',
-                    style: TextStyle(
-                      color: isDark ? Colors.grey[400] : Colors.grey[600],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        _isComposing = true;
-                      });
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1DA1F2),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 32,
-                        vertical: 12,
-                      ),
-                    ),
-                    child: const Text(
-                      'Create First Post',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
+          return SliverFillRemaining(child: _buildEmptyState(isDark));
         }
 
         return SliverList(
-          delegate: SliverChildBuilderDelegate((context, index) {
-
-            if (index == provider.tweets.length) {
-              // If there are more tweets to load
-              if (provider.hasMore) {
-                // Trigger load more
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  provider.loadMoreTweets();
-                });
-
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 16.0),
-                  child: Center(
-                    child: provider.isLoadingMore
-                        ? CircularProgressIndicator(
-                      color: Color(0xFF1DA1F2),
-                    )
-                        : TextButton(
-                      onPressed: provider.loadMoreTweets,
-                      child: Text(
-                        'Load More',
-                        style: TextStyle(
-                          color: Color(0xFF1DA1F2),
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              } else {
-                // No more tweets to load
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 16.0),
-                  child: Center(
-                    child: Text(
-                      'No more posts',
-                      style: TextStyle(
-                        color: isDark ? Colors.grey[500] : Colors.grey[600],
-                      ),
-                    ),
-                  ),
-                );
+          delegate: SliverChildBuilderDelegate(
+                (context, index) {
+              // load-more row at the end
+              if (index == provider.tweets.length) {
+                return _buildLoadMoreRow(provider, isDark);
               }
-            }
-            final tweet = provider.tweets[index];
-            return FutureBuilder<Map<String, dynamic>>(
-              future: provider.fetchAllStudents([tweet]),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) {
-                  return _buildTweetSkeleton(isDark);
-                }
 
-                final studentMap = snapshot.data!;
-                final tweetPoster = studentMap[tweet.userId];
+              final tweet = provider.tweets[index];
 
-                if (tweetPoster == null) {
-                  return Container();
-                }
+              return FutureBuilder<Map<String, dynamic>>(
+                future: provider.fetchAllStudents([tweet]),
+                builder: (context, snap) {
+                  if (!snap.hasData) return _TweetSkeleton(isDark: isDark);
+                  final poster = snap.data![tweet.userId];
+                  if (poster == null) return const SizedBox.shrink();
 
-                return Container(
-                  margin: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1a1a1a) : Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
-                      width: 1,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(isDark ? 0.2 : 0.05),
-                        blurRadius: 10,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: ProfessionalTweetCard(
+                  return _FbTweetCard(
+                    key: ValueKey(tweet.id),
                     tweet: tweet,
-                    tweetPoster: tweetPoster,
-                    currentStudent: UserConverter(widget.company),
+                    tweetPoster: poster,
+                    currentUser: UserConverter(widget.company),
                     isDark: isDark,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => TweetDetailPage(
-                            tweetId: tweet.id,
-                            author: tweetPoster,
-                            currentUser: UserConverter(widget.company),
-                          ),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => TweetDetailPage(
+                          tweetId: tweet.id,
+                          author: poster,
+                          currentUser: UserConverter(widget.company),
                         ),
-                      );
-                    },
-                  ),
-                );
-              },
-            );
-          }, childCount: provider.tweets.length + 1,),
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+            childCount: provider.tweets.length + 1,
+          ),
         );
       },
     );
   }
 
-  Widget _buildTweetSkeleton(bool isDark) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1a1a1a) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-      ),
+  Widget _buildLoadMoreRow(TweetProvider provider, bool isDark) {
+    if (!provider.hasMore) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Center(
+          child: Text(
+            'You\'re all caught up',
+            style: TextStyle(
+              color: isDark ? Colors.grey[500] : Colors.grey[500],
+              fontSize: 13,
+            ),
+          ),
+        ),
+      );
+    }
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => provider.loadMoreTweets());
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 20),
+      child: Center(
+          child: CircularProgressIndicator(
+              color: Color(0xFF1877F2), strokeWidth: 2)),
+    );
+  }
+
+  Widget _buildEmptyState(bool isDark) {
+    return Center(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Row(
+          Container(
+            padding: const EdgeInsets.all(28),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF3A3B3C) : const Color(0xFFE4E6EB),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.forum_outlined,
+                size: 56,
+                color: isDark ? Colors.grey[500] : Colors.grey[500]),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Nothing here yet',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: isDark ? Colors.white : Colors.black,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Be the first to start a conversation.',
+            style: TextStyle(
+                color: isDark ? Colors.grey[400] : Colors.grey[600],
+                fontSize: 14),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: () => _showComposeSheet(context, isDark),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _fbBlue,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+              padding:
+              const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+            ),
+            child: const Text('Create a post',
+                style: TextStyle(fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Compose sheet ────────────────────────────────────────────────────────
+
+  void _showComposeSheet(BuildContext context, bool isDark) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ComposeSheet(
+        company: widget.company,
+        isDark: isDark,
+      ),
+    );
+  }
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _ComposeSheet  — the "create post" bottom sheet
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ComposeSheet extends StatefulWidget {
+  final Company company;
+  final bool isDark;
+  const _ComposeSheet({required this.company, required this.isDark});
+
+  @override
+  State<_ComposeSheet> createState() => _ComposeSheetState();
+}
+
+class _ComposeSheetState extends State<_ComposeSheet> {
+  final TextEditingController _ctrl = TextEditingController();
+  bool get _canPost => _ctrl.text.trim().isNotEmpty;
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final surface =
+    widget.isDark ? const Color(0xFF242526) : Colors.white;
+    final divider =
+    widget.isDark ? const Color(0xFF3A3B3C) : const Color(0xFFE4E6EB);
+
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 150),
+      padding: MediaQuery.of(context).viewInsets,
+      child: Container(
+        decoration: BoxDecoration(
+          color: surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: isDark ? Colors.grey[800] : Colors.grey[200],
+              // handle
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 10),
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: divider,
+                  borderRadius: BorderRadius.circular(4),
+                ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+
+              // header row
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 8, 0),
+                child: Row(
                   children: [
-                    Container(
-                      width: 120,
-                      height: 16,
-                      decoration: BoxDecoration(
-                        color: isDark ? Colors.grey[800] : Colors.grey[200],
-                        borderRadius: BorderRadius.circular(4),
+                    Text(
+                      'Create post',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: widget.isDark ? Colors.white : Colors.black,
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Container(
-                      width: 80,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: isDark ? Colors.grey[800] : Colors.grey[200],
-                        borderRadius: BorderRadius.circular(4),
+                    const Spacer(),
+                    IconButton(
+                      icon: Icon(Icons.close,
+                          color: widget.isDark
+                              ? Colors.grey[400]
+                              : Colors.grey[700]),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              ),
+
+              Divider(height: 1, color: divider),
+
+              // author row
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: Colors.grey.shade300,
+                      backgroundImage: widget.company.logoURL.isNotEmpty
+                          ? NetworkImage(widget.company.logoURL)
+                          : null,
+                      child: widget.company.logoURL.isEmpty
+                          ? Text(widget.company.name[0])
+                          : null,
+                    ),
+                    const SizedBox(width: 10),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.company.name,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                            color:
+                            widget.isDark ? Colors.white : Colors.black,
+                          ),
+                        ),
+                        Container(
+                          margin: const EdgeInsets.only(top: 3),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: widget.isDark
+                                ? const Color(0xFF3A3B3C)
+                                : const Color(0xFFE4E6EB),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.public,
+                                  size: 12,
+                                  color: widget.isDark
+                                      ? Colors.grey[300]
+                                      : Colors.grey[700]),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Public',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: widget.isDark
+                                      ? Colors.grey[300]
+                                      : Colors.grey[700],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // text input
+              Padding(
+                padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: TextField(
+                  controller: _ctrl,
+                  autofocus: true,
+                  maxLines: 6,
+                  minLines: 3,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: widget.isDark ? Colors.white : Colors.black,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: "What's on your mind, ${widget.company.name.split(' ').first}?",
+                    hintStyle: TextStyle(
+                      color: widget.isDark ? Colors.grey[500] : Colors.grey[400],
+                      fontSize: 16,
+                    ),
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+
+              // media action row
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                child: Row(
+                  children: [
+                    _mediaBtn(Icons.image_rounded, Colors.green, 'Photo'),
+                    _mediaBtn(Icons.videocam_rounded, Colors.red, 'Video'),
+                    _mediaBtn(Icons.tag, const Color(0xFF1877F2), 'Tag'),
+                    _mediaBtn(
+                        Icons.emoji_emotions_outlined, Colors.amber, 'Feeling'),
+                    const Spacer(),
+                    // post button
+                    Consumer<TweetProvider>(
+                      builder: (_, provider, __) => ElevatedButton(
+                        onPressed: _canPost
+                            ? () {
+                          provider.postTweet(
+                            _ctrl.text.trim(),
+                            widget.company.name,
+                          );
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Text('Post published'),
+                              backgroundColor: Colors.green,
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius:
+                                  BorderRadius.circular(10)),
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        }
+                            : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor:
+                          _canPost ? const Color(0xFF1877F2) : null,
+                          foregroundColor: Colors.white,
+                          disabledForegroundColor:
+                          Colors.grey.withOpacity(0.6),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 20, vertical: 10),
+                          elevation: 0,
+                        ),
+                        child: const Text('Post',
+                            style: TextStyle(fontWeight: FontWeight.w700)),
                       ),
                     ),
                   ],
@@ -990,530 +711,505 @@ class _TweetViewState extends State<TweetView> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: double.infinity,
-                height: 14,
-                decoration: BoxDecoration(
-                  color: isDark ? Colors.grey[800] : Colors.grey[200],
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                width: 200,
-                height: 14,
-                decoration: BoxDecoration(
-                  color: isDark ? Colors.grey[800] : Colors.grey[200],
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-            ],
-          ),
-        ],
+        ),
+      ),
+    );
+  }
+
+  Widget _mediaBtn(IconData icon, Color color, String label) {
+    return Tooltip(
+      message: label,
+      child: IconButton(
+        onPressed: () {},
+        icon: Icon(icon, color: color, size: 22),
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        constraints: const BoxConstraints(),
       ),
     );
   }
 }
 
-class ProfessionalTweetCard extends StatefulWidget {
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _FbTweetCard  (the individual post card — Facebook style)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _FbTweetCard extends StatefulWidget {
   final TweetModel tweet;
   final UserConverter tweetPoster;
-  final UserConverter currentStudent;
+  final UserConverter currentUser;
   final bool isDark;
   final VoidCallback onTap;
 
-  const ProfessionalTweetCard({
+  const _FbTweetCard({
     Key? key,
     required this.tweet,
     required this.tweetPoster,
-    required this.currentStudent,
+    required this.currentUser,
     required this.isDark,
     required this.onTap,
   }) : super(key: key);
 
   @override
-  State<ProfessionalTweetCard> createState() => _ProfessionalTweetCardState();
+  State<_FbTweetCard> createState() => _FbTweetCardState();
 }
 
-class _ProfessionalTweetCardState extends State<ProfessionalTweetCard> {
-  bool _showOptionsMenu = false;
+class _FbTweetCardState extends State<_FbTweetCard> {
+  static const _blue = Color(0xFF1877F2);
+
+  final FollowService _followService = FollowService();
+  final TweetService _tweetService = TweetService();
+  final TextEditingController _commentCtrl = TextEditingController();
+
+  bool _isFollowing = false;
+  bool _isCheckingFollow = true;
+  bool _isTogglingFollow = false;
   bool _isLiked = false;
-  bool _isShared = false;
-  final TextEditingController _commentController = TextEditingController();
-  final tweetService = TweetService();
 
   @override
   void initState() {
     super.initState();
     _isLiked = widget.tweet.isLiked;
-    _isShared = widget.tweet.isShared;
+    _checkFollow();
   }
 
   @override
-  Widget build(BuildContext context) {
-    final timeAgo = widget.tweet.timeAgo;
-    TweetProvider provider = Provider.of<TweetProvider>(context);
-    _commentController.addListener(() {
-      provider.tweetControllerTextChanged();
-    });
-    return InkWell(
-      onTap: widget.onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        color: widget.isDark ? Colors.grey[900] : Colors.white,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header with clickable name
-            _buildHeader(timeAgo),
+  void dispose() {
+    _commentCtrl.dispose();
+    super.dispose();
+  }
 
-            // Content
-            _buildContent(),
+  bool get _isOwnPost =>
+      widget.currentUser.uid == widget.tweetPoster.uid;
 
-            // Facebook-style stats (top)
-            _buildFacebookStats(),
+  // ── Follow logic (identical to StudentProfilePage) ──────────────────────
 
-            // Comment Preview - ADD THIS LINE
-            _buildCommentPreview(),
-            // Facebook-style action buttons (bottom)
-            _buildFacebookActions(),
+  Future<void> _checkFollow() async {
+    if (_isOwnPost) {
+      setState(() {
+        _isFollowing = false;
+        _isCheckingFollow = false;
+      });
+      return;
+    }
+    final following = await _followService.isFollowing(
+        widget.currentUser.uid, widget.tweetPoster.uid);
+    if (mounted) {
+      setState(() {
+        _isFollowing = following;
+        _isCheckingFollow = false;
+      });
+    }
+  }
 
-          ],
-        ),
+  Future<void> _toggleFollow() async {
+    if (_isTogglingFollow) return;
+    setState(() => _isTogglingFollow = true);
+
+    try {
+      if (_isFollowing) {
+        await _followService.unfollowUser(
+            widget.currentUser.uid, widget.tweetPoster.uid);
+        if (mounted) {
+          setState(() => _isFollowing = false);
+          _snack('Unfollowed ${widget.tweetPoster.displayName}',
+              color: Colors.grey);
+        }
+      } else {
+        await _followService.followUser(
+            widget.currentUser.uid, widget.tweetPoster.uid);
+        if (mounted) {
+          setState(() => _isFollowing = true);
+          _snack('Following ${widget.tweetPoster.displayName}', color: _blue);
+        }
+      }
+    } catch (e) {
+      if (mounted) _snack('Error: $e', color: Colors.red);
+    } finally {
+      if (mounted) setState(() => _isTogglingFollow = false);
+    }
+  }
+
+  void _snack(String msg, {Color color = Colors.green}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        duration: const Duration(seconds: 2),
       ),
     );
   }
 
-  Widget _buildCommentPreview() {
-    if (widget.tweet.comments.isEmpty) return const SizedBox.shrink();
+  // ── Build ────────────────────────────────────────────────────────────────
 
-    final lastComment = widget.tweet.comments.last;
-    final isDark = widget.isDark;
-    final commentCount = widget.tweet.comments.length;
+  @override
+  Widget build(BuildContext context) {
+    final surface =
+    widget.isDark ? const Color(0xFF242526) : Colors.white;
+    final divider =
+    widget.isDark ? const Color(0xFF3A3B3C) : const Color(0xFFE4E6EB);
 
-    return Column(
-      children: [
-        // Latest comment
-        GestureDetector(
-          onTap: () => _showCommentDialog(),
-          child: Container(
-            margin: const EdgeInsets.only(top: 4, left: 12, right: 12, bottom: 4),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: isDark ? Colors.grey[800]!.withOpacity(0.5) : Colors.grey[100],
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CircleAvatar(
-                  radius: 14,
-                  backgroundColor: isDark ? Colors.grey[700] : Colors.grey[300],
-                  child: Text(
-                    lastComment.user.isNotEmpty
-                        ? lastComment.user[0].toUpperCase()
-                        : '?',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isDark ? Colors.grey[400] : Colors.grey[600],
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        lastComment.user,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: isDark ? Colors.white : Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        lastComment.content,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: isDark ? Colors.grey[400] : Colors.grey[700],
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        // View all comments link (if more than 1 comment)
-        if (commentCount > 1)
-          GestureDetector(
-            onTap: () => widget.onTap(),
-            child: Padding(
-              padding: const EdgeInsets.only(left: 12, right: 12, bottom: 4),
-              child: Row(
-                children: [
-                  const SizedBox(width: 38), // Align with avatar
-                  Text(
-                    'View all $commentCount comments',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: const Color(0xFF1877F2),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-      ],
+    return Container(
+      color: surface,
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildHeader(divider),
+          _buildBody(),
+          if (widget.tweet.imageUrl?.isNotEmpty ?? false) _buildImage(),
+          _buildStats(divider),
+          Divider(height: 1, color: divider),
+          _buildActions(divider),
+          if (widget.tweet.comments.isNotEmpty) _buildLatestComment(divider),
+        ],
+      ),
     );
   }
 
-  Widget _buildHeader(String timeAgo) {
-    debugPrint("tweetPoster id ${widget.tweetPoster.uid}");
+  // ── Header row ───────────────────────────────────────────────────────────
+
+  Widget _buildHeader(Color divider) {
     return Padding(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(12, 12, 8, 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Clickable profile picture
+          // avatar
           GestureDetector(
             onTap: _navigateToProfile,
             child: CircleAvatar(
-              radius: 20,
-              backgroundImage: NetworkImage(widget.tweetPoster.imageUrl),
-              backgroundColor: Colors.grey[300],
+              radius: 21,
+              backgroundColor: Colors.grey.shade300,
+              backgroundImage: widget.tweetPoster.imageUrl.isNotEmpty
+                  ? NetworkImage(widget.tweetPoster.imageUrl)
+                  : null,
+              child: widget.tweetPoster.imageUrl.isEmpty
+                  ? Text(widget.tweetPoster.displayName[0],
+                  style: const TextStyle(fontWeight: FontWeight.bold))
+                  : null,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
+
+          // name + meta
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Clickable name
                 GestureDetector(
                   onTap: _navigateToProfile,
                   child: Text(
                     widget.tweetPoster.displayName,
                     style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
                       color: widget.isDark ? Colors.white : Colors.black,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Row(
                   children: [
+                    _roleBadge(),
+                    const SizedBox(width: 6),
+                    Icon(Icons.public,
+                        size: 12,
+                        color: widget.isDark
+                            ? Colors.grey[500]
+                            : Colors.grey[500]),
+                    const SizedBox(width: 3),
                     Text(
-                      timeAgo,
+                      widget.tweet.timeAgo,
                       style: TextStyle(
-                        color:
-                        widget.isDark ? Colors.grey[400] : Colors.grey[600],
                         fontSize: 12,
+                        color: widget.isDark
+                            ? Colors.grey[400]
+                            : Colors.grey[600],
                       ),
                     ),
                     if (widget.tweet.isPinnedStatus) ...[
-                      const SizedBox(width: 8),
-                      Icon(Icons.push_pin, size: 12, color: Colors.orange),
+                      const SizedBox(width: 6),
+                      const Icon(Icons.push_pin, size: 12, color: Colors.orange),
                     ],
                   ],
                 ),
               ],
             ),
           ),
-          // Facebook-style options dropdown
-          _buildFacebookOptionsDropdown(),
+
+          // follow pill (only for other users) + options
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (!_isOwnPost && !_isCheckingFollow)
+                GestureDetector(
+                  onTap: _isTogglingFollow ? null : _toggleFollow,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: _isFollowing
+                          ? (widget.isDark
+                          ? const Color(0xFF3A3B3C)
+                          : const Color(0xFFE4E6EB))
+                          : _blue,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: _isTogglingFollow
+                        ? SizedBox(
+                      width: 46,
+                      height: 16,
+                      child: Center(
+                        child: SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: _isFollowing
+                                ? (widget.isDark
+                                ? Colors.white70
+                                : Colors.grey[700])
+                                : Colors.white,
+                          ),
+                        ),
+                      ),
+                    )
+                        : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _isFollowing ? Icons.check : Icons.add,
+                          size: 13,
+                          color: _isFollowing
+                              ? (widget.isDark
+                              ? Colors.grey[300]
+                              : Colors.grey[700])
+                              : Colors.white,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _isFollowing ? 'Following' : 'Follow',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: _isFollowing
+                                ? (widget.isDark
+                                ? Colors.grey[300]
+                                : Colors.grey[700])
+                                : Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              if (!_isOwnPost && !_isCheckingFollow)
+                const SizedBox(width: 4),
+              _optionsMenu(),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildFacebookOptionsDropdown() {
-    return PopupMenuButton<String>(
-      icon: Icon(
-        Icons.more_horiz,
-        color: widget.isDark ? Colors.grey[500] : Colors.grey[600],
-        size: 20,
+  Widget _roleBadge() {
+    final isCompany = widget.tweetPoster.getAs<Company>() != null;
+    final isAdmin = widget.tweetPoster.getAs<Admin>() != null;
+    final isStudent = widget.tweetPoster.getAs<Student>() != null;
+
+    String label;
+    Color color;
+
+    if (isCompany) {
+      label = 'Company';
+      color = const Color(0xFF34A853);
+    } else if (isAdmin) {
+      label = 'Admin';
+      color = const Color(0xFFEA4335);
+    } else if (isStudent) {
+      label = 'Student';
+      color = const Color(0xFFFBBC05);
+    } else {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(4),
       ),
-      onSelected: (value) => _handleMenuSelection(value),
-      itemBuilder: (BuildContext context) => [
-        if (widget.currentStudent.uid == widget.tweet.userId)
-          PopupMenuItem<String>(
-            value: 'delete',
-            child: Row(
-              children: [
-                Icon(Icons.delete_outline, color: Colors.red, size: 20),
-                const SizedBox(width: 8),
-                const Text('Delete Post'),
-              ],
+      child: Text(label,
+          style: TextStyle(
+              fontSize: 10, fontWeight: FontWeight.w600, color: color)),
+    );
+  }
+
+  // ── Post body ─────────────────────────────────────────────────────────────
+
+  Widget _buildBody() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ExpandableText(text: widget.tweet.content, isDark: widget.isDark),
+          if (widget.tweet.hasHashtags) ...[
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              children: (widget.tweet.hashtags ?? []).map((tag) {
+                return GestureDetector(
+                  onTap: () {},
+                  child: Text('#$tag',
+                      style: const TextStyle(
+                          color: _blue,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500)),
+                );
+              }).toList(),
             ),
-          ),
-        // if (widget.currentStudent.uid == widget.tweet.userId)
-        //   PopupMenuItem<String>(
-        //     value: 'edit',
-        //     child: Row(
-        //       children: [
-        //         Icon(Icons.edit, color: Colors.grey[600], size: 20),
-        //         const SizedBox(width: 8),
-        //         const Text('Edit Post'),
-        //       ],
-        //     ),
-        //   ),
-        PopupMenuItem<String>(
-          value: 'save',
-          child: Row(
-            children: [
-              Icon(Icons.bookmark_border, color: Colors.grey[600], size: 20),
-              const SizedBox(width: 8),
-              const Text('Save Post'),
-            ],
-          ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImage() {
+    return GestureDetector(
+      onTap: widget.onTap,
+      child: Image.network(
+        widget.tweet.imageUrl!,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+      ),
+    );
+  }
+
+  // ── Stats row (likes • comments • shares) ────────────────────────────────
+
+  Widget _buildStats(Color divider) {
+    final likeCount = widget.tweet.likes.length;
+    final commentCount = widget.tweet.commentCount;
+    final shareCount = widget.tweet.shareCount;
+
+    if (likeCount == 0 && commentCount == 0 && shareCount == 0) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+      child: Row(
+        children: [
+          if (likeCount > 0) ...[
+            Container(
+              width: 18,
+              height: 18,
+              decoration: const BoxDecoration(
+                  color: _blue, shape: BoxShape.circle),
+              child: const Icon(Icons.thumb_up, size: 10, color: Colors.white),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              _fmt(likeCount),
+              style: TextStyle(
+                  fontSize: 13,
+                  color: widget.isDark ? Colors.grey[400] : Colors.grey[600]),
+            ),
+          ],
+          const Spacer(),
+          if (commentCount > 0)
+            GestureDetector(
+              onTap: widget.onTap,
+              child: Text(
+                '${_fmt(commentCount)} comments',
+                style: TextStyle(
+                    fontSize: 13,
+                    color: widget.isDark ? Colors.grey[400] : Colors.grey[600]),
+              ),
+            ),
+          if (commentCount > 0 && shareCount > 0)
+            Text(' · ',
+                style: TextStyle(
+                    color: widget.isDark
+                        ? Colors.grey[600]
+                        : Colors.grey[400])),
+          if (shareCount > 0)
+            Text(
+              '${_fmt(shareCount)} shares',
+              style: TextStyle(
+                  fontSize: 13,
+                  color: widget.isDark ? Colors.grey[400] : Colors.grey[600]),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ── Action buttons row ───────────────────────────────────────────────────
+
+  Widget _buildActions(Color divider) {
+    final liked = widget.tweet.likes.contains(GlobalIdService.firestoreId);
+
+    return Row(
+      children: [
+        _actionBtn(
+          icon: liked ? Icons.thumb_up : Icons.thumb_up_outlined,
+          label: 'Like',
+          active: liked,
+          activeColor: _blue,
+          onTap: _toggleLike,
         ),
-        // PopupMenuItem<String>(
-        //   value: 'copy',
-        //   child: Row(
-        //     children: [
-        //       Icon(Icons.link, color: Colors.grey[600], size: 20),
-        //       const SizedBox(width: 8),
-        //       const Text('Copy Link'),
-        //     ],
-        //   ),
-        // ),
-        PopupMenuItem<String>(
-          value: 'report',
-          child: Row(
-            children: [
-              Icon(Icons.flag_outlined, color: Colors.red, size: 20),
-              const SizedBox(width: 8),
-              const Text('Report Post'),
-            ],
-          ),
+        _actionBtn(
+          icon: Icons.mode_comment_outlined,
+          label: 'Comment',
+          active: false,
+          onTap: () => _showCommentSheet(),
+        ),
+        _actionBtn(
+          icon: Icons.share_outlined,
+          label: 'Share',
+          active: false,
+          onTap: () => _share(),
         ),
       ],
     );
   }
 
-  Widget _buildContent() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ExpandableText(
-              text: widget.tweet.content,
-              isDark:  widget.isDark
-          ),
-
-          // Show hashtags if available
-          if (widget.tweet.hasHashtags)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Wrap(
-                spacing: 8,
-                children: widget.tweet.hashtags!.map((hashtag) {
-                  return GestureDetector(
-                    onTap: () => _searchHashtag(hashtag),
-                    child: Text(
-                      '#$hashtag',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: const Color(0xFF1877F2), // Facebook blue
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-
-          // Show image if available
-          if (widget.tweet.imageUrl != null &&
-              widget.tweet.imageUrl!.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  widget.tweet.imageUrl!,
-                  width: double.infinity,
-                  height: 300,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    width: double.infinity,
-                    height: 300,
-                    color: widget.isDark ? Colors.grey[800] : Colors.grey[200],
-                    child: Center(
-                      child: Icon(
-                        Icons.broken_image,
-                        color: Colors.grey[500],
-                        size: 40,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFacebookStats() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // Likes count
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(2),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1877F2), // Facebook blue
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.thumb_up,
-                  size: 12,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                _formatCount(widget.tweet.likes.length),
-                style: TextStyle(
-                  fontSize: 13,
-                  color: widget.isDark ? Colors.grey[400] : Colors.grey[600],
-                ),
-              ),
-            ],
-          ),
-
-          // Comments and Shares
-          Row(
-            children: [
-              Text(
-                '${_formatCount(widget.tweet.commentCount)} comments',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: widget.isDark ? Colors.grey[400] : Colors.grey[600],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                '${_formatCount(widget.tweet.shareCount)} shares',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: widget.isDark ? Colors.grey[400] : Colors.grey[600],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFacebookActions() {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      decoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(
-            color: widget.isDark ? Colors.grey[800]! : Colors.grey[300]!,
-            width: 1,
-          ),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          // Like Button
-          _buildFacebookActionButton(
-            icon: widget.tweet.likes.contains(
-              GlobalIdService.firestoreId,
-            )
-                ? Icons.thumb_up
-                : Icons.thumb_up_outlined,
-            label: 'Like',
-            isActive: _isLiked,
-            color: widget.tweet.likes.contains(
-              GlobalIdService.firestoreId,
-            )
-                ? const Color(0xFF1877F2)
-                : null,
-            onTap: () => _toggleLike(),
-          ),
-
-          // Comment Button
-          _buildFacebookActionButton(
-            icon: Icons.mode_comment_outlined,
-            label: 'Comment',
-            isActive: false,
-            onTap: () => _showCommentDialog(),
-          ),
-
-          // Share Button
-          _buildFacebookActionButton(
-            icon: Icons.share_outlined,
-            label: 'Share',
-            isActive: false,
-            onTap: () =>
-                _shareTweet(widget.tweet.content, context, widget.tweet.id),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFacebookActionButton({
+  Widget _actionBtn({
     required IconData icon,
     required String label,
-    required bool isActive,
-    Color? color,
+    required bool active,
+    Color? activeColor,
     required VoidCallback onTap,
   }) {
+    final color = active
+        ? (activeColor ?? _blue)
+        : (widget.isDark ? Colors.grey[400]! : Colors.grey[600]!);
+
     return Expanded(
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(4),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 9),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  icon,
-                  size: 20,
-                  color: color ??
-                      (widget.isDark ? Colors.grey[400] : Colors.grey[600]),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: color ??
-                        (widget.isDark ? Colors.grey[400] : Colors.grey[600]),
-                  ),
-                ),
+                Icon(icon, size: 19, color: color),
+                const SizedBox(width: 6),
+                Text(label,
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: color)),
               ],
             ),
           ),
@@ -1522,403 +1218,444 @@ class _ProfessionalTweetCardState extends State<ProfessionalTweetCard> {
     );
   }
 
-  // Action Methods
-  void _navigateToProfile() {
-    bool isCompany = widget.tweetPoster.getAs<Company>() != null;
-    bool isStudent = widget.tweetPoster.getAs<Student>() != null;
-    bool isAdmin = widget.tweetPoster.getAs<Admin>() !=null;
-    if (isCompany && !isStudent) {
-      GeneralMethods.navigateTo(
-        context,
-        CompanyDetailPage(
-            user: widget.currentStudent,
-            company: widget.tweetPoster.getAs<Company>()!),
-      );
-    } else if (isStudent && !isCompany) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => StudentProfilePage(
-            student: widget.tweetPoster.getAs<Student>()!,
-          ),
-        ),
-      );
-    }else if (!isStudent && !isCompany && isAdmin) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => AdminProfilePage(
-            admin: widget.tweetPoster.getAs<Admin>()!,
-            currentStudent: widget.currentStudent,
-          ),
-        ),
-      );
-    }
-  }
+  // ── Latest comment preview ───────────────────────────────────────────────
 
-  void _handleMenuSelection(String value) {
-    switch (value) {
-      case 'delete':
-        _deleteTweet();
-        break;
-      case 'edit':
-        _editTweet();
-        break;
-      case 'save':
-        _bookmarkTweet();
-        break;
-      case 'copy':
-        _copyTweetLink();
-        break;
-      case 'report':
-        _reportTweet();
-        break;
-    }
-  }
+  Widget _buildLatestComment(Color divider) {
+    final last = widget.tweet.comments.last;
+    final count = widget.tweet.comments.length;
 
-  void _toggleLike() async {
-    try {
-      final provider = Provider.of<TweetProvider>(context, listen: false);
-      bool isLike = widget.tweet.likes.contains(widget.currentStudent.uid);
-      await provider.toggleLike(
-        widget.tweet.id,
-        widget.currentStudent.uid,
-        isLike,
-      );
-
-      setState(() {
-        _isLiked = !_isLiked;
-      });
-    } catch (e, s) {
-      debugPrint("Error toggling like: $e");
-      debugPrintStack(stackTrace: s);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-      );
-    }
-  }
-
-  void _showCommentDialog() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: widget.isDark ? Colors.grey[900] : Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return Consumer<TweetProvider>(
-          builder: (context, provider, child) {
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom,
-              ),
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Header
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 6, 12, 2),
+          child: GestureDetector(
+            onTap: widget.onTap,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  radius: 14,
+                  backgroundColor: widget.isDark
+                      ? const Color(0xFF3A3B3C)
+                      : const Color(0xFFE4E6EB),
+                  child: Text(
+                    last.user.isNotEmpty ? last.user[0].toUpperCase() : '?',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: widget.isDark ? Colors.grey[300] : Colors.grey[700],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: widget.isDark
+                          ? const Color(0xFF3A3B3C)
+                          : const Color(0xFFf0f2f5),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Write a comment',
+                          last.user,
                           style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
                             color: widget.isDark ? Colors.white : Colors.black,
                           ),
                         ),
-                        IconButton(
-                          icon: Icon(
-                            Icons.close,
+                        const SizedBox(height: 2),
+                        Text(
+                          last.content,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
                             color: widget.isDark
-                                ? Colors.grey[400]
-                                : Colors.grey[600],
+                                ? Colors.grey[300]
+                                : Colors.grey[800],
                           ),
-                          onPressed: () => Navigator.pop(context),
                         ),
                       ],
                     ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (count > 1)
+          Padding(
+            padding: const EdgeInsets.only(left: 50, bottom: 8),
+            child: GestureDetector(
+              onTap: widget.onTap,
+              child: Text(
+                'View all $count comments',
+                style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: _blue),
+              ),
+            ),
+          )
+        else
+          const SizedBox(height: 8),
+      ],
+    );
+  }
 
-                    const SizedBox(height: 16),
+  // ── Options popup ────────────────────────────────────────────────────────
 
-                    // Current user info
-                    Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 20,
-                          backgroundImage: NetworkImage(
-                            widget.currentStudent.imageUrl,
-                          ),
-                          backgroundColor: Colors.grey[300],
-                        ),
-                        const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              widget.currentStudent.displayName,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                color:
-                                widget.isDark ? Colors.white : Colors.black,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+  Widget _optionsMenu() {
+    return PopupMenuButton<String>(
+      icon: Icon(
+        Icons.more_horiz,
+        size: 20,
+        color: widget.isDark ? Colors.grey[400] : Colors.grey[600],
+      ),
+      shape:
+      RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      onSelected: _handleOption,
+      itemBuilder: (_) => [
+        if (_isOwnPost)
+          _menuItem('delete', Icons.delete_outline, 'Delete post', Colors.red),
+        _menuItem('save', Icons.bookmark_border_rounded, 'Save post',
+            widget.isDark ? Colors.grey[300]! : Colors.grey[700]!),
+        _menuItem('report', Icons.flag_outlined, 'Report post', Colors.red),
+      ],
+    );
+  }
 
-                    const SizedBox(height: 16),
+  PopupMenuItem<String> _menuItem(
+      String value, IconData icon, String label, Color color) {
+    return PopupMenuItem(
+      value: value,
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 10),
+          Text(label, style: TextStyle(color: color)),
+        ],
+      ),
+    );
+  }
 
-                    // Comment input
-                    TextField(
-                      controller: _commentController,
-                      maxLines: 4,
-                      minLines: 3,
+  void _handleOption(String value) {
+    switch (value) {
+      case 'delete':
+        _deletePost();
+        break;
+      case 'save':
+        _savePost();
+        break;
+      case 'report':
+        _reportPost();
+        break;
+    }
+  }
+
+  // ── Actions ──────────────────────────────────────────────────────────────
+
+  void _toggleLike() {
+    try {
+      final provider = Provider.of<TweetProvider>(context, listen: false);
+      final liked =
+      widget.tweet.likes.contains(widget.currentUser.uid);
+      provider.toggleLike(widget.tweet.id, widget.currentUser.uid, liked);
+      setState(() => _isLiked = !liked);
+    } catch (e) {
+      _snack('Error: $e', color: Colors.red);
+    }
+  }
+
+  void _showCommentSheet() {
+    final isDark = widget.isDark;
+    final surface = isDark ? const Color(0xFF242526) : Colors.white;
+    final divider = isDark ? const Color(0xFF3A3B3C) : const Color(0xFFE4E6EB);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: surface,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (_) => Padding(
+        padding: MediaQuery.of(context).viewInsets,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text('Comment',
                       style: TextStyle(
-                        color: widget.isDark ? Colors.white : Colors.black,
-                        fontSize: 16,
-                      ),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? Colors.white : Colors.black)),
+                  const Spacer(),
+                  IconButton(
+                      icon: Icon(Icons.close,
+                          color: isDark ? Colors.grey[400] : Colors.grey[600]),
+                      onPressed: () => Navigator.pop(context)),
+                ],
+              ),
+              Divider(height: 1, color: divider),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 18,
+                    backgroundColor: Colors.grey.shade300,
+                    backgroundImage: widget.currentUser.imageUrl.isNotEmpty
+                        ? NetworkImage(widget.currentUser.imageUrl)
+                        : null,
+                    child: widget.currentUser.imageUrl.isEmpty
+                        ? Text(widget.currentUser.displayName[0])
+                        : null,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextField(
+                      controller: _commentCtrl,
+                      autofocus: true,
+                      maxLines: 4,
+                      minLines: 1,
+                      style: TextStyle(
+                          color: isDark ? Colors.white : Colors.black,
+                          fontSize: 15),
                       decoration: InputDecoration(
                         hintText: 'Write a comment...',
                         hintStyle: TextStyle(
-                          color: widget.isDark
-                              ? Colors.grey[500]
-                              : Colors.grey[400],
+                            color:
+                            isDark ? Colors.grey[500] : Colors.grey[400]),
+                        filled: true,
+                        fillColor: isDark
+                            ? const Color(0xFF3A3B3C)
+                            : const Color(0xFFf0f2f5),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          borderSide: BorderSide.none,
                         ),
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.zero,
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
                       ),
                     ),
-
-                    const SizedBox(height: 20),
-
-                    // Post button
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        ElevatedButton(
-                          onPressed: _commentController.text.trim().isEmpty
-                              ? null
-                              : () {
-                            _postComment();
-                            Navigator.pop(context);
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(
-                              0xFF1877F2,
-                            ), // Facebook blue
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 12,
-                            ),
-                          ),
-                          child: const Text(
-                            'Post',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 8),
+                  StatefulBuilder(builder: (ctx, setBtn) {
+                    return IconButton(
+                      onPressed: () {
+                        if (_commentCtrl.text.trim().isEmpty) return;
+                        _postComment();
+                        Navigator.pop(context);
+                      },
+                      icon: const Icon(Icons.send_rounded, color: _blue),
+                    );
+                  }),
+                ],
               ),
-            );
-          },
-        );
-      },
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
   void _postComment() {
-    if (_commentController.text.trim().isEmpty) return;
-    Comment comment = Comment(
-      tweetId: widget.tweet.id,
-      userId: widget.currentStudent.uid,
-      user: widget.currentStudent.displayName,
-      content: _commentController.text.trim(),
-      timestamp: DateTime.now(),
-    );
+    if (_commentCtrl.text.trim().isEmpty) return;
     Provider.of<TweetProvider>(context, listen: false).postCommentToTweet(
       widget.tweet.id,
-      _commentController.text.trim(),
-      widget.currentStudent,
+      _commentCtrl.text.trim(),
+      widget.currentUser,
     );
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Comment posted'),
-        backgroundColor: Colors.green,
+    _commentCtrl.clear();
+    _snack('Comment posted');
+  }
+
+  void _share() {
+    showDialog(
+      context: context,
+      builder: (_) => UserSelectionDialog(
+        tweetContent:
+        GeneralMethods.formatTweetShare(widget.tweet.content, widget.tweet.id),
+        tweetId: widget.tweet.id,
       ),
     );
-    _commentController.clear();
   }
 
-  Future<void> _shareTweet(
-      String content,
-      BuildContext context,
-      String tweetId,
-      ) async {
-    try {
-      TweetProvider provider =
-      Provider.of<TweetProvider>(context, listen: false);
-      await showDialog(
-        context: context,
-        builder: (context) => UserSelectionDialog(
-
-            tweetContent: GeneralMethods.formatTweetShare(content, tweetId),
-            tweetId: tweetId),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to share: $e'),
-          backgroundColor: Theme.of(context).colorScheme.error,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
-    }
-  }
-
-
-
-  void _bookmarkTweet() async {
-    //save implementations
-    bool isTweetSaved = await tweetService.isTweetSavedByUser(
-      GlobalIdService.firestoreId,
-      widget.tweet.id,
-    );
-    if (isTweetSaved) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            "Feed is Saved Kindly click the Green Favorite Icon at the top to View it",
-          ),
-        ),
-      );
+  void _savePost() async {
+    final saved = await _tweetService.isTweetSavedByUser(
+        GlobalIdService.firestoreId, widget.tweet.id);
+    if (saved) {
+      _snack('Already saved — tap the bookmark icon to view', color: Colors.orange);
       return;
     }
-    debugPrint("userid ${GlobalIdService.firestoreId}");
-    debugPrint("tweetId ${widget.tweet.id}");
-    await tweetService.saveTweet(
-      userId: GlobalIdService.firestoreId,
-      tweetId: widget.tweet.id,
-    );
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Post saved'),
-        backgroundColor: Colors.green,
-      ),
-    );
+    await _tweetService.saveTweet(
+        userId: GlobalIdService.firestoreId, tweetId: widget.tweet.id);
+    _snack('Post saved');
   }
 
-  void _copyTweetLink() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Link copied to clipboard'),
-        backgroundColor: Colors.green,
-      ),
-    );
-  }
-
-  void _reportTweet() {
+  void _reportPost() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Report Post'),
-        content: const Text('Are you sure you want to report this post?'),
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: const Text('Report post'),
+        content:
+        const Text('Are you sure you want to report this post?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Post reported'),
-                  backgroundColor: Colors.green,
-                ),
-              );
+              _snack('Post reported');
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Report', style: TextStyle(color: Colors.white)),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8))),
+            child: const Text('Report'),
           ),
         ],
       ),
     );
   }
 
-  void _editTweet() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Edit feature coming soon'),
-        backgroundColor: Colors.blue,
-      ),
-    );
-  }
-
-  void _deleteTweet() {
+  void _deletePost() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Post'),
-        content: const Text('This action cannot be undone.'),
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: const Text('Delete post'),
+        content: const Text('This cannot be undone.'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              Provider.of<TweetProvider>(
-                context,
-                listen: false,
-              ).deleteTweet(widget.tweet.id, context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Post deleted'),
-                  backgroundColor: Colors.green,
-                ),
-              );
+              Provider.of<TweetProvider>(context, listen: false)
+                  .deleteTweet(widget.tweet.id, context);
+              _snack('Post deleted');
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8))),
+            child: const Text('Delete'),
           ),
         ],
       ),
     );
   }
 
-  void _searchHashtag(String hashtag) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Searching for #$hashtag...'),
-        backgroundColor: const Color(0xFF1877F2),
-      ),
-    );
-  }
+  void _navigateToProfile() {
+    final isCompany = widget.tweetPoster.getAs<Company>() != null;
+    final isStudent = widget.tweetPoster.getAs<Student>() != null;
+    final isAdmin = widget.tweetPoster.getAs<Admin>() != null;
 
-  String _formatCount(int count) {
-    if (count >= 1000000) {
-      return '${(count / 1000000).toStringAsFixed(1)}M';
-    } else if (count >= 1000) {
-      return '${(count / 1000).toStringAsFixed(1)}K';
+    if (isCompany && !isStudent) {
+      GeneralMethods.navigateTo(
+          context,
+          CompanyDetailPage(
+              company: widget.tweetPoster.getAs<Company>()!,
+              user: widget.currentUser));
+    } else if (isStudent) {
+      Navigator.push(
+          context,
+          MaterialPageRoute(
+              builder: (_) => StudentProfilePage(
+                  student: widget.tweetPoster.getAs<Student>()!)));
+    } else if (isAdmin) {
+      Navigator.push(
+          context,
+          MaterialPageRoute(
+              builder: (_) => AdminProfilePage(
+                  admin: widget.tweetPoster.getAs<Admin>()!,
+                  currentStudent: widget.currentUser)));
     }
-    return count.toString();
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
+
+  String _fmt(int n) {
+    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
+    return '$n';
   }
 }
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _TweetSkeleton  — shown while a post's author is being fetched
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _TweetSkeleton extends StatelessWidget {
+  final bool isDark;
+  const _TweetSkeleton({required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    final surface = isDark ? const Color(0xFF242526) : Colors.white;
+    final shimmer = isDark ? const Color(0xFF3A3B3C) : const Color(0xFFE4E6EB);
+
+    return Container(
+      color: surface,
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            _box(42, 42, shimmer, radius: 21),
+            const SizedBox(width: 10),
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              _box(120, 13, shimmer),
+              const SizedBox(height: 6),
+              _box(80, 11, shimmer),
+            ]),
+          ]),
+          const SizedBox(height: 14),
+          _box(double.infinity, 13, shimmer),
+          const SizedBox(height: 7),
+          _box(220, 13, shimmer),
+          const SizedBox(height: 7),
+          _box(160, 13, shimmer),
+        ],
+      ),
+    );
+  }
+
+  Widget _box(double w, double h, Color color, {double radius = 6}) =>
+      Container(
+        width: w,
+        height: h,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(radius),
+        ),
+      );
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Public alias so the rest of the app can still import ProfessionalTweetCard
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Alias kept for backward compatibility with CompanyDetailPage and
+/// StudentProfilePage which import ProfessionalTweetCard directly.
+typedef ProfessionalTweetCard = _FbTweetCard;

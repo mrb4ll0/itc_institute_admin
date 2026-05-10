@@ -213,18 +213,20 @@ class _NotificationDropdownWidgetState extends State<NotificationDropdownWidget>
                             ],
                           ),
                         ),
-                      ListView.separated(
-                        shrinkWrap: true,
-                        padding: EdgeInsets.zero,
-                        itemCount: displayNotifications.length,
-                        separatorBuilder: (context, index) => Divider(
-                          height: 0.5,
-                          color: colorScheme.outline.withOpacity(0.1),
+                      Expanded(
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          padding: EdgeInsets.zero,
+                          itemCount: displayNotifications.length,
+                          separatorBuilder: (context, index) => Divider(
+                            height: 0.5,
+                            color: colorScheme.outline.withOpacity(0.1),
+                          ),
+                          itemBuilder: (context, index) {
+                            final notification = displayNotifications[index];
+                            return _buildNotificationItem(notification);
+                          },
                         ),
-                        itemBuilder: (context, index) {
-                          final notification = displayNotifications[index];
-                          return _buildNotificationItem(notification);
-                        },
                       ),
                     ],
                   );

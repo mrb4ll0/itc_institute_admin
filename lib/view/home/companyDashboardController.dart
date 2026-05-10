@@ -214,7 +214,12 @@ class _CompanyDashboardControllerState
             ],
           ),
         ),
-        actions: [NotificationDropdownButton(companyId: GlobalIdService.firestoreId)],
+        actions: [Padding(
+          padding: const EdgeInsets.only(right: 30.0), // Adjust spacing
+          child: NotificationDropdownButton(
+            companyId: GlobalIdService.firestoreId,
+          ),
+        ),],
         elevation: 0,
         backgroundColor: theme.appBarTheme.backgroundColor,
         foregroundColor: theme.appBarTheme.foregroundColor,
