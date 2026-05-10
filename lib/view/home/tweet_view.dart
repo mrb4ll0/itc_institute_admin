@@ -1204,7 +1204,7 @@ class _ProfessionalTweetCardState extends State<ProfessionalTweetCard> {
                 GestureDetector(
                   onTap: _navigateToProfile,
                   child: Text(
-                    widget.tweetPoster.uid.startsWith('admin_')?'${widget.tweetPoster.displayName.split(' ').first} ITC Rep' : widget.tweetPoster.displayName,
+                    widget.tweetPoster.displayName,
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 15,

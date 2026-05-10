@@ -26,6 +26,7 @@ import 'package:itc_institute_admin/view/home/themePage.dart';
 import 'package:itc_institute_admin/view/home/tweet_view.dart';
 import 'package:itc_institute_admin/view/studentList.dart';
 import 'package:provider/provider.dart';
+import '../../agreement/AgreementPage.dart';
 import '../../itc_logic/firebase/AuthorityRulesHelper.dart';
 import '../../itc_logic/firebase/StudentAcceptanceRepository.dart';
 import '../../itc_logic/firebase/authority_cloud.dart';
@@ -361,6 +362,14 @@ class _CompanyDashboardControllerState
             onTap: () {
               debugPrint("help and support ");
               GeneralMethods.navigateTo(context, CompanyHelpPage());
+            },
+          ),_buildDrawerItem(
+            icon: Icons.edit_note_outlined,
+            text: 'Partnership Agreement',
+            onTap: () {
+              GeneralMethods.navigateTo(context, CompanyAgreementDetails(
+                company: widget.tweetCompany,
+              ));
             },
           ),
           _buildDrawerItem(icon: Icons.nightlight, text: 'Theme', onTap: () {

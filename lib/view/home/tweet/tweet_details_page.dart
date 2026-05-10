@@ -657,9 +657,7 @@ class _TweetDetailBody extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      student.uid.startsWith('admin_')
-                          ? '${student.displayName.split(' ').first} ITC Rep'
-                          : student.displayName,
+                     student.displayName,
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 15,

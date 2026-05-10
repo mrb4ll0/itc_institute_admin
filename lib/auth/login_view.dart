@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:itc_institute_admin/agreement/agreementService.dart';
+import 'package:itc_institute_admin/agreement/onboardingAgreementPage.dart';
 import 'package:itc_institute_admin/extensions/extensions.dart';
 import 'package:itc_institute_admin/itc_logic/service/securitySettingsService.dart';
 import 'package:itc_institute_admin/view/security/securitySettingsPage.dart';
@@ -299,7 +301,8 @@ class _LoginScreenState extends State<LoginScreen> {
     );
 
     // Check if device is new (first login time is within last 10 seconds)
-    final isRecentlyCreated = DateTime.now().difference(currentDevice.firstLoginAt).inSeconds < 10;
+    final isRecentlyCreated =
+        DateTime.now().difference(currentDevice.firstLoginAt).inSeconds < 10;
 
     if (isRecentlyCreated) {
       isNewDevice = true;
@@ -360,7 +363,8 @@ class _LoginScreenState extends State<LoginScreen> {
     // 2. AND it's a NEW device (first time seeing this device)
     if (securitySettings != null &&
         securitySettings.loginAlerts &&
-        isNewDevice) {  // Only for new devices!
+        isNewDevice) {
+      // Only for new devices!
       unawaited(_sendLoginAlertForNewDevice(currentDevice));
     } else if (securitySettings != null &&
         securitySettings.loginAlerts &&
@@ -370,6 +374,49 @@ class _LoginScreenState extends State<LoginScreen> {
     final settings = await MigrationSettingsStorage.loadSettings();
     MigrationTrigger trigger = settings["trigger"];
     MigrationManager().doMigration(trigger);
+
+    bool hasAgree = await AgreementService().hasSignedAgreement(
+      GlobalIdService.firestoreId,
+    );
+
+    if (!hasAgree) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) {
+            return CompanyOnboardingAgreement(
+              companyId: company!.id,
+              companyName: company.name,
+              companyEmail: company.email,
+              company: company,
+            );
+          },
+        ),
+
+      ).then((result)async {
+
+        debugPrint("result is map ? ${result is! Map} agreementSigned is not true ${result['agreementSigned'] != true}");
+        if (result is! Map || result['agreementSigned'] != true) {
+          // User pressed back or cancelled
+          _showError("You must accept the agreement to continue");
+          await FirebaseAuth.instance.signOut();
+          setState(() => _isLoading = false);
+          return;
+        }
+        if (result != null &&
+            result is Map &&
+            result['agreementSigned'] == true &&
+            result['company'] != null) {
+          GeneralMethods.replaceNavigationTo(
+            context,
+            CompanyDashboardController(
+              tweetCompany: result['company'],
+            ), // company is still valid here
+          );
+        }
+      });
+      return;
+    }
 
     if (mounted) {
       GeneralMethods.replaceNavigationTo(
@@ -440,7 +487,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-// ✅ NEW: Specific notification for new device login
+  // ✅ NEW: Specific notification for new device login
   void notifyUserForNewDevice({
     required String deviceName,
     required String ipAddress,
@@ -459,7 +506,7 @@ class _LoginScreenState extends State<LoginScreen> {
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       title: "🔐 New Device Login Detected",
       body:
-      "A new device has been added to your account.\n\n"
+          "A new device has been added to your account.\n\n"
           "📱 Device: $deviceName\n"
           "📍 Location: ${location.isNotEmpty ? location : 'Unknown'}\n"
           "🌐 IP Address: $ipAddress\n"
@@ -481,7 +528,7 @@ class _LoginScreenState extends State<LoginScreen> {
     debugPrint('📱 New device notification sent for: $deviceName');
   }
 
-// Optional: Keep original notifyUser for backward compatibility
+  // Optional: Keep original notifyUser for backward compatibility
   notifyUser(String deviceName, String ipAddress, String? fcmToken) async {
     // This is kept for failed login attempts and other use cases
     final currentUser = FirebaseAuth.instance.currentUser;
@@ -495,7 +542,7 @@ class _LoginScreenState extends State<LoginScreen> {
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       title: "⚠️ Login Alert",
       body:
-      "Your account was accessed.\n\n"
+          "Your account was accessed.\n\n"
           "📱 Device: $deviceName\n"
           "🌐 IP Address: $ipAddress\n"
           "🕐 Time: $formattedTime\n\n"
@@ -537,7 +584,7 @@ class _LoginScreenState extends State<LoginScreen> {
       timestamp: timestamp,
       read: false,
       targetAudience: email,
-      targetStudentId:'',
+      targetStudentId: '',
       fcmToken: fcmToken ?? "",
       type: NotificationType.securityAlerts.name,
     );
