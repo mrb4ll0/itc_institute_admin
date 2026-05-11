@@ -4,7 +4,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import 'package:itc_institute_admin/itc_logic/service/ConverterUserService.dart';
+import 'package:itc_institute_admin/itc_logic/service/userService.dart';
+import 'package:itc_institute_admin/model/admin.dart';
+import 'package:itc_institute_admin/model/company.dart';
+import 'package:itc_institute_admin/model/student.dart';
 import 'package:itc_institute_admin/model/userProfile.dart';
 import 'package:itc_institute_admin/view/home/tweet/user_selection_dialog.dart';
 import 'package:provider/provider.dart';
@@ -135,11 +138,14 @@ class _TweetDetailPageState extends State<TweetDetailPage> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? const Color(0xFF18191A) : const Color(0xFFf0f2f5);
+    final surface = isDark ? const Color(0xFF242526) : Colors.white;
 
     return Scaffold(
-      backgroundColor: isDark ? Colors.grey[900] : Colors.white,
+      backgroundColor: bg,
       appBar: AppBar(
-        backgroundColor: isDark ? Colors.grey[900] : Colors.white,
+        backgroundColor: surface,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
           icon: Icon(Icons.arrow_back, color: isDark ? Colors.white : Colors.black87),
@@ -148,8 +154,9 @@ class _TweetDetailPageState extends State<TweetDetailPage> {
         title: Text(
           'Post',
           style: TextStyle(
-            color: isDark ? Colors.white : Colors.black87,
-            fontWeight: FontWeight.w600,
+            color: isDark ? Colors.white : Colors.black,
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
           ),
         ),
         centerTitle: true,
@@ -169,10 +176,10 @@ class _TweetDetailPageState extends State<TweetDetailPage> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: isDark ? Colors.grey[900] : Colors.white,
+              color: surface,
               border: Border(
                 top: BorderSide(
-                  color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
+                  color: isDark ? const Color(0xFF3A3B3C) : const Color(0xFFE4E6EB),
                 ),
               ),
             ),
@@ -180,19 +187,28 @@ class _TweetDetailPageState extends State<TweetDetailPage> {
               children: [
                 CircleAvatar(
                   radius: 18,
-                  backgroundImage: NetworkImage(widget.currentUser.imageUrl),
+                  backgroundImage: widget.currentUser.imageUrl.isNotEmpty
+                      ? NetworkImage(widget.currentUser.imageUrl)
+                      : null,
                   backgroundColor: Colors.grey[300],
+                  child: widget.currentUser.imageUrl.isEmpty
+                      ? Text(widget.currentUser.displayName[0])
+                      : null,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Container(
                     decoration: BoxDecoration(
-                      color: isDark ? Colors.grey[800] : Colors.grey[100],
+                      color: isDark ? const Color(0xFF3A3B3C) : const Color(0xFFf0f2f5),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: TextField(
                       controller: _commentController,
                       focusNode: _commentFocusNode,
+                      style: TextStyle(
+                        color: isDark ? Colors.white : Colors.black,
+                        fontSize: 15,
+                      ),
                       decoration: InputDecoration(
                         hintText: 'Write a comment...',
                         hintStyle: TextStyle(
@@ -222,7 +238,7 @@ class _TweetDetailPageState extends State<TweetDetailPage> {
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
-                          Icons.send,
+                          Icons.send_rounded,
                           size: 18,
                           color: value.text.trim().isEmpty
                               ? (isDark ? Colors.grey[600] : Colors.grey[500])
@@ -657,7 +673,7 @@ class _TweetDetailBody extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                     student.displayName,
+                      student.displayName,
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 15,
